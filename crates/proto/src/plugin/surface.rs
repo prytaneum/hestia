@@ -24,6 +24,10 @@ pub struct PluginNotice {
     pub plugin: String,
     pub level: NoticeLevel,
     pub message: String,
+    /// The job whose run drew this, when one did: front-ends that started the
+    /// run subscribe to it by this id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 impl Topic for PluginNotice {
@@ -39,6 +43,10 @@ pub struct PluginQuestion {
     pub request: String,
     pub plugin: String,
     pub message: String,
+    /// The job whose run drew this, when one did: front-ends that started the
+    /// run subscribe to it by this id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 impl Topic for PluginQuestion {
@@ -51,6 +59,10 @@ impl Topic for PluginQuestion {
 #[serde(default, rename_all = "camelCase")]
 pub struct PluginQuestionClosed {
     pub request: String,
+    /// The job whose run drew this, when one did: front-ends that started the
+    /// run subscribe to it by this id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 impl Topic for PluginQuestionClosed {
@@ -65,6 +77,10 @@ impl Topic for PluginQuestionClosed {
 pub struct PluginLink {
     pub plugin: String,
     pub url: String,
+    /// The job whose run drew this, when one did: front-ends that started the
+    /// run subscribe to it by this id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 impl Topic for PluginLink {

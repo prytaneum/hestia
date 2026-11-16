@@ -3,6 +3,7 @@
 
 mod api;
 mod builtin;
+mod commands;
 mod error;
 mod grant;
 pub mod id;
@@ -23,7 +24,7 @@ pub use install::sandbox_root;
 pub use manifest::ManifestError;
 pub use registry::Plugins;
 pub use runtime::{
-    Answer, Denials, GuestError, Limits, Loaded, NoticeLevel, Opened, Sandbox, SandboxError,
-    Services, Shape, ShapeError,
+    Answer, Denials, GuestError, Invocation, JobOutcome, Limits, Loaded, NoticeLevel, Opened,
+    Sandbox, SandboxError, Services, Shape, ShapeError,
 };
 pub use trust::TrustError;

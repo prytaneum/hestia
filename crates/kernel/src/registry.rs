@@ -7,6 +7,7 @@ use proto::plugin::{PluginInfo, PluginKind, PluginSource, PluginState};
 use serde::{Deserialize, Serialize};
 
 use crate::builtin::{Builtin, Busy};
+use crate::commands::CommandDecl;
 use crate::error::PluginError;
 use crate::grant::{Reserved, Table};
 use crate::install::{sandbox_root, Store};
@@ -14,9 +15,13 @@ use crate::runtime::Sandbox;
 use crate::trust::{policy, PolicyFor, Repositories, Signer, OFFICIAL_KEYS};
 use common::schema::{self, Document};
 use guests::Guest;
+use running::Running;
 
+mod calls;
 mod guests;
 mod releases;
+mod running;
+mod schedules;
 
 const FILE: &str = "plugins.json";
 
@@ -109,6 +114,7 @@ pub struct Plugins {
     /// Whether a plugin installed from a directory may run. Changed only by
     /// [`Plugins::set_developer`], under `changes`.
     developer: AtomicBool,
+    running: Arc<Running>,
 }
 
 impl Plugins {
@@ -176,6 +182,7 @@ impl Plugins {
             official,
             policy_for: policy,
             developer: AtomicBool::new(false),
+            running: Running::new(),
         })
     }
 
@@ -246,6 +253,7 @@ impl Plugins {
             Some(guest) => {
                 if !self.is_enabled(id) {
                     self.start_guest(&guest).await?;
+                    self.start_schedules(&guest, common::now_unix().max(0) as u64);
                 }
                 let slots = self.slots();
                 Ok(info(&slots[find(&slots, id)?]))
@@ -284,6 +292,9 @@ impl Plugins {
                         plugin: id.to_string(),
                         dependents,
                     });
+                }
+                if self.running.any(id) {
+                    return Err(PluginError::Busy(id.to_string()));
                 }
                 slots[index]
                     .stop()
@@ -327,6 +338,7 @@ fn info(slot: &Slot) -> PluginInfo {
                     .iter()
                     .map(|id| id.to_string())
                     .collect(),
+                commands: Vec::new(),
             }
         }
         Kind::Guest(guest) => PluginInfo {
@@ -338,6 +350,7 @@ fn info(slot: &Slot) -> PluginInfo {
             state: slot.state,
             provides: None,
             requires: Vec::new(),
+            commands: guest.commands.iter().map(CommandDecl::spec).collect(),
         },
     }
 }

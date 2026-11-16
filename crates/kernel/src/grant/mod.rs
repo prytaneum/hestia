@@ -10,6 +10,7 @@ use std::path::Path;
 use proto::plugin::{Grant, GrantedPermission, PermissionScope, Program, ScopeKind};
 use sha2::{Digest, Sha256};
 
+use crate::commands::{self, ScheduleDecl};
 use crate::manifest::{Manifest, Scopes};
 use crate::runtime::{Denials, Shape};
 pub(crate) use pin::digest;
@@ -44,6 +45,8 @@ pub enum GrantError {
         entry: String,
         reason: String,
     },
+    #[error("plugin.toml declares {0}, but the component does not export them")]
+    NotExported(&'static str),
     #[error("plugin.toml grants '{permission}' {reason}")]
     Host {
         permission: String,
@@ -108,6 +111,13 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
     {
         return Err(GrantError::ScopeNotNeeded(unneeded.clone()));
     }
+    let exported = |name: &str| shape.exports.iter().any(|e| unversioned(e) == name);
+    if !manifest.commands.is_empty() && !exported("hestia:kernel/commands") {
+        return Err(GrantError::NotExported("commands"));
+    }
+    if !manifest.schedules.is_empty() && !exported("hestia:kernel/on-schedule") {
+        return Err(GrantError::NotExported("schedules"));
+    }
     let mut permissions = Vec::new();
     for (name, permission) in needed {
         let scope = match permission.scope {
@@ -139,6 +149,11 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
         permissions,
         contributes: shape.exports.clone(),
         requires: requires.into_iter().collect(),
+        schedules: manifest
+            .schedules
+            .iter()
+            .map(ScheduleDecl::granted)
+            .collect(),
     })
 }
 
@@ -243,7 +258,7 @@ pub fn approval_digest(
         hash.update((bytes.len() as u64).to_le_bytes());
         hash.update(bytes);
     };
-    field(b"hestia-approval-v5");
+    field(b"hestia-approval-v6");
     field(id.as_bytes());
     field(&Sha256::digest(manifest));
     field(&Sha256::digest(wasm));
@@ -285,6 +300,13 @@ pub fn approval_digest(
     for package in requires {
         field(package.as_bytes());
     }
+    let mut schedules: Vec<_> = grant.schedules.iter().collect();
+    schedules.sort_unstable_by(|a, b| a.id.cmp(&b.id));
+    field(&(schedules.len() as u64).to_le_bytes());
+    for schedule in schedules {
+        field(schedule.id.as_bytes());
+        field(schedule.every.as_bytes());
+    }
     let (repository, author) = signer.unwrap_or_default();
     field(repository.as_bytes());
     field(author.as_bytes());
@@ -296,8 +318,8 @@ pub fn approval_digest(
 
 /// Whether `new` asks for anything `old` did not: a permission, a scope entry
 /// (a host, an endpoint, a host served without checksum, or a program whose
-/// path, arguments or digest pin differ), a required package or an export.
-/// Dropping or narrowing never widens.
+/// path, arguments or digest pin differ), a required package, an export, or a
+/// schedule that is new or ticks more often. Dropping or narrowing never widens.
 pub fn widens(old: &Grant, new: &Grant) -> bool {
     let asked = |grant: &'_ Grant, permission: &str| {
         grant
@@ -314,8 +336,15 @@ pub fn widens(old: &Grant, new: &Grant) -> bool {
         .contributes
         .iter()
         .any(|export| !old.contributes.contains(export));
+    let more_schedules = new.schedules.iter().any(|schedule| {
+        let every = commands::interval(&schedule.every);
+        !old.schedules
+            .iter()
+            .any(|before| before.id == schedule.id && commands::interval(&before.every) <= every)
+    });
     more_packages
         || more_exports
+        || more_schedules
         || new
             .permissions
             .iter()
@@ -359,6 +388,8 @@ pub fn denials(table: &Table, shape: &Shape, granted: &[&str]) -> Denials {
 
 #[cfg(test)]
 mod tests {
+    use proto::plugin::GrantedSchedule;
+
     use super::*;
 
     fn manifest() -> Manifest {
@@ -666,9 +697,22 @@ mod tests {
             ],
             contributes: vec!["hestia:servers/flavor".into()],
             requires: vec!["hestia:servers".into()],
+            schedules: vec![GrantedSchedule {
+                id: "nightly".into(),
+                every: "1d".into(),
+            }],
         };
         type Change = fn(&mut Grant);
-        let widened: [(&str, Change); 9] = [
+        let widened: [(&str, Change); 11] = [
+            ("a new schedule", |g| {
+                g.schedules.push(GrantedSchedule {
+                    id: "extra".into(),
+                    every: "1d".into(),
+                })
+            }),
+            ("a schedule that ticks more often", |g| {
+                g.schedules[0].every = "1h".into()
+            }),
             ("a new permission", |g| {
                 g.permissions.push(permission_named("extra"))
             }),
@@ -721,6 +765,9 @@ mod tests {
         }
         assert!(!widens(&before, &before.clone()));
         assert!(!widens(&before, &Grant::default()), "dropping never widens");
+        let mut slower = before.clone();
+        slower.schedules[0].every = "7d".into();
+        assert!(!widens(&before, &slower), "a rarer schedule never widens");
     }
 
     fn permission_named(name: &str) -> proto::plugin::GrantedPermission {

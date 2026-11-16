@@ -4,4 +4,9 @@ import type { NoticeLevel } from "./NoticeLevel";
 /**
  * A message from a plugin.
  */
-export type PluginNotice = { plugin: string, level: NoticeLevel, message: string, };
+export type PluginNotice = { plugin: string, level: NoticeLevel, message: string, 
+/**
+ * The job whose run drew this, when one did: front-ends that started the
+ * run subscribe to it by this id.
+ */
+id?: string, };

@@ -11,11 +11,12 @@ world base {
     import messages;
     import progress;
     import notify;
+    import jobs;
 }
 
-/// What a plugin imports to reach outside itself, each import asking for a
-/// permission with a scope. Apart from `base` so that a plugin built from a
-/// world that keeps every import (`jco`) is not asked to be granted these.
+/// What a plugin imports to reach outside itself, each asking for a permission
+/// with a scope. Apart from `base` so that a plugin built from a world that
+/// keeps every import (`jco`) is not asked to be granted these.
 world reach {
     import download;
     import programs;
@@ -39,9 +40,27 @@ world settings-changed-plugin {
     export settings-changed;
 }
 
+world commands-plugin {
+    include base;
+    export commands;
+}
+
+world on-schedule-plugin {
+    include base;
+    export on-schedule;
+}
+
+world on-job-done-plugin {
+    include base;
+    export on-job-done;
+}
+
 /// The host's view: every import and every export, each export found on its own.
 world host {
     include everything;
     export lifecycle;
     export settings-changed;
+    export commands;
+    export on-schedule;
+    export on-job-done;
 }

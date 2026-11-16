@@ -1,7 +1,7 @@
 #![no_main]
 
 use hestia::{download, ipc, programs};
-use hestia::{Error, Lifecycle, SettingsChanged};
+use hestia::{Commands, Error, Lifecycle, OnJobDone, OnSchedule, SettingsChanged};
 
 struct Reach;
 
@@ -51,6 +51,24 @@ impl Lifecycle for Reach {
 
 impl SettingsChanged for Reach {
     fn changed(_key: String, _value: String) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl Commands for Reach {
+    fn run(_command: String, _args: String) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl OnSchedule for Reach {
+    fn tick(_schedule: String) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl OnJobDone for Reach {
+    fn finished(_job: String, _outcome: hestia::JobOutcome) -> Result<(), Error> {
         Ok(())
     }
 }

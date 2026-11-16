@@ -46,9 +46,12 @@ impl notify::Host for State {
             return Err(PluginError::Busy);
         }
         self.drawn.notices += 1;
-        self.shared
-            .services
-            .notify(&self.plugin, level, text(&message));
+        self.shared.services.notify(
+            &self.plugin,
+            self.call.job.as_deref(),
+            level,
+            text(&message),
+        );
         Ok(())
     }
 
@@ -61,7 +64,10 @@ impl notify::Host for State {
         }
         self.drawn.confirms += 1;
         let _waiting = self.call.pause.wait();
-        let asked = self.shared.services.confirm(&self.plugin, text(&message));
+        let asked =
+            self.shared
+                .services
+                .confirm(&self.plugin, self.call.job.as_deref(), text(&message));
         Ok(tokio::time::timeout(QUESTION_PATIENCE, asked)
             .await
             .unwrap_or(false))
@@ -73,7 +79,11 @@ impl notify::Host for State {
             return Err(PluginError::Busy);
         }
         self.drawn.urls += 1;
-        match self.shared.services.open_url(&self.plugin, &url) {
+        match self
+            .shared
+            .services
+            .open_url(&self.plugin, self.call.job.as_deref(), &url)
+        {
             true => Ok(()),
             false => Err(PluginError::Unsupported),
         }

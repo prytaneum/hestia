@@ -130,6 +130,9 @@ import type { PluginQuestion } from "./generated/PluginQuestion";
 import type { PluginQuestionClosed } from "./generated/PluginQuestionClosed";
 import type { PluginReleaseParams } from "./generated/PluginReleaseParams";
 import type { PluginRepoAddParams } from "./generated/PluginRepoAddParams";
+import type { PluginRunDone } from "./generated/PluginRunDone";
+import type { PluginRunParams } from "./generated/PluginRunParams";
+import type { PluginRunProgress } from "./generated/PluginRunProgress";
 import type { PluginSecretParams } from "./generated/PluginSecretParams";
 import type { PluginTarget } from "./generated/PluginTarget";
 import type { PluginUpdateApplyParams } from "./generated/PluginUpdateApplyParams";
@@ -300,6 +303,7 @@ export interface Channels {
   "plugin.repo.add": { params: Partial<PluginRepoAddParams>; result: RepositoryInfo };
   "plugin.repo.list": { params: Empty; result: Array<RepositoryInfo> };
   "plugin.repo.remove": { params: Partial<PluginTarget>; result: Empty };
+  "plugin.run": { params: Partial<PluginRunParams>; result: JobStarted };
   "plugin.secret.set": { params: Partial<PluginSecretParams>; result: Empty };
   "plugin.update": { params: Partial<PluginUpdateApplyParams>; result: PluginInfo };
   "plugin.update.inspect": { params: Partial<PluginTarget>; result: UpdateInspection };
@@ -372,6 +376,7 @@ export interface Jobs {
   "instance.update": { progress: ProvisionProgress; done: InstanceUpdateDone };
   "java.install": { progress: JavaInstallProgress; done: JavaInstallDone };
   "modpack.update": { progress: ProvisionProgress; done: ModpackDone };
+  "plugin.run": { progress: PluginRunProgress; done: PluginRunDone };
   "server.backup.create": { progress: ProvisionProgress; done: BackupDone };
   "server.backup.restore": { progress: ProvisionProgress; done: BackupDone };
   "server.create": { progress: ProvisionProgress; done: ServerDone };

@@ -143,6 +143,41 @@ fn field_to_config_key(field: &str) -> String {
     out
 }
 
+/// The top-level commands of the `hestia` CLI and their aliases. `hestia <plugin>
+/// <command>` runs a plugin, so a plugin id may not equal one of these. The
+/// CLI's own test keeps the list in step with its parser.
+pub const CLI_VERBS: [&str; 29] = [
+    "play",
+    "account",
+    "auth",
+    "java",
+    "server",
+    "instance",
+    "start",
+    "stop",
+    "restart",
+    "logs",
+    "rename",
+    "mod",
+    "modpack",
+    "resourcepack",
+    "shader",
+    "datapack",
+    "server-plugin",
+    "search",
+    "sources",
+    "updates",
+    "job",
+    "plugin",
+    "cache",
+    "config",
+    "screenshot",
+    "sync",
+    "process",
+    "daemon",
+    "help",
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;

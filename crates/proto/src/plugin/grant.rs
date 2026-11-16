@@ -74,6 +74,17 @@ pub struct GrantedPermission {
     pub scope: Option<PermissionScope>,
 }
 
+/// A schedule the plugin wakes itself with: it runs without anyone asking, so
+/// the user approves it as they do a permission.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct GrantedSchedule {
+    pub id: String,
+    /// How often it ticks, as the manifest wrote it: `30m`, `6h` or `1d`.
+    pub every: String,
+}
+
 /// What the user approves, derived from the component and the manifest.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -84,6 +95,7 @@ pub struct Grant {
     pub contributes: Vec<String>,
     /// The packages other than the kernel's that the component imports.
     pub requires: Vec<String>,
+    pub schedules: Vec<GrantedSchedule>,
 }
 
 /// Who vouches for a package from a repository: the repository that listed it

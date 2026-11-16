@@ -47,6 +47,7 @@ pub struct PluginInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provides: Option<String>,
     pub requires: Vec<String>,
+    pub commands: Vec<super::CommandSpec>,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

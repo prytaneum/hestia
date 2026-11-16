@@ -12,6 +12,7 @@ use proto::error::IoOp;
 use proto::plugin::{Grant, Inspection, PluginInfo, PluginState, SignerInfo};
 
 use super::{find, info, schema, Kind, Plugins, Saved, Slot};
+use crate::commands::{CommandDecl, ScheduleDecl};
 use crate::error::{PackageError, PluginError};
 use crate::grant;
 use crate::install::{Approval, Package, Source};
@@ -30,6 +31,8 @@ pub(crate) struct Guest {
     granted: Vec<String>,
     /// The packages its imports need an enabled built-in to provide.
     pub requires: Vec<String>,
+    pub commands: Vec<CommandDecl>,
+    pub schedules: Vec<ScheduleDecl>,
     pub loaded: Option<Loaded>,
 }
 
@@ -42,6 +45,8 @@ impl Guest {
             source,
             granted: Vec::new(),
             requires: Vec::new(),
+            commands: Vec::new(),
+            schedules: Vec::new(),
             loaded: None,
         }
     }
@@ -118,6 +123,7 @@ impl Plugins {
             }
         };
         let guest = self.add(guest, PluginState::Failed);
+        self.start_schedules(&guest, common::now_unix().max(0) as u64);
         if let Err(error) = self.start_guest(&guest).await {
             tracing::warn!(plugin = id, %error, "installed plugin did not start");
         }
@@ -183,6 +189,9 @@ impl Plugins {
     ) -> Result<PluginInfo, PluginError> {
         let id = inspection.id.as_str();
         let sandbox = self.sandbox()?.clone();
+        if self.running.any(id) {
+            return Err(PluginError::Busy(id.to_owned()));
+        }
         self.require_provided(&inspection.grant.requires)?;
         let (old, was) = {
             let slots = self.slots();
@@ -281,6 +290,7 @@ impl Plugins {
                     if let Ok(index) = find(&slots, &guest.id) {
                         slots[index].state = PluginState::Failed;
                     }
+                    self.running.halt(&guest.id);
                 }
                 (true, PluginState::Failed) if guest.loaded.is_some() => {
                     if let Err(error) = self.start_guest(&guest).await {
@@ -323,6 +333,9 @@ impl Plugins {
             if matches!(slots[find(&slots, id)?].kind, Kind::Builtin(_)) {
                 return Err(PluginError::Builtin(id.to_owned()));
             }
+            if self.running.any(id) {
+                return Err(PluginError::Busy(id.to_owned()));
+            }
         }
         let (store, owned) = (self.store.clone(), id.to_owned());
         tokio::task::spawn_blocking(move || store.remove(&owned))
@@ -361,7 +374,7 @@ impl Plugins {
         Ok(())
     }
 
-    fn sandbox(&self) -> Result<&Arc<Sandbox>, PluginError> {
+    pub(super) fn sandbox(&self) -> Result<&Arc<Sandbox>, PluginError> {
         self.sandbox.as_ref().ok_or(PluginError::NoSandbox)
     }
 
@@ -474,6 +487,8 @@ impl Plugins {
             source,
             granted,
             requires: grant.requires.clone(),
+            commands: manifest.commands,
+            schedules: manifest.schedules,
             loaded: Some(loaded),
         })
     }

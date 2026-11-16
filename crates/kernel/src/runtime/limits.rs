@@ -11,6 +11,8 @@ const TABLE_ELEMENTS: usize = 100_000;
 pub struct Limits {
     pub(super) init_timeout: Duration,
     pub(super) event_timeout: Duration,
+    pub(super) command_timeout: Duration,
+    pub(super) cancel_grace: Duration,
     pub(super) memory_bytes: usize,
     pub(super) calls_per_plugin: usize,
     pub(super) calls_total: usize,
@@ -19,12 +21,15 @@ pub struct Limits {
 }
 
 impl Default for Limits {
-    /// 10 s for `init`, 5 s for an event such as `settings-changed`, 256 MiB per memory, 4 calls per plugin and 16 overall,
-    /// three traps in ten minutes.
+    /// 10 s for `init`, 5 s for an event such as `settings-changed`, an hour for
+    /// a command and 5 s more once its job is cancelled, 256 MiB per memory,
+    /// 4 calls per plugin and 16 overall, three traps in ten minutes.
     fn default() -> Self {
         Limits {
             init_timeout: Duration::from_secs(10),
             event_timeout: Duration::from_secs(5),
+            command_timeout: Duration::from_secs(60 * 60),
+            cancel_grace: Duration::from_secs(5),
             memory_bytes: 256 << 20,
             calls_per_plugin: 4,
             calls_total: 16,
@@ -41,6 +46,16 @@ impl Limits {
         Limits {
             init_timeout: budget,
             event_timeout: budget,
+            command_timeout: budget,
+            ..self
+        }
+    }
+
+    /// How long a command may keep running after its job is cancelled before the
+    /// call is dropped.
+    pub fn with_cancel_grace(self, grace: Duration) -> Self {
+        Limits {
+            cancel_grace: grace,
             ..self
         }
     }

@@ -9,6 +9,12 @@ pub enum SandboxError {
     Load(wasmtime::Error),
     #[error("plugin '{0}' found no free call slot within its budget")]
     Saturated(String),
+    #[error("the component does not export '{0}'")]
+    Unprovided(&'static str),
+    /// The call was dropped before it finished: its job was cancelled and the
+    /// plugin did not stop within the grace, or the host stopped the plugin.
+    #[error("the call was stopped")]
+    Stopped,
     #[error("call exceeded its time budget")]
     Timeout,
     #[error("call exceeded its memory limit")]

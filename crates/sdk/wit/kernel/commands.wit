@@ -1,0 +1,9 @@
+package hestia:kernel@0.1.0;
+
+/// Runs a command the manifest declares, for a person or for `jobs.start`,
+/// within an hour. `args` is a JSON object of the declared arguments.
+interface commands {
+    use types.{plugin-error};
+
+    run: func(command: string, args: string) -> result<_, plugin-error>;
+}

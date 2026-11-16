@@ -4,4 +4,9 @@
  * An https address a plugin offers. The front-end shows the destination and
  * opens it only when the user agrees.
  */
-export type PluginLink = { plugin: string, url: string, };
+export type PluginLink = { plugin: string, url: string, 
+/**
+ * The job whose run drew this, when one did: front-ends that started the
+ * run subscribe to it by this id.
+ */
+id?: string, };

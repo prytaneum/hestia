@@ -1,0 +1,24 @@
+package hestia:kernel@0.1.0;
+
+/// No permission, but budgeted: each start spends a wake-up.
+interface jobs {
+    use types.{plugin-error, job-id};
+
+    /// Starts one of this plugin's own commands in the background, as a job
+    /// anyone can see in the job list and cancel.
+    start: func(command: string, args: string) -> result<job-id, plugin-error>;
+}
+
+/// Called within 5 s when a job this plugin started ends.
+interface on-job-done {
+    use types.{plugin-error, job-id};
+
+    variant outcome {
+        succeeded,
+        failed(string),
+        cancelled,
+        other,
+    }
+
+    finished: func(job: job-id, outcome: outcome) -> result<_, plugin-error>;
+}

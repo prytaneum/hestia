@@ -1,0 +1,9 @@
+package hestia:kernel@0.1.0;
+
+/// Called when a schedule the manifest declares ticks, within 5 s: hand long
+/// work to one of the plugin's own commands.
+interface on-schedule {
+    use types.{plugin-error};
+
+    tick: func(schedule: string) -> result<_, plugin-error>;
+}

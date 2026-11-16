@@ -409,11 +409,39 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
     let same = registry.inspect_update("rel").await.unwrap();
     assert!(!same.widened, "the same grant needs no new approval");
     assert_eq!(same.inspection.signer, Some(signer));
+    let kept = ["settings.json", "secrets.json", "schedules.json"];
+    for name in kept {
+        std::fs::write(home.path().join("plugins/rel").join(name), name).unwrap();
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let secrets = home.path().join("plugins/rel/secrets.json");
+        std::fs::set_permissions(&secrets, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let still_there = |when: &str| {
+        for name in kept {
+            let path = home.path().join("plugins/rel").join(name);
+            assert_eq!(
+                std::fs::read_to_string(&path).unwrap_or_default(),
+                name,
+                "{name} {when}"
+            );
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let secrets = home.path().join("plugins/rel/secrets.json");
+            let mode = std::fs::metadata(secrets).unwrap().permissions().mode();
+            assert_eq!(mode & 0o077, 0, "secrets stay owner-only {when}");
+        }
+    };
     registry
         .update("rel", &same.inspection.approval_digest)
         .await
         .unwrap();
     assert_eq!(installed_version(home.path(), "rel"), "1.1.0");
+    still_there("after an update");
 
     repo.release(
         "rel",
@@ -474,6 +502,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
     );
     assert_eq!(installed_version(home.path(), "rel"), "1.2.0");
     assert!(!home.path().join("plugins/rel.previous").exists());
+    still_there("after a rollback");
 
     repo.drop_release("rel", "2.0.1");
     repo.release(

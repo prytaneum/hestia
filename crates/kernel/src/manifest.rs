@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 use proto::plugin::ScopeKind;
 use serde::Deserialize;
 
+use crate::commands::{self, CommandDecl, DeclError, ScheduleDecl};
+
 const NAME_MAX: usize = 64;
 const VERSION_MAX: usize = 32;
 const SCOPE_VALUES_MAX: usize = 64;
@@ -20,6 +22,10 @@ pub struct Manifest {
     /// The scope of each permission that takes one, by permission name.
     #[serde(default)]
     pub permissions: BTreeMap<String, Scopes>,
+    #[serde(default)]
+    pub commands: Vec<CommandDecl>,
+    #[serde(default)]
+    pub schedules: Vec<ScheduleDecl>,
 }
 
 #[derive(Deserialize, Default, Debug, Clone)]
@@ -119,6 +125,10 @@ pub enum ManifestError {
     Syntax(#[from] toml::de::Error),
     #[error("plugin id '{0}' must be 1-64 lowercase letters, digits or '-', not starting with '-', and not a name Windows reserves")]
     Id(String),
+    #[error("plugin id '{0}' is a command of the hestia CLI, which a plugin may not shadow")]
+    Verb(String),
+    #[error(transparent)]
+    Declaration(#[from] DeclError),
     #[error("plugin name must be 1-{NAME_MAX} characters with no control or direction characters")]
     Name,
     #[error("the scope of '{0}' must list at most {SCOPE_VALUES_MAX} values of 1-{SCOPE_VALUE_MAX} characters (a program at most {PROGRAM_ARGS_MAX} arguments), with no control or direction characters")]
@@ -133,6 +143,10 @@ impl Manifest {
         if !crate::id::is_valid(&manifest.id) {
             return Err(ManifestError::Id(manifest.id));
         }
+        if proto::naming::CLI_VERBS.contains(&manifest.id.as_str()) {
+            return Err(ManifestError::Verb(manifest.id));
+        }
+        commands::validate(&manifest.commands, &manifest.schedules)?;
         if !is_plain(manifest.name.trim(), NAME_MAX) {
             return Err(ManifestError::Name);
         }
@@ -158,7 +172,7 @@ impl Manifest {
 /// Text the approval prompt prints as is: no control characters, which could
 /// move the cursor over other rows, and no direction or zero-width marks, which
 /// could reorder or hide what the user reads.
-fn is_plain(text: &str, max: usize) -> bool {
+pub(crate) fn is_plain(text: &str, max: usize) -> bool {
     let hidden = |c: char| {
         c.is_control()
             || matches!(c, '\u{061C}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}')

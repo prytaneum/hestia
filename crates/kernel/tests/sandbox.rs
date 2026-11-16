@@ -260,14 +260,19 @@ impl Services for Host {
         (key == "greeting").then(|| "Hello {name}".to_owned())
     }
 
-    fn notify(&self, plugin: &str, _level: NoticeLevel, message: &str) {
+    fn notify(&self, plugin: &str, _job: Option<&str>, _level: NoticeLevel, message: &str) {
         self.record(format!("notify {plugin}: {message}"));
         if message == "locked" {
             self.locked.notify_one();
         }
     }
 
-    fn confirm<'a>(&'a self, plugin: &'a str, message: &'a str) -> Answer<'a> {
+    fn confirm<'a>(
+        &'a self,
+        plugin: &'a str,
+        _job: Option<&'a str>,
+        message: &'a str,
+    ) -> Answer<'a> {
         self.record(format!("confirm {plugin}: {message}"));
         Box::pin(async move {
             tokio::time::sleep(self.answer_after).await;
@@ -275,7 +280,7 @@ impl Services for Host {
         })
     }
 
-    fn open_url(&self, plugin: &str, url: &str) -> bool {
+    fn open_url(&self, plugin: &str, _job: Option<&str>, url: &str) -> bool {
         self.record(format!("url {plugin}: {url}"));
         true
     }

@@ -42,6 +42,11 @@ impl Cancel {
         self.0.store(true, Ordering::SeqCst);
     }
 
+    /// The raw flag, for a callee that polls it without knowing this type.
+    pub fn flag(&self) -> Arc<AtomicBool> {
+        self.0.clone()
+    }
+
     pub fn is_cancelled(&self) -> bool {
         self.0.load(Ordering::SeqCst)
     }

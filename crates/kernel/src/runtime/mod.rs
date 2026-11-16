@@ -13,6 +13,7 @@ pub(crate) mod extension;
 mod host;
 mod http;
 mod ipc;
+mod jobs;
 mod limits;
 mod messages;
 mod notify;
@@ -27,6 +28,7 @@ mod shared;
 mod stub;
 mod ticker;
 mod tree;
+mod wakeups;
 
 #[cfg(test)]
 mod tests;
@@ -46,13 +48,16 @@ use wasmtime::{Config, Engine, InstanceAllocationStrategy, PoolingAllocationConf
 use crate::api::Chain;
 use crate::api::HostCalls;
 use admission::Admission;
-use bindings::exports::hestia::kernel::{lifecycle, settings_changed};
+use bindings::exports::hestia::kernel::{
+    commands, lifecycle, on_job_done, on_schedule, settings_changed,
+};
 use cache::Cache;
 pub use error::{GuestError, SandboxError};
 #[cfg(feature = "probe")]
 pub(crate) use extension::{Budget, Extension};
 use host::Call;
 pub(crate) use host::State;
+pub use jobs::{Invocation, JobOutcome};
 pub use limits::Limits;
 use limits::MemoryCap;
 use reach::Reach;
@@ -62,8 +67,12 @@ use shared::Shared;
 pub use stub::Denials;
 use ticker::Ticker;
 
+const CANCEL_POLL: Duration = Duration::from_millis(100);
 const LIFECYCLE: &str = "hestia:kernel/lifecycle@0.1.0";
 const SETTINGS_CHANGED: &str = "hestia:kernel/settings-changed@0.1.0";
+const COMMANDS: &str = "hestia:kernel/commands@0.1.0";
+const ON_SCHEDULE: &str = "hestia:kernel/on-schedule@0.1.0";
+const ON_JOB_DONE: &str = "hestia:kernel/on-job-done@0.1.0";
 
 /// The export a call runs.
 enum Entry<'a> {
@@ -71,6 +80,9 @@ enum Entry<'a> {
     SettingChanged(&'a settings_changed::GuestIndices, &'a str, &'a str),
     #[cfg(feature = "probe")]
     Extension(&'a dyn Extension),
+    Command(&'a commands::GuestIndices, &'a str, &'a str),
+    Tick(&'a on_schedule::GuestIndices, &'a str),
+    JobDone(&'a on_job_done::GuestIndices, &'a String, &'a JobOutcome),
 }
 
 /// Runs plugin components. Calls need a tokio runtime; dropping a call's future
@@ -95,6 +107,9 @@ pub struct Loaded {
     reach: Arc<Reach>,
     lifecycle: Option<lifecycle::GuestIndices>,
     settings_changed: Option<settings_changed::GuestIndices>,
+    commands: Option<commands::GuestIndices>,
+    on_schedule: Option<on_schedule::GuestIndices>,
+    on_job_done: Option<on_job_done::GuestIndices>,
 }
 
 /// A compiled component that is not linked yet.
@@ -121,6 +136,10 @@ impl Loaded {
     /// Whether the component exports `settings-changed`.
     pub fn provides_settings_changed(&self) -> bool {
         self.settings_changed.is_some()
+    }
+
+    pub fn provides_on_schedule(&self) -> bool {
+        self.on_schedule.is_some()
     }
 }
 
@@ -214,10 +233,25 @@ impl Sandbox {
             Some(_) => Some(settings_changed::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
             None => None,
         };
+        let commands = match opened.component.get_export_index(None, COMMANDS) {
+            Some(_) => Some(commands::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
+            None => None,
+        };
+        let on_schedule = match opened.component.get_export_index(None, ON_SCHEDULE) {
+            Some(_) => Some(on_schedule::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
+            None => None,
+        };
+        let on_job_done = match opened.component.get_export_index(None, ON_JOB_DONE) {
+            Some(_) => Some(on_job_done::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
+            None => None,
+        };
         tracing::info!(
             plugin = opened.plugin,
             lifecycle = lifecycle.is_some(),
             settings_changed = settings_changed.is_some(),
+            commands = commands.is_some(),
+            on_schedule = on_schedule.is_some(),
+            on_job_done = on_job_done.is_some(),
             denied = denials.len(),
             "component loaded"
         );
@@ -227,6 +261,9 @@ impl Sandbox {
             reach: Arc::new(Reach::of(grant)),
             lifecycle,
             settings_changed,
+            commands,
+            on_schedule,
+            on_job_done,
         })
     }
 
@@ -301,6 +338,67 @@ impl Sandbox {
             .await
     }
 
+    /// Runs the plugin's `commands.run` for up to the command budget. A person's
+    /// call may ask them to confirm; a call in a job reports its progress.
+    pub async fn command(
+        &self,
+        loaded: &Loaded,
+        command: &str,
+        args: &str,
+        invocation: Invocation,
+    ) -> Result<(), SandboxError> {
+        let Some(indices) = &loaded.commands else {
+            return Err(SandboxError::Unprovided("commands"));
+        };
+        let budget = self.limits.command_timeout;
+        let call = invocation.into_call();
+        self.run(loaded, budget, call, Entry::Command(indices, command, args))
+            .await
+    }
+
+    /// Tells the plugin a schedule it declared ticked; a plugin that does not
+    /// listen succeeds.
+    pub async fn tick(&self, loaded: &Loaded, schedule: &str) -> Result<(), SandboxError> {
+        let Some(indices) = &loaded.on_schedule else {
+            return Ok(());
+        };
+        let budget = self.limits.event_timeout;
+        self.run(
+            loaded,
+            budget,
+            Call::default(),
+            Entry::Tick(indices, schedule),
+        )
+        .await
+    }
+
+    /// Tells the plugin a job it started ended; a plugin that does not listen
+    /// succeeds.
+    pub async fn job_done(
+        &self,
+        loaded: &Loaded,
+        job: &String,
+        outcome: &JobOutcome,
+    ) -> Result<(), SandboxError> {
+        let Some(indices) = &loaded.on_job_done else {
+            return Ok(());
+        };
+        let budget = self.limits.event_timeout;
+        self.run(
+            loaded,
+            budget,
+            Call::default(),
+            Entry::JobDone(indices, job, outcome),
+        )
+        .await
+    }
+
+    /// Spends one of the plugin's wake-ups: what a schedule tick or a job the
+    /// plugin starts costs. `false` when it has none left.
+    pub fn spend_wakeup(&self, plugin: &str) -> bool {
+        self.shared.wakeups.spend(plugin)
+    }
+
     /// Stores a secret the user entered for the plugin.
     pub fn store_secret(&self, plugin: &str, key: &str, value: &str) -> Result<(), SandboxError> {
         settings::save_secret(&self.shared, plugin, key, value).map_err(SandboxError::Setting)
@@ -327,6 +425,7 @@ impl Sandbox {
         };
         let _ticking = self.ticker.running();
         let pause = call.pause.clone();
+        let cancelled = matches!(entry, Entry::Command(..)).then(|| call.cancelled.clone());
         let mut store = self.store(plugin, call, loaded.reach.clone());
         let outcome = {
             let mut guest = pin!(async {
@@ -348,13 +447,40 @@ impl Sandbox {
                             .call_changed(&mut store, key, value)
                             .await
                     }
+                    Entry::Command(indices, command, args) => {
+                        indices
+                            .load(&mut store, &instance)?
+                            .call_run(&mut store, command, args)
+                            .await
+                    }
+                    Entry::Tick(indices, schedule) => {
+                        indices
+                            .load(&mut store, &instance)?
+                            .call_tick(&mut store, schedule)
+                            .await
+                    }
+                    Entry::JobDone(indices, job, outcome) => {
+                        indices
+                            .load(&mut store, &instance)?
+                            .call_finished(&mut store, job, outcome)
+                            .await
+                    }
                 }
             });
-            loop {
-                let deadline = start + budget + pause.paused();
-                match timeout_at(deadline, &mut guest).await {
-                    Err(_) if start + budget + pause.paused() > Instant::now() => continue,
-                    outcome => break outcome,
+            let timed = async {
+                loop {
+                    let deadline = start + budget + pause.paused();
+                    match timeout_at(deadline, &mut guest).await {
+                        Err(_) if start + budget + pause.paused() > Instant::now() => continue,
+                        outcome => break outcome,
+                    }
+                }
+            };
+            tokio::select! {
+                outcome = timed => outcome,
+                () = dropped_after_cancel(cancelled, self.limits.cancel_grace) => {
+                    tracing::warn!(plugin, "command ignored its cancel; call dropped");
+                    return Err(SandboxError::Stopped);
                 }
             }
         };
@@ -396,6 +522,19 @@ impl Sandbox {
         }
         Err(failure)
     }
+}
+
+/// Resolves once `cancelled` has been raised for `grace`; never for a call
+/// that has no flag to watch. The flag is polled because the job's cancel is a
+/// bare atomic shared with every other kind of job.
+async fn dropped_after_cancel(cancelled: Option<Arc<AtomicBool>>, grace: Duration) {
+    let Some(cancelled) = cancelled else {
+        return std::future::pending().await;
+    };
+    while !cancelled.load(Ordering::Relaxed) {
+        tokio::time::sleep(CANCEL_POLL).await;
+    }
+    tokio::time::sleep(grace).await;
 }
 
 fn engine_config(limits: &Limits) -> Config {

@@ -15,3 +15,6 @@ wit-bindgen = { workspace = true }
 [features]
 lifecycle = []
 settings-changed = []
+commands = []
+on-schedule = []
+on-job-done = []

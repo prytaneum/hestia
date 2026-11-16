@@ -1,8 +1,8 @@
 #![no_main]
 
 use hestia::notify::Level;
-use hestia::{data, messages, notify, progress, secrets, settings};
-use hestia::{Error, Lifecycle, SettingsChanged};
+use hestia::{data, jobs, messages, notify, progress, secrets, settings};
+use hestia::{Commands, Error, Lifecycle, OnJobDone, OnSchedule, SettingsChanged};
 
 struct Tour;
 
@@ -103,6 +103,70 @@ impl SettingsChanged for Tour {
         }
         std::fs::write("/data/changed", format!("{key}={value}"))
             .map_err(|e| Error::Other(e.to_string()))
+    }
+}
+
+fn note(file: &str, text: &str) -> Result<(), Error> {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(format!("/data/{file}"))
+        .map_err(|e| Error::Other(e.to_string()))?;
+    writeln!(file, "{text}").map_err(|e| Error::Other(e.to_string()))
+}
+
+impl Commands for Tour {
+    fn run(command: String, args: String) -> Result<(), Error> {
+        match command.as_str() {
+            "echo" => note("ran", &format!("{command} {args}")),
+            "ask" => {
+                notify::notify(Level::Info, "asking")?;
+                notify::open_url("https://example.com/docs")?;
+                match notify::confirm("proceed?")? {
+                    true => note("ran", "confirmed"),
+                    false => Err(Error::Failed("declined".into())),
+                }
+            }
+            "work" => {
+                for step in 0..3 {
+                    progress::report(step, 3, "working");
+                    if progress::cancelled() {
+                        return Err(Error::Failed("cancelled".into()));
+                    }
+                }
+                note("ran", "worked")
+            }
+            "wait" => {
+                notify::notify(Level::Info, "waiting")?;
+                loop {
+                    std::hint::spin_loop();
+                }
+            }
+            "trap" => panic!("trapped on purpose"),
+            "spawn" => note("spawned", &jobs::start("echo", "{}")?),
+            "flood" => {
+                let mut started = 0;
+                while jobs::start("echo", "{}").is_ok() {
+                    started += 1;
+                }
+                note("flood", &started.to_string())
+            }
+            other => Err(Error::NotFound(other.to_owned())),
+        }
+    }
+}
+
+impl OnSchedule for Tour {
+    fn tick(schedule: String) -> Result<(), Error> {
+        note("ticks", &schedule)
+    }
+}
+
+impl OnJobDone for Tour {
+    fn finished(job: String, outcome: hestia::JobOutcome) -> Result<(), Error> {
+        note("done", &format!("{job} {outcome:?}"))?;
+        notify::notify(Level::Info, "job ended")
     }
 }
 

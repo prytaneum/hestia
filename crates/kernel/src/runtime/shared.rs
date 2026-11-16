@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use super::services::Services;
 use super::settings::Files;
+use super::wakeups::Wakeups;
 use crate::api::HostCalls;
 
 /// What every call of a sandbox shares: the host's services and the state that
@@ -17,6 +18,7 @@ pub(super) struct Shared {
     pub mounted: Arc<Mutex<HashSet<String>>>,
     /// The router the adapters call through; set once the daemon has one.
     pub calls: Arc<OnceLock<Arc<dyn HostCalls>>>,
+    pub wakeups: Arc<Wakeups>,
 }
 
 impl Shared {
@@ -27,6 +29,7 @@ impl Shared {
             files: Arc::default(),
             mounted: Arc::default(),
             calls: Arc::default(),
+            wakeups: Arc::default(),
         }
     }
 }

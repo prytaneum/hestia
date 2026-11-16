@@ -31,7 +31,7 @@ pub fn service_guest(name: &str) -> PathBuf {
 fn build(workspace: &str) -> PathBuf {
     let target = scratch().join("guest");
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
+        .join("../kernel/tests")
         .join(workspace)
         .join("Cargo.toml");
     let output = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))

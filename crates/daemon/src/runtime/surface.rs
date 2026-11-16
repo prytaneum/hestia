@@ -36,6 +36,7 @@ impl Drop for Asked<'_> {
         self.surface.questions().remove(&self.request);
         self.surface.hub.publish_topic(&PluginQuestionClosed {
             request: self.request.clone(),
+            id: None,
         });
     }
 }
@@ -95,7 +96,7 @@ impl Services for Surface {
         Self::dir(&self.state_root, plugin)
     }
 
-    fn notify(&self, plugin: &str, level: Level, message: &str) {
+    fn notify(&self, plugin: &str, job: Option<&str>, level: Level, message: &str) {
         if !self.watched(plugin, "notice") {
             return;
         }
@@ -108,10 +109,16 @@ impl Services for Surface {
             plugin: plugin.to_owned(),
             level,
             message: message.to_owned(),
+            id: job.map(str::to_owned),
         });
     }
 
-    fn confirm<'a>(&'a self, plugin: &'a str, message: &'a str) -> Answer<'a> {
+    fn confirm<'a>(
+        &'a self,
+        plugin: &'a str,
+        job: Option<&'a str>,
+        message: &'a str,
+    ) -> Answer<'a> {
         Box::pin(async move {
             if !self.watched(plugin, "question") {
                 return false;
@@ -133,18 +140,20 @@ impl Services for Surface {
                 request,
                 plugin: plugin.to_owned(),
                 message: message.to_owned(),
+                id: job.map(str::to_owned),
             });
             matches!(receive.await, Ok(true))
         })
     }
 
-    fn open_url(&self, plugin: &str, url: &str) -> bool {
+    fn open_url(&self, plugin: &str, job: Option<&str>, url: &str) -> bool {
         if !self.watched(plugin, "link") {
             return false;
         }
         self.hub.publish_topic(&PluginLink {
             plugin: plugin.to_owned(),
             url: url.to_owned(),
+            id: job.map(str::to_owned),
         });
         true
     }
@@ -163,16 +172,16 @@ mod tests {
         let (metrics, _ignored) = unbounded_channel();
         hub.subscribe(1, metrics, None, false);
         assert!(
-            !surface.confirm("tidy", "go?").await,
+            !surface.confirm("tidy", None, "go?").await,
             "a front-end that draws nothing is nobody to ask"
         );
-        assert!(!surface.open_url("tidy", "https://example.com/"));
+        assert!(!surface.open_url("tidy", None, "https://example.com/"));
 
         let (out, mut frames) = unbounded_channel();
         hub.subscribe(2, out, None, true);
         let asking = tokio::spawn({
             let surface = surface.clone();
-            async move { surface.confirm("tidy", "go?").await }
+            async move { surface.confirm("tidy", None, "go?").await }
         });
         let frame = frames.recv().await.unwrap();
         let question: serde_json::Value = serde_json::from_str(&frame).unwrap();

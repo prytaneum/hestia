@@ -51,6 +51,17 @@ pub enum PluginError {
     NoSandbox,
     #[error("could not {operation} plugin files: {detail}")]
     Io { operation: IoOp, detail: String },
+    #[error("plugin '{0}' is not enabled")]
+    NotEnabled(String),
+    #[error("plugin '{plugin}' has no command '{command}'")]
+    NoCommand { plugin: String, command: String },
+    #[error("{0}")]
+    Arguments(String),
+    #[error("plugin '{plugin}': {source}")]
+    Call {
+        plugin: String,
+        source: SandboxError,
+    },
     #[error("invalid built-in set: {0}")]
     Invalid(String),
     #[error("cannot save plugin state: {0}")]
@@ -105,6 +116,15 @@ impl From<PluginError> for ErrorInfo {
             },
             PluginError::Package(reason) => ErrorInfo::PluginInvalid {
                 detail: reason.to_string(),
+            },
+            PluginError::NotEnabled(plugin) => ErrorInfo::PluginDisabled { plugin },
+            PluginError::NoCommand { plugin, command } => ErrorInfo::PluginInvalid {
+                detail: format!("plugin '{plugin}' has no command '{command}'"),
+            },
+            PluginError::Arguments(detail) => ErrorInfo::PluginInvalid { detail },
+            PluginError::Call { plugin, source } => ErrorInfo::PluginFailed {
+                plugin,
+                detail: source.to_string(),
             },
             PluginError::Exists(plugin) => ErrorInfo::PluginExists { plugin },
             PluginError::Changed(plugin) => ErrorInfo::PluginChanged { plugin },

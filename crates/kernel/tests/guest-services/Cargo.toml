@@ -7,7 +7,7 @@ publish = false
 [workspace]
 
 [dependencies]
-hestia-sdk = { path = "../../../sdk", features = ["lifecycle", "settings-changed"] }
+hestia-sdk = { path = "../../../sdk", features = ["lifecycle", "settings-changed", "commands", "on-schedule", "on-job-done"] }
 
 [profile.release]
 opt-level = 1

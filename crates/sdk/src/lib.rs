@@ -13,7 +13,7 @@ pub mod base {
 /// The error a plugin returns to Hestia.
 pub use base::hestia::kernel::types::PluginError as Error;
 pub use base::hestia::kernel::{
-    app, data, download, ipc, log, messages, notify, programs, progress, secrets, settings,
+    app, data, download, ipc, jobs, log, messages, notify, programs, progress, secrets, settings,
 };
 /// The bindings generator the SDK is built with, for a guest that imports a
 /// built-in's package (`runtime_path: "hestia::wit_bindgen::rt"`).
@@ -35,6 +35,7 @@ pub mod lifecycle {
             "hestia:kernel/messages@0.1.0": crate::base::hestia::kernel::messages,
             "hestia:kernel/progress@0.1.0": crate::base::hestia::kernel::progress,
             "hestia:kernel/notify@0.1.0": crate::base::hestia::kernel::notify,
+            "hestia:kernel/jobs@0.1.0": crate::base::hestia::kernel::jobs,
         },
         pub_export_macro: true,
         export_macro_name: "export_lifecycle",
@@ -62,6 +63,7 @@ pub mod settings_changed {
             "hestia:kernel/messages@0.1.0": crate::base::hestia::kernel::messages,
             "hestia:kernel/progress@0.1.0": crate::base::hestia::kernel::progress,
             "hestia:kernel/notify@0.1.0": crate::base::hestia::kernel::notify,
+            "hestia:kernel/jobs@0.1.0": crate::base::hestia::kernel::jobs,
         },
         pub_export_macro: true,
         export_macro_name: "export_settings_changed",
@@ -73,6 +75,92 @@ pub mod settings_changed {
 #[cfg(feature = "settings-changed")]
 pub use settings_changed::exports::hestia::kernel::settings_changed::Guest as SettingsChanged;
 
+#[doc(hidden)]
+#[cfg(feature = "commands")]
+pub mod commands {
+    wit_bindgen::generate!({
+        path: "wit/kernel",
+        world: "commands-plugin",
+        with: {
+            "hestia:kernel/types@0.1.0": crate::base::hestia::kernel::types,
+            "hestia:kernel/log@0.1.0": crate::base::hestia::kernel::log,
+            "hestia:kernel/app@0.1.0": crate::base::hestia::kernel::app,
+            "hestia:kernel/data@0.1.0": crate::base::hestia::kernel::data,
+            "hestia:kernel/settings@0.1.0": crate::base::hestia::kernel::settings,
+            "hestia:kernel/secrets@0.1.0": crate::base::hestia::kernel::secrets,
+            "hestia:kernel/messages@0.1.0": crate::base::hestia::kernel::messages,
+            "hestia:kernel/progress@0.1.0": crate::base::hestia::kernel::progress,
+            "hestia:kernel/notify@0.1.0": crate::base::hestia::kernel::notify,
+            "hestia:kernel/jobs@0.1.0": crate::base::hestia::kernel::jobs,
+        },
+        pub_export_macro: true,
+        export_macro_name: "export_commands",
+        default_bindings_module: "hestia::commands",
+    });
+}
+
+/// Runs a command the manifest declares; `args` is a JSON object of its declared arguments.
+#[cfg(feature = "commands")]
+pub use commands::exports::hestia::kernel::commands::Guest as Commands;
+
+#[doc(hidden)]
+#[cfg(feature = "on-schedule")]
+pub mod on_schedule {
+    wit_bindgen::generate!({
+        path: "wit/kernel",
+        world: "on-schedule-plugin",
+        with: {
+            "hestia:kernel/types@0.1.0": crate::base::hestia::kernel::types,
+            "hestia:kernel/log@0.1.0": crate::base::hestia::kernel::log,
+            "hestia:kernel/app@0.1.0": crate::base::hestia::kernel::app,
+            "hestia:kernel/data@0.1.0": crate::base::hestia::kernel::data,
+            "hestia:kernel/settings@0.1.0": crate::base::hestia::kernel::settings,
+            "hestia:kernel/secrets@0.1.0": crate::base::hestia::kernel::secrets,
+            "hestia:kernel/messages@0.1.0": crate::base::hestia::kernel::messages,
+            "hestia:kernel/progress@0.1.0": crate::base::hestia::kernel::progress,
+            "hestia:kernel/notify@0.1.0": crate::base::hestia::kernel::notify,
+            "hestia:kernel/jobs@0.1.0": crate::base::hestia::kernel::jobs,
+        },
+        pub_export_macro: true,
+        export_macro_name: "export_on_schedule",
+        default_bindings_module: "hestia::on_schedule",
+    });
+}
+
+/// Called when a schedule the manifest declares ticks.
+#[cfg(feature = "on-schedule")]
+pub use on_schedule::exports::hestia::kernel::on_schedule::Guest as OnSchedule;
+
+#[doc(hidden)]
+#[cfg(feature = "on-job-done")]
+pub mod on_job_done {
+    wit_bindgen::generate!({
+        path: "wit/kernel",
+        world: "on-job-done-plugin",
+        with: {
+            "hestia:kernel/types@0.1.0": crate::base::hestia::kernel::types,
+            "hestia:kernel/log@0.1.0": crate::base::hestia::kernel::log,
+            "hestia:kernel/app@0.1.0": crate::base::hestia::kernel::app,
+            "hestia:kernel/data@0.1.0": crate::base::hestia::kernel::data,
+            "hestia:kernel/settings@0.1.0": crate::base::hestia::kernel::settings,
+            "hestia:kernel/secrets@0.1.0": crate::base::hestia::kernel::secrets,
+            "hestia:kernel/messages@0.1.0": crate::base::hestia::kernel::messages,
+            "hestia:kernel/progress@0.1.0": crate::base::hestia::kernel::progress,
+            "hestia:kernel/notify@0.1.0": crate::base::hestia::kernel::notify,
+            "hestia:kernel/jobs@0.1.0": crate::base::hestia::kernel::jobs,
+        },
+        pub_export_macro: true,
+        export_macro_name: "export_on_job_done",
+        default_bindings_module: "hestia::on_job_done",
+    });
+}
+
+/// Called when a job this plugin started ends.
+#[cfg(feature = "on-job-done")]
+pub use on_job_done::exports::hestia::kernel::on_job_done::{
+    Guest as OnJobDone, Outcome as JobOutcome,
+};
+
 /// Exports `$plugin` for every export feature enabled on this crate; the type
 /// implements the trait of each one.
 #[macro_export]
@@ -80,6 +168,9 @@ macro_rules! export {
     ($plugin:ident) => {
         $crate::__export_lifecycle!($plugin);
         $crate::__export_settings_changed!($plugin);
+        $crate::__export_commands!($plugin);
+        $crate::__export_on_schedule!($plugin);
+        $crate::__export_on_job_done!($plugin);
     };
 }
 
@@ -112,5 +203,53 @@ macro_rules! __export_settings_changed {
 #[cfg(not(feature = "settings-changed"))]
 #[macro_export]
 macro_rules! __export_settings_changed {
+    ($plugin:ident) => {};
+}
+
+#[doc(hidden)]
+#[cfg(feature = "commands")]
+#[macro_export]
+macro_rules! __export_commands {
+    ($plugin:ident) => {
+        $crate::commands::export_commands!($plugin);
+    };
+}
+
+#[doc(hidden)]
+#[cfg(not(feature = "commands"))]
+#[macro_export]
+macro_rules! __export_commands {
+    ($plugin:ident) => {};
+}
+
+#[doc(hidden)]
+#[cfg(feature = "on-schedule")]
+#[macro_export]
+macro_rules! __export_on_schedule {
+    ($plugin:ident) => {
+        $crate::on_schedule::export_on_schedule!($plugin);
+    };
+}
+
+#[doc(hidden)]
+#[cfg(not(feature = "on-schedule"))]
+#[macro_export]
+macro_rules! __export_on_schedule {
+    ($plugin:ident) => {};
+}
+
+#[doc(hidden)]
+#[cfg(feature = "on-job-done")]
+#[macro_export]
+macro_rules! __export_on_job_done {
+    ($plugin:ident) => {
+        $crate::on_job_done::export_on_job_done!($plugin);
+    };
+}
+
+#[doc(hidden)]
+#[cfg(not(feature = "on-job-done"))]
+#[macro_export]
+macro_rules! __export_on_job_done {
     ($plugin:ident) => {};
 }

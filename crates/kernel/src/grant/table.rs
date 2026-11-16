@@ -62,6 +62,10 @@ impl Table {
                 ("wasi:http/outgoing-handler", Some("network:connect")),
                 ("hestia:kernel/lifecycle", None),
                 ("hestia:kernel/settings-changed", None),
+                ("hestia:kernel/jobs", None),
+                ("hestia:kernel/commands", None),
+                ("hestia:kernel/on-schedule", None),
+                ("hestia:kernel/on-job-done", None),
             ],
             vec![
                 Permission {

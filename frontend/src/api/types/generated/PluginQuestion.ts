@@ -4,4 +4,9 @@
  * A question from a plugin that waits for `plugin.answer`. Unanswered, it
  * counts as declined; `plugin.question.closed` says when it no longer waits.
  */
-export type PluginQuestion = { request: string, plugin: string, message: string, };
+export type PluginQuestion = { request: string, plugin: string, message: string, 
+/**
+ * The job whose run drew this, when one did: front-ends that started the
+ * run subscribe to it by this id.
+ */
+id?: string, };

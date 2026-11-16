@@ -270,7 +270,31 @@ impl Store {
         write(MANIFEST, &package.manifest_bytes)?;
         write(COMPONENT, &package.wasm)?;
         schema::save(&staging.join(Approval::NAME), record).map_err(PluginError::Save)?;
+        self.carry_state(id, &staging)?;
         Ok(staging)
+    }
+
+    /// Copies what else the installed version's directory holds (the plugin's
+    /// settings, secrets and schedule runs, which the store does not name) into
+    /// `staging`, permissions kept, so an update neither loses it nor leaves a
+    /// rollback without it.
+    fn carry_state(&self, id: &str, staging: &Path) -> Result<(), PluginError> {
+        let Ok(entries) = std::fs::read_dir(self.dir(id)) else {
+            return Ok(());
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            if [MANIFEST, COMPONENT, Approval::NAME]
+                .iter()
+                .any(|own| name == *own)
+                || !entry.file_type().is_ok_and(|kind| kind.is_file())
+            {
+                continue;
+            }
+            std::fs::copy(entry.path(), staging.join(&name))
+                .map_err(|e| PluginError::io(IoOp::Write, e))?;
+        }
+        Ok(())
     }
 
     /// Deletes the plugin and any version an update set aside, which would

@@ -3,4 +3,9 @@
 /**
  * A question that no longer waits: answered, timed out, or its call ended.
  */
-export type PluginQuestionClosed = { request: string, };
+export type PluginQuestionClosed = { request: string, 
+/**
+ * The job whose run drew this, when one did: front-ends that started the
+ * run subscribe to it by this id.
+ */
+id?: string, };

@@ -1,14 +1,18 @@
 //! The plugin registry's wire types.
 
+mod command;
 mod grant;
 mod registry;
 mod repository;
 mod surface;
 mod update;
 
+pub use command::{
+    ArgKind, ArgSpec, CommandSpec, PluginRun, PluginRunDone, PluginRunParams, PluginRunProgress,
+};
 pub use grant::{
-    Grant, GrantedPermission, Inspection, PermissionScope, PluginInspect, PluginInstall,
-    PluginInstallParams, PluginPackage, Program, ScopeKind, SignerInfo, Tier,
+    Grant, GrantedPermission, GrantedSchedule, Inspection, PermissionScope, PluginInspect,
+    PluginInstall, PluginInstallParams, PluginPackage, Program, ScopeKind, SignerInfo, Tier,
 };
 pub use registry::{
     PluginDisable, PluginEnable, PluginInfo, PluginKind, PluginList, PluginRemove,

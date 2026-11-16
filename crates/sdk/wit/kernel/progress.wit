@@ -4,6 +4,6 @@ package hestia:kernel@0.1.0;
 interface progress {
     report: func(current: u64, total: u64, message: string);
 
-    /// Whether the user cancelled the job.
+    /// Whether the user cancelled the job. A command still running 5 s after is stopped.
     cancelled: func() -> bool;
 }
