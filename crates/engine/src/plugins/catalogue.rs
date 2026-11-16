@@ -3,8 +3,8 @@
 
 use std::collections::{BTreeMap, HashSet};
 
+use super::api::{api_supported_by, compare_versions, API_VERSION};
 use proto::catalogue::{Availability, CataloguePlugin, Lister, RepositoryInfo};
-use proto::plugin::{api_supported_by, compare_versions, Grant, API_VERSION};
 use proto::repository::{Build, IndexedPlugin, RepositoryIndex};
 
 use super::index::icon_url;
@@ -46,7 +46,6 @@ pub struct Installed {
     pub id: String,
     pub version: String,
     pub signer: Option<String>,
-    pub grant: Grant,
 }
 
 /// How one listed plugin can be installed.
@@ -242,7 +241,7 @@ impl Listings {
 
 #[cfg(test)]
 mod tests {
-    use proto::plugin::API_VERSION;
+    use crate::plugins::api::API_VERSION;
     use proto::repository::Revocation;
 
     use super::*;
@@ -382,7 +381,6 @@ mod tests {
             id: "aa".to_string(),
             version: "0.1.0".to_string(),
             signer: Some(key_id_of(&first).unwrap()),
-            grant: Grant::default(),
         }];
 
         let catalogue = build(&sources, &installed, None, None);

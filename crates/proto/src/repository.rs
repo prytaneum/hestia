@@ -3,8 +3,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::plugin::Permission;
-
 pub const INDEX_SCHEMA_VERSION: u32 = 1;
 pub const INDEX_FILE: &str = "plugins.json";
 
@@ -50,7 +48,7 @@ pub struct IndexedPlugin {
     /// Repository-relative path of the plugin's folder.
     pub path: String,
     pub version: String,
-    pub permissions: Vec<Permission>,
+    pub permissions: Vec<String>,
     pub commit: String,
     pub builds: Vec<Build>,
 }

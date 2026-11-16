@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
 use crate::contract::{Contract, Empty, Topic};
-use crate::plugin::Permission;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -84,7 +83,6 @@ pub struct AccountListResult {
 pub struct AccountList;
 impl Contract for AccountList {
     const CHANNEL: &'static str = "account.list";
-    const PLUGIN: Option<Permission> = Some(Permission::AccountRead);
     type Params = Empty;
     type Result = AccountListResult;
 }
@@ -132,7 +130,6 @@ pub struct AccountSignedInEvent {
 }
 impl Topic for AccountSignedInEvent {
     const TOPIC: &'static str = "account.signed_in";
-    const PLUGIN: Option<Permission> = Some(Permission::AccountRead);
 }
 
 /// An account was signed out and its stored tokens dropped.
@@ -145,5 +142,4 @@ pub struct AccountSignedOutEvent {
 }
 impl Topic for AccountSignedOutEvent {
     const TOPIC: &'static str = "account.signed_out";
-    const PLUGIN: Option<Permission> = Some(Permission::AccountRead);
 }

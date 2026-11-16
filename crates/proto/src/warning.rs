@@ -95,18 +95,9 @@ pub enum WarningInfo {
         pack_game_version: String,
         target: String,
     },
-    /// A plugin's interceptor timed out, trapped or could not run, so the
-    /// operation went ahead without it.
-    PluginHookFailed { plugin: String, hook: String },
-    /// A launch hook asked for an argument outside what a plugin may set, so it
-    /// was left out of the launch.
-    LaunchArgDropped { plugin: String, arg: String },
     /// A repository could not be refreshed, so its last good listing is shown.
     /// `detail` is operational English, shown as secondary text.
     RepositoryStale { repository: String, detail: String },
-    /// The index listed other permissions for the plugin than its package asks
-    /// for. The install used the package's own, which the user approved.
-    PluginPermissionsDisagree { plugin: String },
     /// A pack format's export could not carry something faithfully. `detail`
     /// is the plugin's own operational English, shown as secondary text.
     PackExportWarned { pack: String, detail: String },
@@ -122,13 +113,6 @@ pub enum WarningInfo {
     /// The icon a pack named could not be used, so the instance has none of its
     /// own. `detail` is operational English, shown as secondary text.
     PackIconDropped { pack: String, detail: String },
-    /// An update failed to load, so the previous version was put back.
-    /// `version` is the one that failed.
-    PluginUpdateRolledBack {
-        id: String,
-        version: String,
-        error: String,
-    },
 }
 
 impl WarningInfo {
@@ -183,19 +167,8 @@ impl WarningInfo {
                 "its mods may not load; move the pack yourself when a build for this version is published"
                     .to_string()
             }
-            PluginHookFailed { plugin, .. } => format!(
-                "the plugin was skipped; disable or update `{plugin}` if this keeps happening"
-            ),
-            LaunchArgDropped { plugin, .. } => {
-                format!("the game runs without it; update or remove `{plugin}` if it matters")
-            }
             RepositoryStale { .. } => {
                 "the listing may be out of date; try again when the repository is reachable"
-                    .to_string()
-            }
-            PluginPermissionsDisagree { .. } => {
-                "check the permissions shown at install; the repository's listing was wrong or \
-                 changed"
                     .to_string()
             }
             PackExportWarned { .. } => {
@@ -207,9 +180,6 @@ impl WarningInfo {
             PackIconDropped { .. } => {
                 "the instance imported without it; pick an icon in the instance's settings"
                     .to_string()
-            }
-            PluginUpdateRolledBack { id, .. } => {
-                format!("`{id}` is still at its old version; report the problem to its author")
             }
             DocumentQuarantined { path, .. } => format!(
                 "nothing was deleted — the file is at `{path}`; update hestia if it came from a \
@@ -283,21 +253,9 @@ impl fmt::Display for WarningInfo {
                 "the modpack '{pack}' {version_number} is built for Minecraft {pack_game_version} \
                  and has no version for {target}"
             ),
-            PluginHookFailed { plugin, hook } => write!(
-                f,
-                "plugin '{plugin}' did not finish its {hook} hook, so it was skipped"
-            ),
-            LaunchArgDropped { plugin, arg } => write!(
-                f,
-                "plugin '{plugin}' asked for the launch argument '{arg}', which a plugin may not set, so it was dropped"
-            ),
             RepositoryStale { repository, detail } => {
                 write!(f, "'{repository}' could not be refreshed: {detail}")
             }
-            PluginPermissionsDisagree { plugin } => write!(
-                f,
-                "the repository listed other permissions for '{plugin}' than its package asks for"
-            ),
             PackExportWarned { pack, detail } => {
                 write!(f, "the {pack} export is not exact: {detail}")
             }
@@ -309,10 +267,6 @@ impl fmt::Display for WarningInfo {
             PackIconDropped { pack, detail } => {
                 write!(f, "the {pack} pack's icon was not used: {detail}")
             }
-            PluginUpdateRolledBack { id, version, error } => write!(
-                f,
-                "the update of '{id}' to {version} failed to load and was rolled back: {error}"
-            ),
             DocumentQuarantined {
                 document, detail, ..
             } => write!(

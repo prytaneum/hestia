@@ -42,7 +42,21 @@ impl LocalFile {
     }
 }
 
-pub use proto::provider::content::{InstalledFile, LatestQuery};
+/// One installed file a bulk update lookup asks about.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct InstalledFile {
+    pub project_id: String,
+    pub sha1: String,
+}
+
+/// What one bulk update lookup covers: files sharing a game version and the
+/// loaders their kind installs for.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LatestQuery {
+    pub game_version: String,
+    pub loaders: Vec<String>,
+    pub files: Vec<InstalledFile>,
+}
 
 #[async_trait]
 pub trait ContentProvider: Send + Sync {

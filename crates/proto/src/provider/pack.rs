@@ -1,4 +1,4 @@
-//! The `pack` provider kind: an archive format that carries a game version, a
+//! The pack format vocabulary: an archive format that carries a game version, a
 //! loader and the files to run it with, such as a Modrinth or CurseForge pack
 //! or another launcher's instance. The host owns every archive: the guest is
 //! handed the member names and the text of the members it declared, and every
@@ -8,16 +8,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::{ProviderKind, ProviderOp};
 use crate::content::{InstalledContent, ResolvedModpack};
-use crate::contract::Empty;
-use crate::plugin::Permission;
-
-pub struct Pack;
-impl ProviderKind for Pack {
-    const KIND: &'static str = "pack";
-    const PERMISSIONS: &'static [Permission] = &[Permission::PackProvide];
-}
 
 /// What a pack format says of itself. Asked once, when the plugin is enabled.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
@@ -241,74 +232,4 @@ pub struct PackWritten {
     pub copies: Vec<PackCopy>,
     /// What the export could not carry faithfully, in operational English.
     pub warnings: Vec<String>,
-}
-
-/// Describes the format.
-pub struct Info;
-impl ProviderOp for Info {
-    type Kind = Pack;
-    const OP: &'static str = "info";
-    type Args = Empty;
-    type Reply = PackInfo;
-}
-
-/// Whether the archive is this format's, once a declared member is present.
-/// Optional: unsupported claims it.
-pub struct Claims;
-impl ProviderOp for Claims {
-    type Kind = Pack;
-    const OP: &'static str = "claims";
-    type Args = ClaimQuery;
-    type Reply = Claim;
-}
-
-/// Reads the archive into the pack it describes. A file named here is held to
-/// the same rule as any download a plugin names: its path stays inside the
-/// entry, and its URL is on one of the plugin's network hosts and verified by
-/// a checksum, or empty for a file its author withholds. A tree that escapes
-/// the pack's directory, or a delegation to a source that is not there,
-/// refuses the answer whole.
-pub struct Read;
-impl ProviderOp for Read {
-    type Kind = Pack;
-    const OP: &'static str = "read";
-    type Args = ReadQuery;
-    type Reply = PackRead;
-}
-
-/// Writes an export: the manifests the host stores, and which of the instance's
-/// files go beside them. Optional while [`PackInfo::extension`] is empty.
-pub struct Write;
-impl ProviderOp for Write {
-    type Kind = Pack;
-    const OP: &'static str = "write";
-    type Args = WriteQuery;
-    type Reply = PackWritten;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_pattern_matches_whole_segments() {
-        assert!(member_matches("manifest.json", "manifest.json"));
-        assert!(!member_matches("manifest.json", "pack/manifest.json"));
-        assert!(member_matches("*.cfg", "instance.cfg"));
-        assert!(member_matches(".minecraft/*.json", ".minecraft/a.json"));
-        assert!(member_matches("a*c*e", "abcde"));
-        assert!(!member_matches("*.cfg", "dir/instance.cfg"));
-        assert!(!member_matches("*.cfg", "instance.cfg.bak"));
-        assert!(!member_matches("a*b", "a"));
-    }
-
-    #[test]
-    fn a_pattern_is_a_plain_relative_path() {
-        for good in ["manifest.json", "*.cfg", "a/b/*.json"] {
-            assert!(is_member_pattern(good), "{good}");
-        }
-        for bad in ["", "/abs", "a//b", "../x", "a/./b", "a\\b", "a/"] {
-            assert!(!is_member_pattern(bad), "{bad}");
-        }
-    }
 }

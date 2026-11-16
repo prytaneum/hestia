@@ -10,9 +10,9 @@ mod install;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use crate::plugins::api::is_api_version;
 use anyhow::{anyhow, bail, Context, Result};
 use proto::error::Service;
-use proto::plugin::is_api_version;
 use proto::update::{UpdateChannel, UpdateCheckResult, UpdateInfo, UpdateInstall};
 
 use crate::download::{Downloader, ProgressFn};

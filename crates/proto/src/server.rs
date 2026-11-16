@@ -15,7 +15,6 @@ use crate::instance::WorldInfo;
 use crate::job::{Job, JobStarted};
 use crate::minecraft::{ConfigEntry, Edition, ProvisionProgress};
 use crate::modpack::PackPolicy;
-use crate::plugin::Permission;
 use crate::process::ProcessInfo;
 use crate::warning::WarningInfo;
 
@@ -128,7 +127,6 @@ pub enum JvmArgsSource {
 pub struct ServerDetail;
 impl Contract for ServerDetail {
     const CHANNEL: &'static str = "server.info";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerRef;
     type Result = ServerDetails;
 }
@@ -161,7 +159,6 @@ pub struct ServerCreateParams {
 pub struct ServerCreate;
 impl Contract for ServerCreate {
     const CHANNEL: &'static str = "server.create";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     type Params = ServerCreateParams;
     type Result = JobStarted;
 }
@@ -200,7 +197,6 @@ pub struct ServerUpdateParams {
 pub struct ServerUpdate;
 impl Contract for ServerUpdate {
     const CHANNEL: &'static str = "server.update";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     type Params = ServerUpdateParams;
     type Result = JobStarted;
 }
@@ -213,7 +209,6 @@ impl Job for ServerUpdate {
 pub struct ServerList;
 impl Contract for ServerList {
     const CHANNEL: &'static str = "server.list";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = Empty;
     type Result = Vec<ServerInfo>;
 }
@@ -238,7 +233,6 @@ pub struct ServerStartResult {
 pub struct ServerStart;
 impl Contract for ServerStart {
     const CHANNEL: &'static str = "server.start";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessControl);
     type Params = ServerRef;
     type Result = ServerStartResult;
 }
@@ -248,7 +242,6 @@ impl Contract for ServerStart {
 pub struct ServerRestart;
 impl Contract for ServerRestart {
     const CHANNEL: &'static str = "server.restart";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessControl);
     /// Answers once the new process is up, so it outlasts the wait for the old
     /// one to exit.
     const TIMEOUT: Duration = Duration::from_secs(150);
@@ -259,7 +252,6 @@ impl Contract for ServerRestart {
 pub struct ServerStatus;
 impl Contract for ServerStatus {
     const CHANNEL: &'static str = "server.status";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerRef;
     type Result = ServerInfo;
 }
@@ -286,7 +278,6 @@ pub struct ServerPingResult {
 pub struct ServerWorlds;
 impl Contract for ServerWorlds {
     const CHANNEL: &'static str = "server.worlds";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerRef;
     type Result = Vec<WorldInfo>;
 }
@@ -311,7 +302,6 @@ pub struct ServerWorldImportParams {
 pub struct ServerWorldImport;
 impl Contract for ServerWorldImport {
     const CHANNEL: &'static str = "server.worlds.import";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     type Params = ServerWorldImportParams;
     type Result = JobStarted;
 }
@@ -324,7 +314,6 @@ impl Job for ServerWorldImport {
 pub struct ServerPing;
 impl Contract for ServerPing {
     const CHANNEL: &'static str = "server.ping";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerRef;
     type Result = ServerPingResult;
 }
@@ -347,7 +336,6 @@ pub struct ServerCommandResult {
 pub struct ServerCommand;
 impl Contract for ServerCommand {
     const CHANNEL: &'static str = "server.command";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessControl);
     type Params = ServerCommandParams;
     type Result = ServerCommandResult;
 }
@@ -373,7 +361,6 @@ pub struct ServerCommandCompleteResult {
 pub struct ServerCommandComplete;
 impl Contract for ServerCommandComplete {
     const CHANNEL: &'static str = "server.command.complete";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerCommandCompleteParams;
     type Result = ServerCommandCompleteResult;
 }
@@ -435,5 +422,4 @@ pub struct ServerReadyEvent {
 }
 impl Topic for ServerReadyEvent {
     const TOPIC: &'static str = "server.ready";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
 }

@@ -72,7 +72,7 @@ pub use minecraft::{
     ResolveRequest, Side, BOTH_SIDES, CLIENT_ONLY, REQUIRED_JAVA_MAJORS, SERVER_ONLY,
 };
 pub use net::Network;
-pub use plugins::vouch::Policy;
+pub use plugins::vouch::{Hosts, Policy};
 pub use plugins::{
     approval_digest, is_official_signer, key_id_of, pin_on_path, refuse_official_key,
     resolve_on_path, revocation, target_triple, verify_build, verify_index, Listings, ManagedJava,

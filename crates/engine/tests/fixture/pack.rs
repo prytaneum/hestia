@@ -10,11 +10,10 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use engine::{Loaders, PackProvider, Policy, Reader, Vetted};
+use engine::{Hosts, Loaders, PackProvider, Policy, Reader, Vetted};
 use proto::content::{ModpackFile, ResolvedModpack};
 use proto::download::{Checksum, HashAlgorithm};
 use proto::minecraft::Artifact;
-use proto::plugin::{Grant, Permission, PermissionScope, ScopeKind};
 use proto::provider::pack::{
     ManifestDelegate, OverrideTrees, PackCopy, PackInfo, PackMember, PackRead, PackWritten,
     WriteQuery,
@@ -32,18 +31,17 @@ pub struct Replay {
 
 impl Replay {
     pub fn new() -> Replay {
-        let mut grant = Grant::default();
-        grant.permissions.insert(
-            Permission::NetworkConnect,
-            PermissionScope::of(ScopeKind::Hosts, ["127.0.0.1"]),
-        );
+        let hosts = Hosts {
+            connect: vec!["127.0.0.1".into()],
+            unhashed: Vec::new(),
+        };
         Replay {
             info: PackInfo {
                 name: "Replay".into(),
                 members: vec![MARKER.into()],
                 extension: "replay".into(),
             },
-            policy: Arc::new(Policy::new(&grant)),
+            policy: Arc::new(Policy::new(&hosts)),
         }
     }
 }

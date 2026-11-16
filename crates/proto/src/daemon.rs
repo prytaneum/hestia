@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -15,8 +14,6 @@ pub struct DaemonStatusResult {
     pub uptime_seconds: i64,
     pub home: PathBuf,
     pub log: PathBuf,
-    /// This run loads no third-party plugins; it ends when the daemon restarts.
-    pub safe_mode: bool,
     /// Documents this daemon could not read and set aside since it started. Not
     /// caused by any one request, so they have no result of their own to ride
     /// out on and are reported here instead.
@@ -59,23 +56,4 @@ impl Contract for DaemonStop {
     const CHANNEL: &'static str = "daemon.stop";
     type Params = DaemonStopParams;
     type Result = DaemonStopResult;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct DaemonReadyResult {
-    /// False when the wait ran out with a plugin still loading; the daemon is
-    /// serving either way.
-    pub plugins_settled: bool,
-}
-
-/// Answers once startup activation has settled: every enabled plugin has loaded
-/// or failed, or the daemon's bound on waiting for the slow ones has passed.
-pub struct DaemonReady;
-impl Contract for DaemonReady {
-    const CHANNEL: &'static str = "daemon.ready";
-    type Params = Empty;
-    type Result = DaemonReadyResult;
-    const TIMEOUT: Duration = Duration::from_secs(40);
 }

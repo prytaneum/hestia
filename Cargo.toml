@@ -62,8 +62,6 @@ uuid = { version = "1.23.4", features = ["v4", "v7"] }
 junction = "2.1.0"
 sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
 tempfile = "3.24.0"
-psl = "2.1.253"
-regex = "1.13.1"
 
 # Debug info stays in per-object `.dwo` files instead of being copied into
 # every linked binary. Cargo drops it where rustc lacks support (Windows MSVC

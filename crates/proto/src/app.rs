@@ -16,7 +16,6 @@ pub struct AppInfoResult {
 pub struct AppInfo;
 impl Contract for AppInfo {
     const CHANNEL: &'static str = "app.info";
-    const AMBIENT: bool = true;
     type Params = Empty;
     type Result = AppInfoResult;
 }

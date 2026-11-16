@@ -1,18 +1,15 @@
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::ErrorInfo;
 use proto::minecraft::Artifact;
-use proto::plugin::{Grant, Permission, PermissionScope, ScopeKind};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use super::*;
 
-fn grant(network: &[&str], unhashed: &[&str]) -> Grant {
-    let mut scope = PermissionScope::of(ScopeKind::Hosts, network.iter().copied());
-    scope.extend(ScopeKind::Unhashed, unhashed.iter().copied());
-    Grant {
-        permissions: [(Permission::NetworkConnect, scope)].into(),
-        ..Grant::default()
+fn grant(network: &[&str], unhashed: &[&str]) -> Hosts {
+    Hosts {
+        connect: network.iter().map(|host| host.to_string()).collect(),
+        unhashed: unhashed.iter().map(|host| host.to_string()).collect(),
     }
 }
 
@@ -73,7 +70,7 @@ async fn a_redirect_to_a_host_outside_the_grant_is_refused() {
         .get(&format!("http://127.0.0.1:{port}/out"), false)
         .await
         .expect_err("refused");
-    assert!(detail(error).contains("`localhost` is not in the plugin's granted hosts"));
+    assert!(detail(error).contains("`localhost` is not one of the hosts this download may use"));
 }
 
 #[tokio::test]

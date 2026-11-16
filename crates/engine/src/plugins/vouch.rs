@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use proto::error::ErrorInfo;
 use proto::minecraft::Artifact;
-use proto::plugin::{Grant, Permission, ScopeKind};
+use proto::plugin::network_matches;
 use reqwest::header::LOCATION;
 use reqwest::{Response, Url};
 
@@ -22,26 +22,21 @@ const READ_TIMEOUT: Duration = Duration::from_secs(30);
 /// Why a request to a plugin-supplied destination was not made.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Refusal {
-    #[error("the plugin lacks the network:connect permission")]
-    NotGranted,
     #[error("only https requests are allowed")]
     NotHttps,
     #[error("the request URL is not valid")]
     BadUrl,
     #[error("an IP address cannot be a destination")]
     IpLiteral,
-    #[error("`{0}` is not in the plugin's granted hosts")]
+    #[error("`{0}` is not one of the hosts this download may use")]
     HostNotGranted(String),
     #[error("the daemon is offline")]
     Offline,
 }
 
-/// The destination host, lowercased and without a trailing dot, when a plugin
-/// holding `grant` may request `url` while the daemon is (not) `offline`.
-pub fn authorize(grant: &Grant, url: &Url, offline: bool) -> Result<String, Refusal> {
-    if !grant.holds(Permission::NetworkConnect) {
-        return Err(Refusal::NotGranted);
-    }
+/// The destination host, lowercased and without a trailing dot, when `hosts`
+/// allow a request to `url` while the daemon is (not) `offline`.
+pub fn authorize(hosts: &Hosts, url: &Url, offline: bool) -> Result<String, Refusal> {
     if url.scheme() != "https" {
         return Err(Refusal::NotHttps);
     }
@@ -58,7 +53,7 @@ pub fn authorize(grant: &Grant, url: &Url, offline: bool) -> Result<String, Refu
         return Err(Refusal::IpLiteral);
     }
     let domain = domain.trim_end_matches('.').to_ascii_lowercase();
-    if !grant.covers(Permission::NetworkConnect, ScopeKind::Hosts, &domain) {
+    if !hosts.reaches(&domain) {
         return Err(Refusal::HostNotGranted(domain));
     }
     if offline {
@@ -90,23 +85,46 @@ impl From<Refused> for ErrorInfo {
     }
 }
 
-/// What a plugin may have the engine fetch: its grant, plus a loopback host the
-/// grant names when the engine is built with the `loopback` feature (its own
-/// tests), which no build that ships enables.
+/// The hosts a download may come from: those that may be reached at all, and
+/// those that may also serve a file nothing verifies. Each entry is an exact
+/// name or `*.domain`, matching the names exactly one label below it.
+#[derive(Debug, Clone, Default)]
+pub struct Hosts {
+    pub connect: Vec<String>,
+    pub unhashed: Vec<String>,
+}
+
+impl Hosts {
+    fn reaches(&self, host: &str) -> bool {
+        self.connect
+            .iter()
+            .any(|entry| network_matches(entry, host))
+    }
+
+    fn serves_unhashed(&self, host: &str) -> bool {
+        self.unhashed
+            .iter()
+            .any(|entry| network_matches(entry, host))
+    }
+}
+
+/// What the engine may fetch for a source that names its own files: the hosts
+/// it declared, plus a loopback host they name when the engine is built with
+/// the `loopback` feature (its own tests), which no build that ships enables.
 #[derive(Debug)]
 pub struct Policy {
-    grant: Grant,
+    hosts: Hosts,
     loopback: bool,
 }
 
 impl Policy {
-    pub fn new(grant: &Grant) -> Self {
-        Policy::build(grant, cfg!(feature = "loopback"))
+    pub fn new(hosts: &Hosts) -> Self {
+        Policy::build(hosts, cfg!(feature = "loopback"))
     }
 
-    fn build(grant: &Grant, loopback: bool) -> Self {
+    fn build(hosts: &Hosts, loopback: bool) -> Self {
         Policy {
-            grant: grant.clone(),
+            hosts: hosts.clone(),
             loopback,
         }
     }
@@ -139,21 +157,14 @@ impl Policy {
     fn check(&self, url: &Url, unhashed: bool) -> Result<(), Refused> {
         let host = if self.loopback && is_loopback(url) {
             let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
-            if !self
-                .grant
-                .covers(Permission::NetworkConnect, ScopeKind::Hosts, &host)
-            {
+            if !self.hosts.reaches(&host) {
                 return Err(Refused::Destination(Refusal::HostNotGranted(host)));
             }
             host
         } else {
-            authorize(&self.grant, url, false).map_err(Refused::Destination)?
+            authorize(&self.hosts, url, false).map_err(Refused::Destination)?
         };
-        if unhashed
-            && !self
-                .grant
-                .covers(Permission::NetworkConnect, ScopeKind::Unhashed, &host)
-        {
+        if unhashed && !self.hosts.serves_unhashed(&host) {
             return Err(Refused::Unhashed(host));
         }
         Ok(())

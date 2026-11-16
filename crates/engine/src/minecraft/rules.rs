@@ -1,10 +1,21 @@
 //! Mojang-style `rules` against the machine: the one evaluator behind the game's
-//! own libraries and arguments and a plugin's, and the host facts a plugin is
-//! told so it never probes them.
+//! own libraries and arguments.
 
-use proto::provider::flavor::Target;
 use proto::rules::{Rule, RuleAction};
 use serde_json::Value;
+
+/// The machine rules are evaluated against.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Target {
+    /// `windows`, `osx` or `linux`: the vocabulary of a rule's `os.name`.
+    pub os: String,
+    /// `x86`, `x86_64` or `arm64`: the vocabulary of a rule's `os.arch`.
+    pub arch: String,
+    /// The Java major the host runs this version with, when known.
+    pub java_major: Option<i32>,
+    /// What joins the entries of a classpath: `:` or `;`.
+    pub path_separator: String,
+}
 
 /// Host OS in Mojang's rule vocabulary (`os.name`).
 pub(crate) fn host_os() -> &'static str {

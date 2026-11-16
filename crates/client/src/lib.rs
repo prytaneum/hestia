@@ -73,7 +73,6 @@ impl Client {
             }
         };
         let client = Client::over(conn);
-        client.daemon().ready().await?;
         Ok(client)
     }
 

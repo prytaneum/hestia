@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{Contract, Empty, Topic};
-use crate::plugin::Permission;
 
 /// Where a supervised process's output ends up.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
@@ -140,7 +139,6 @@ pub struct ProcessRef {
 pub struct ProcessStop;
 impl Contract for ProcessStop {
     const CHANNEL: &'static str = "process.stop";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessControl);
     type Params = ProcessRef;
     type Result = Empty;
 }
@@ -148,7 +146,6 @@ impl Contract for ProcessStop {
 pub struct ProcessList;
 impl Contract for ProcessList {
     const CHANNEL: &'static str = "process.list";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessRead);
     type Params = Empty;
     type Result = Vec<ProcessInfo>;
 }
@@ -156,7 +153,6 @@ impl Contract for ProcessList {
 pub struct ProcessStatus;
 impl Contract for ProcessStatus {
     const CHANNEL: &'static str = "process.status";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessRead);
     type Params = ProcessRef;
     type Result = ProcessInfo;
 }
@@ -187,7 +183,6 @@ pub struct ProcessStartedEvent {
 }
 impl Topic for ProcessStartedEvent {
     const TOPIC: &'static str = "process.started";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessRead);
 }
 
 /// A batch of a process's output lines, coalesced per tail poll so a chatty
@@ -222,7 +217,6 @@ pub struct ProcessMetricsEvent {
 }
 impl Topic for ProcessMetricsEvent {
     const TOPIC: &'static str = "process.metrics";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessRead);
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -237,5 +231,4 @@ pub struct ProcessExitEvent {
 }
 impl Topic for ProcessExitEvent {
     const TOPIC: &'static str = "process.exit";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessRead);
 }

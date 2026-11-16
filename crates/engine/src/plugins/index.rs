@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use proto::plugin::is_plugin_id;
+use super::api::is_plugin_id;
 use proto::repository::{IndexedPlugin, RepositoryIndex, INDEX_FILE, INDEX_SCHEMA_VERSION};
 use serde::Deserialize;
 

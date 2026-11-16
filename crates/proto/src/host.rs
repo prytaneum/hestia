@@ -25,7 +25,6 @@ pub struct HostInfoResult {
 pub struct HostInfo;
 impl Contract for HostInfo {
     const CHANNEL: &'static str = "host.info";
-    const AMBIENT: bool = true;
     type Params = Empty;
     type Result = HostInfoResult;
 }

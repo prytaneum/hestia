@@ -2,6 +2,7 @@
 //! vetting, program pinning, and the signed repository index.
 #![allow(dead_code)] // held for the plugin system that returns; nothing in the engine calls them until then
 
+pub(crate) mod api;
 mod catalogue;
 mod index;
 mod invocation;

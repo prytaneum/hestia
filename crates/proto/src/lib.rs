@@ -18,7 +18,7 @@ pub mod events;
 pub mod files;
 pub mod glob;
 pub mod health;
-pub mod hook;
+
 pub mod host;
 pub mod icon;
 pub mod image;
@@ -34,7 +34,7 @@ pub mod plugin;
 pub mod process;
 pub mod profile;
 pub mod provider;
-pub mod pushed;
+
 pub mod repository;
 pub mod rules;
 pub mod screenshot;
@@ -43,7 +43,7 @@ pub mod skins;
 pub mod sync;
 pub mod tasks;
 pub mod transfer;
-pub mod ui;
+
 pub mod update;
 pub mod warning;
 

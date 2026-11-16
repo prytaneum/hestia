@@ -5,7 +5,6 @@
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{Contract, Empty, Topic};
-use crate::plugin::Permission;
 
 /// Whether outbound requests are reaching upstream.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,7 +43,6 @@ pub struct NetworkStatus {
 pub struct NetStatus;
 impl Contract for NetStatus {
     const CHANNEL: &'static str = "net.status";
-    const AMBIENT: bool = true;
     type Params = Empty;
     type Result = NetworkStatus;
 }
@@ -53,5 +51,4 @@ impl Contract for NetStatus {
 /// pushed and polled shapes cannot drift.
 impl Topic for NetworkStatus {
     const TOPIC: &'static str = "net.state";
-    const PLUGIN: Option<Permission> = Some(Permission::NetworkConnect);
 }

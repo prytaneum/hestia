@@ -2,9 +2,7 @@
 
 use proto::app::{AppInfo, AppInfoResult};
 
-use proto::daemon::{
-    DaemonReady, DaemonReadyResult, DaemonStatus, DaemonStatusResult, DaemonStop, DaemonStopResult,
-};
+use proto::daemon::{DaemonStatus, DaemonStatusResult, DaemonStop, DaemonStopResult};
 use proto::events::{EventsSubscribe, EventsSubscribeResult};
 use proto::health::{Ping, PingResult};
 use proto::job::{JobCancel, JobCancelResult, JobList};
@@ -30,12 +28,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
         })
     });
 
-    on.handle::<DaemonReady, _, _>(|_: Empty, _ctx| async move {
-        Ok(DaemonReadyResult {
-            plugins_settled: true,
-        })
-    });
-
     on.handle::<DaemonStatus, _, _>(|_: Empty, ctx| async move {
         Ok(DaemonStatusResult {
             pid: std::process::id() as i64,
@@ -43,7 +35,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
             uptime_seconds: ctx.runtime.uptime_seconds(),
             home: ctx.runtime.engine().data_home().to_path_buf(),
             log: ctx.runtime.log_path().clone(),
-            safe_mode: false,
             quarantined: engine::quarantined::all(),
         })
     });

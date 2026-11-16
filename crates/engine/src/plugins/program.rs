@@ -1,5 +1,5 @@
 //! How a declared program becomes a path the host will execute: a `PATH` name
-//! pinned (path and content hash) when the grant is approved, a managed Java of
+//! pinned (path and content hash) when the program set is approved, a managed Java of
 //! a major the call picks, or a data-directory file copied into a host-owned
 //! directory and verified there.
 
@@ -8,10 +8,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use proto::minecraft::Requirement;
-use proto::plugin::{Grant, Manifest, Program, ProgramPin};
-use sha2::Sha256;
+use proto::plugin::{Program, ProgramPin};
+use sha2::{Digest, Sha256};
 
-use crate::checksum::digest_file;
+use crate::checksum::{digest_file, hex};
 use crate::minecraft::Prerequisite;
 
 #[cfg(windows)]
@@ -99,21 +99,30 @@ pub fn pin_on_path(name: &str) -> Option<ProgramPin> {
     }
 }
 
-/// The digest a user approves and a record stores: the grant together with the
-/// path and hash each `PATH` program is pinned to. Preview, install, update and
-/// load all derive it here, so none of them can disagree about what was approved.
-pub fn approval_digest(grant: &Grant, pins: &Pins) -> String {
-    grant.approval_digest(pins)
+/// The digest a user approves and a record stores: every program definition
+/// together with the path and hash each `PATH` program is pinned to. Preview,
+/// install, update and load all derive it here, so none of them can disagree
+/// about what was approved.
+pub fn approval_digest(programs: &[Program], pins: &Pins) -> String {
+    let mut text = String::new();
+    for program in programs {
+        text.push_str(&program.entry());
+        text.push('\n');
+    }
+    for (id, pin) in pins {
+        text.push_str(&format!("{id} {} {}\n", pin.path, pin.sha256));
+    }
+    hex(&Sha256::digest(text.as_bytes()))
 }
 
-fn path_programs(manifest: &Manifest) -> impl Iterator<Item = &Program> {
-    manifest.programs.iter().filter(|p| p.on_path())
+fn path_programs(programs: &[Program]) -> impl Iterator<Item = &Program> {
+    programs.iter().filter(|p| p.on_path())
 }
 
-/// The ids of programs `manifest` declares that `installed` pinned and `fresh`
+/// The ids of programs `programs` declares that `installed` pinned and `fresh`
 /// would pin elsewhere, to a file with other content, or not at all.
-pub fn changed_pins(installed: &Pins, fresh: &Pins, manifest: &Manifest) -> Vec<String> {
-    path_programs(manifest)
+pub fn changed_pins(installed: &Pins, fresh: &Pins, programs: &[Program]) -> Vec<String> {
+    path_programs(programs)
         .filter_map(|program| {
             let kept = installed.get(&program.id)?;
             (fresh.get(&program.id) != Some(kept)).then(|| program.id.clone())
@@ -123,8 +132,8 @@ pub fn changed_pins(installed: &Pins, fresh: &Pins, manifest: &Manifest) -> Vec<
 
 /// What an update without a new approval keeps: the installed pins of the
 /// programs it still declares. A program not pinned before stays unpinned.
-pub fn carried_pins(installed: &Pins, manifest: &Manifest) -> Pins {
-    path_programs(manifest)
+pub fn carried_pins(installed: &Pins, programs: &[Program]) -> Pins {
+    path_programs(programs)
         .filter_map(|program| {
             let kept = installed.get(&program.id)?;
             Some((program.id.clone(), kept.clone()))
@@ -132,12 +141,12 @@ pub fn carried_pins(installed: &Pins, manifest: &Manifest) -> Pins {
         .collect()
 }
 
-/// The pin each `PATH` program of `manifest` resolves to now, at approval: the
+/// The pin each `PATH` program of `programs` resolves to now, at approval: the
 /// only file that program will ever run. One not found is left out, unpinned:
 /// it cannot run until the plugin is approved again with the program present.
-pub fn pin_programs(plugin: &str, manifest: &Manifest, resolve: Resolver) -> Pins {
+pub fn pin_programs(plugin: &str, programs: &[Program], resolve: Resolver) -> Pins {
     let mut pinned = BTreeMap::new();
-    for program in path_programs(manifest) {
+    for program in path_programs(programs) {
         match resolve(&program.command) {
             Some(pin) => {
                 tracing::info!(plugin, program = %program.id, path = %pin.path, "program pinned");
@@ -165,14 +174,15 @@ pub fn requirement_of(program: &Program) -> Requirement {
 /// What a flavor that requires the programs `ids` needs on this computer. Only
 /// a `PATH` program can be unmet: a managed Java is installed on demand and a
 /// data file is checked when it is staged, so those name nothing to check. An
-/// id the plugin is not granted to run is an error, since the flavor could
+/// id that is not one of the programs is an error, since the flavor could
 /// never run it.
-pub fn prerequisites(grant: &Grant, ids: &[String]) -> Result<Vec<Prerequisite>, String> {
+pub fn prerequisites(programs: &[Program], ids: &[String]) -> Result<Vec<Prerequisite>, String> {
     let mut required = Vec::new();
     for id in ids {
-        let program = grant.program(id).ok_or_else(|| {
-            format!("requires `{id}`, which is not a program the plugin is granted to run")
-        })?;
+        let program = programs
+            .iter()
+            .find(|program| program.id == *id)
+            .ok_or_else(|| format!("requires `{id}`, which is not a program it may run"))?;
         if program.on_path() {
             let requirement = requirement_of(program);
             required.push(Prerequisite {
@@ -266,9 +276,8 @@ fn make_executable(_path: &Path) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
 
-    use proto::plugin::{Permission, PermissionScope, ProgramJava};
+    use proto::plugin::ProgramJava;
 
     use super::*;
 
@@ -285,17 +294,6 @@ mod tests {
         }
     }
 
-    fn granting(programs: Vec<Program>) -> Grant {
-        Grant {
-            permissions: BTreeMap::from([(Permission::ProcessSpawn, PermissionScope::default())]),
-            programs: programs
-                .into_iter()
-                .map(|program| (program.id.clone(), program))
-                .collect(),
-            ..Grant::default()
-        }
-    }
-
     #[test]
     fn a_flavor_requires_the_path_programs_it_names() {
         let java = Program {
@@ -304,15 +302,15 @@ mod tests {
             java: Some(ProgramJava::Major(21)),
             ..Program::default()
         };
-        let grant = granting(vec![git(), java]);
+        let programs = vec![git(), java];
 
-        let required = prerequisites(&grant, &["git".into(), "jvm".into()]).unwrap();
+        let required = prerequisites(&programs, &["git".into(), "jvm".into()]).unwrap();
 
         assert_eq!(required.len(), 1, "a managed Java is installed on demand");
         assert_eq!(required[0].command, "git");
         assert_eq!(required[0].name, "Git");
         assert_eq!(required[0].url, "https://git-scm.com/downloads");
-        assert!(prerequisites(&grant, &["nope".into()]).is_err());
-        assert!(prerequisites(&Grant::default(), &["git".into()]).is_err());
+        assert!(prerequisites(&programs, &["nope".into()]).is_err());
+        assert!(prerequisites(&[], &["git".into()]).is_err());
     }
 }

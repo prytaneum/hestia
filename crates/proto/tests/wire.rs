@@ -35,56 +35,17 @@ fn a_provider_owned_name_is_externally_tagged() {
 }
 
 #[test]
-fn a_rollback_event_is_camel_case_on_its_own_topic() {
-    use proto::plugin::PluginRolledBackEvent;
-    use proto::Topic;
-
-    let event = PluginRolledBackEvent {
-        id: "demo".into(),
-        version: "2.0.0".into(),
-        restored: "1.0.0".into(),
-    };
-    assert_eq!(PluginRolledBackEvent::TOPIC, "plugin.rolled_back");
-    assert_eq!(
-        serde_json::to_value(&event).unwrap(),
-        serde_json::json!({"id": "demo", "version": "2.0.0", "restored": "1.0.0"})
-    );
-}
-
-#[test]
 fn an_error_hint_is_derived_from_the_variant_and_never_sent() {
-    use proto::content::RequiredSetting;
     use proto::error::ErrorInfo::*;
-    use proto::error::{ErrorInfo, Field};
+    use proto::error::Field;
 
-    let waiting_on_setting = ContentSourceUnavailable {
-        source: "curseforge".into(),
-        setting: Some(RequiredSetting {
-            plugin: "curseforge".into(),
-            key: "api-key".into(),
-        }),
-    };
     let with_hint = [
         SignInRequired,
         SessionExpired {
             reference: "steve".into(),
         },
-        DeveloperModeOff,
         MultiSessionDisabled { name: "smp".into() },
-        waiting_on_setting.clone(),
-        ContentSourceUnavailable {
-            source: "modrinth".into(),
-            setting: None,
-        },
-        NoContentSource,
-        ProviderUnknown {
-            name: "forge".into(),
-            available: Vec::new(),
-        },
         OfflineMode,
-        RepositoryExpired {
-            repository: "official".into(),
-        },
     ];
     let without_hint = [
         FieldRequired { field: Field::Name },
@@ -106,12 +67,4 @@ fn an_error_hint_is_derived_from_the_variant_and_never_sent() {
     for info in &without_hint {
         assert_eq!(info.hint(), None, "{info:?}");
     }
-    assert_eq!(
-        waiting_on_setting.hint().as_deref(),
-        Some("run `hestia plugin config curseforge api-key <value>`")
-    );
-    assert_eq!(
-        serde_json::to_value(ErrorInfo::DeveloperModeOff).unwrap(),
-        serde_json::json!({"kind": "developer_mode_off"})
-    );
 }

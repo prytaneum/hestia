@@ -5,8 +5,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use super::manifest::{is_slug, ManifestError};
-use super::scope::stays_inside;
 use crate::minecraft::Requirement;
 
 /// A program the plugin may run.
@@ -142,17 +140,6 @@ impl ProgramJava {
             ProgramJava::Profile(_) => "Hestia-managed Java of the game version".to_string(),
         }
     }
-
-    fn is_valid(&self) -> bool {
-        let valid = |major: u32| (1..=MAX_JAVA_MAJOR).contains(&major);
-        match self {
-            ProgramJava::Major(major) => valid(*major),
-            ProgramJava::Range(range) => {
-                valid(range.min) && valid(range.max) && range.min <= range.max
-            }
-            ProgramJava::Profile(_) => true,
-        }
-    }
 }
 
 /// Why no invocation of a program fits a call.
@@ -174,25 +161,8 @@ pub struct ProgramPin {
     pub sha256: String,
 }
 
-const SHELLS: [&str; 12] = [
-    "sh",
-    "bash",
-    "zsh",
-    "dash",
-    "fish",
-    "ksh",
-    "csh",
-    "tcsh",
-    "cmd",
-    "powershell",
-    "pwsh",
-    "wscript",
-];
-const MAX_JAVA_MAJOR: u32 = 99;
 const ANY_REST: &str = "**";
 const ANY_ONE: &str = "*";
-const MAX_INVOCATIONS: usize = 16;
-const NAME_LENGTH: std::ops::RangeInclusive<usize> = 1..=40;
 
 impl Invocation {
     /// Whether `args` match the declared patterns.
@@ -228,26 +198,6 @@ impl Invocation {
             entry.push_str(&format!(" path {}", serde_json::json!(self.path)));
         }
         entry
-    }
-
-    fn is_empty(&self) -> bool {
-        self.args.is_empty() && self.env.is_empty() && self.path.is_empty()
-    }
-
-    fn validate(&self, program: &str) -> Result<(), ManifestError> {
-        let last = self.args.len().saturating_sub(1);
-        if self
-            .args
-            .iter()
-            .enumerate()
-            .any(|(at, arg)| arg.contains('\0') || (arg == ANY_REST && at != last))
-        {
-            return Err(ManifestError::BadProgram(program.to_string()));
-        }
-        match self.env.iter().find(|name| !is_program_env(name)) {
-            Some(name) => Err(ManifestError::BadProgramEnv(name.clone())),
-            None => Ok(()),
-        }
     }
 }
 
@@ -327,122 +277,6 @@ impl Program {
             None => self.command.clone(),
         }
     }
-
-    pub(super) fn collect_errors(&self, declared: &[Program], errors: &mut Vec<ManifestError>) {
-        match &self.java {
-            Some(java) => {
-                if !self.command.is_empty() {
-                    errors.push(ManifestError::ProgramIdentity(self.id.clone()));
-                }
-                if !java.is_valid() {
-                    errors.push(ManifestError::BadProgramJava(self.id.clone()));
-                }
-                if !self.sha256.is_empty() {
-                    errors.push(ManifestError::BadProgram(self.id.clone()));
-                }
-            }
-            None if self.command.is_empty() => {
-                errors.push(ManifestError::ProgramIdentity(self.id.clone()));
-            }
-            None => self.collect_command_errors(errors),
-        }
-        self.collect_invocation_errors(declared, errors);
-        if self
-            .requires
-            .as_ref()
-            .is_some_and(|r| !is_valid_requirement(r))
-        {
-            errors.push(ManifestError::BadProgramRequires(self.id.clone()));
-        }
-    }
-
-    fn collect_command_errors(&self, errors: &mut Vec<ManifestError>) {
-        let bad = || ManifestError::BadProgram(self.id.clone());
-        let name = self.command.rsplit('/').next().unwrap_or_default();
-        let stem = name
-            .strip_suffix(".exe")
-            .unwrap_or(name)
-            .to_ascii_lowercase();
-        if SHELLS.contains(&stem.as_str()) || self.command.contains('\0') {
-            errors.push(bad());
-        } else if self.in_data_dir() {
-            if !stays_inside(&self.command) {
-                errors.push(bad());
-            }
-            if self.sha256.is_empty() {
-                errors.push(ManifestError::ProgramNeedsHash(self.id.clone()));
-            } else {
-                let hashes_ok = self.sha256.iter().all(|(triple, hash)| {
-                    !triple.is_empty()
-                        && triple
-                            .bytes()
-                            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-                        && hash.len() == 64
-                        && hash
-                            .bytes()
-                            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
-                });
-                if !hashes_ok {
-                    errors.push(bad());
-                }
-            }
-        } else if !(1..=64).contains(&name.len())
-            || name.starts_with(['.', '-'])
-            || !name.bytes().all(|byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+')
-            })
-        {
-            errors.push(bad());
-        }
-    }
-
-    fn collect_invocation_errors(&self, declared: &[Program], errors: &mut Vec<ManifestError>) {
-        if !self.invocations.is_empty() {
-            let mut names = BTreeSet::new();
-            let named = self.invocations.iter().all(|invocation| {
-                is_slug(&invocation.name, NAME_LENGTH) && names.insert(&invocation.name)
-            });
-            if !self.sugar().is_empty() || !named || self.invocations.len() > MAX_INVOCATIONS {
-                errors.push(ManifestError::BadProgramInvocations(self.id.clone()));
-            }
-        }
-        for invocation in self.invocations() {
-            errors.extend(invocation.validate(&self.id).err());
-            errors.extend(self.validate_path(&invocation, declared).err());
-        }
-    }
-
-    fn validate_path(
-        &self,
-        invocation: &Invocation,
-        declared: &[Program],
-    ) -> Result<(), ManifestError> {
-        let mut seen = BTreeSet::new();
-        for id in &invocation.path {
-            let names_path_program = *id != self.id
-                && declared
-                    .iter()
-                    .any(|other| other.id == *id && other.on_path());
-            if !names_path_program || !seen.insert(id) {
-                return Err(ManifestError::BadProgramPath {
-                    program: self.id.clone(),
-                    entry: id.clone(),
-                });
-            }
-        }
-        Ok(())
-    }
-}
-
-fn is_valid_requirement(requirement: &Requirement) -> bool {
-    (1..=80).contains(&requirement.name.chars().count())
-        && !requirement.name.chars().any(char::is_control)
-        && requirement.url.starts_with("https://")
-        && requirement.url.len() <= 512
-        && !requirement
-            .url
-            .chars()
-            .any(|c| c.is_control() || c.is_whitespace())
 }
 
 /// Whether `name` may be declared in a program's `env`: a plain variable name

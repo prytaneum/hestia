@@ -8,7 +8,6 @@ import type { AccountRemoveParams } from "./generated/AccountRemoveParams";
 import type { AccountSignedInEvent } from "./generated/AccountSignedInEvent";
 import type { AccountSignedOutEvent } from "./generated/AccountSignedOutEvent";
 import type { AccountSwitchParams } from "./generated/AccountSwitchParams";
-import type { Action } from "./generated/Action";
 import type { AddressPingParams } from "./generated/AddressPingParams";
 import type { AppInfoResult } from "./generated/AppInfoResult";
 import type { ArchiveEntry } from "./generated/ArchiveEntry";
@@ -21,8 +20,6 @@ import type { CacheInfoResult } from "./generated/CacheInfoResult";
 import type { CacheUsage } from "./generated/CacheUsage";
 import type { CapeClearParams } from "./generated/CapeClearParams";
 import type { CapeEquipParams } from "./generated/CapeEquipParams";
-import type { Catalogue } from "./generated/Catalogue";
-import type { CatalogueParams } from "./generated/CatalogueParams";
 import type { ChangedEvent } from "./generated/ChangedEvent";
 import type { ConfigEntry } from "./generated/ConfigEntry";
 import type { ConfigGetParams } from "./generated/ConfigGetParams";
@@ -40,12 +37,10 @@ import type { ContentSource } from "./generated/ContentSource";
 import type { ContentUpdate } from "./generated/ContentUpdate";
 import type { ContentUpdatesFoundEvent } from "./generated/ContentUpdatesFoundEvent";
 import type { ContentVersion } from "./generated/ContentVersion";
-import type { DaemonReadyResult } from "./generated/DaemonReadyResult";
 import type { DaemonStatusResult } from "./generated/DaemonStatusResult";
 import type { DaemonStopParams } from "./generated/DaemonStopParams";
 import type { DaemonStopResult } from "./generated/DaemonStopResult";
 import type { DownloadProgress } from "./generated/DownloadProgress";
-import type { Effect } from "./generated/Effect";
 import type { Empty } from "./generated/Empty";
 import type { EntryConfigGetParams } from "./generated/EntryConfigGetParams";
 import type { EntryConfigListResult } from "./generated/EntryConfigListResult";
@@ -106,8 +101,6 @@ import type { InstanceSyncStatus } from "./generated/InstanceSyncStatus";
 import type { InstanceSyncUnitParams } from "./generated/InstanceSyncUnitParams";
 import type { InstanceUpdateDone } from "./generated/InstanceUpdateDone";
 import type { InstanceUpdateParams } from "./generated/InstanceUpdateParams";
-import type { IpcClosedEvent } from "./generated/IpcClosedEvent";
-import type { IpcReadableEvent } from "./generated/IpcReadableEvent";
 import type { JavaInstallDone } from "./generated/JavaInstallDone";
 import type { JavaInstallParams } from "./generated/JavaInstallParams";
 import type { JavaInstallProgress } from "./generated/JavaInstallProgress";
@@ -125,37 +118,7 @@ import type { ModpackRemoveResult } from "./generated/ModpackRemoveResult";
 import type { ModpackStatusResult } from "./generated/ModpackStatusResult";
 import type { ModpackUpdateResult } from "./generated/ModpackUpdateResult";
 import type { NetworkStatus } from "./generated/NetworkStatus";
-import type { Outdated } from "./generated/Outdated";
-import type { OutdatedParams } from "./generated/OutdatedParams";
-import type { PageContext } from "./generated/PageContext";
 import type { PingResult } from "./generated/PingResult";
-import type { PluginAssetParams } from "./generated/PluginAssetParams";
-import type { PluginAssetResult } from "./generated/PluginAssetResult";
-import type { PluginAutoUpdatedEvent } from "./generated/PluginAutoUpdatedEvent";
-import type { PluginCommand } from "./generated/PluginCommand";
-import type { PluginImageParams } from "./generated/PluginImageParams";
-import type { PluginInfo } from "./generated/PluginInfo";
-import type { PluginInspection } from "./generated/PluginInspection";
-import type { PluginInstallDone } from "./generated/PluginInstallDone";
-import type { PluginInstallParams } from "./generated/PluginInstallParams";
-import type { PluginInstallProgress } from "./generated/PluginInstallProgress";
-import type { PluginLogEvent } from "./generated/PluginLogEvent";
-import type { PluginMessagesParams } from "./generated/PluginMessagesParams";
-import type { PluginMessagesResult } from "./generated/PluginMessagesResult";
-import type { PluginPackageRef } from "./generated/PluginPackageRef";
-import type { PluginPage } from "./generated/PluginPage";
-import type { PluginRef } from "./generated/PluginRef";
-import type { PluginRolledBackEvent } from "./generated/PluginRolledBackEvent";
-import type { PluginRunDone } from "./generated/PluginRunDone";
-import type { PluginRunParams } from "./generated/PluginRunParams";
-import type { PluginRunProgress } from "./generated/PluginRunProgress";
-import type { PluginSettingsSetParams } from "./generated/PluginSettingsSetParams";
-import type { PluginStateEvent } from "./generated/PluginStateEvent";
-import type { PluginTheme } from "./generated/PluginTheme";
-import type { PluginUiActionParams } from "./generated/PluginUiActionParams";
-import type { PluginUiRenderParams } from "./generated/PluginUiRenderParams";
-import type { PluginUpdateDone } from "./generated/PluginUpdateDone";
-import type { PluginUpdateParams } from "./generated/PluginUpdateParams";
 import type { ProcessExitEvent } from "./generated/ProcessExitEvent";
 import type { ProcessInfo } from "./generated/ProcessInfo";
 import type { ProcessLogLine } from "./generated/ProcessLogLine";
@@ -169,15 +132,8 @@ import type { ProcessStartedEvent } from "./generated/ProcessStartedEvent";
 import type { ProjectParams } from "./generated/ProjectParams";
 import type { ProvisionProgress } from "./generated/ProvisionProgress";
 import type { RecentPlay } from "./generated/RecentPlay";
-import type { RepositoryAddParams } from "./generated/RepositoryAddParams";
-import type { RepositoryAdded } from "./generated/RepositoryAdded";
-import type { RepositoryInfo } from "./generated/RepositoryInfo";
-import type { RepositoryRef } from "./generated/RepositoryRef";
-import type { RepositoryRefreshParams } from "./generated/RepositoryRefreshParams";
-import type { RepositoryRefreshed } from "./generated/RepositoryRefreshed";
 import type { ResolveUrlParams } from "./generated/ResolveUrlParams";
 import type { ResolvedUrl } from "./generated/ResolvedUrl";
-import type { ScheduleEvent } from "./generated/ScheduleEvent";
 import type { ScreenshotDeleteParams } from "./generated/ScreenshotDeleteParams";
 import type { ScreenshotListParams } from "./generated/ScreenshotListParams";
 import type { ScreenshotListResult } from "./generated/ScreenshotListResult";
@@ -212,7 +168,6 @@ import type { ServerTaskRemoveParams } from "./generated/ServerTaskRemoveParams"
 import type { ServerTaskSaveParams } from "./generated/ServerTaskSaveParams";
 import type { ServerUpdateParams } from "./generated/ServerUpdateParams";
 import type { ServerWorldImportParams } from "./generated/ServerWorldImportParams";
-import type { SettingValue } from "./generated/SettingValue";
 import type { Skin } from "./generated/Skin";
 import type { SkinAddParams } from "./generated/SkinAddParams";
 import type { SkinEquipParams } from "./generated/SkinEquipParams";
@@ -232,7 +187,6 @@ import type { SyncPackSetParams } from "./generated/SyncPackSetParams";
 import type { SyncPacksResult } from "./generated/SyncPacksResult";
 import type { SyncSource } from "./generated/SyncSource";
 import type { SyncSourcesParams } from "./generated/SyncSourcesParams";
-import type { UiNode } from "./generated/UiNode";
 import type { UpdateApplyParams } from "./generated/UpdateApplyParams";
 import type { UpdateApplyResult } from "./generated/UpdateApplyResult";
 import type { UpdateCheckResult } from "./generated/UpdateCheckResult";
@@ -273,7 +227,6 @@ export interface Channels {
   "content.sources": { params: Empty; result: Array<ContentSource> };
   "content.update": { params: Omit<Partial<EntryContentUpdateParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: JobStarted };
   "content.versions": { params: Partial<VersionQuery>; result: Array<ContentVersion> };
-  "daemon.ready": { params: Empty; result: DaemonReadyResult };
   "daemon.status": { params: Empty; result: DaemonStatusResult };
   "daemon.stop": { params: Partial<DaemonStopParams>; result: DaemonStopResult };
   "entry.config.get": { params: Omit<Partial<EntryConfigGetParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: EntryConfigValue };
@@ -323,31 +276,6 @@ export interface Channels {
   "modpack.status": { params: Omit<Partial<EntryModpackStatusParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: ModpackStatusResult };
   "modpack.update": { params: Omit<Partial<EntryModpackUpdateParams>, "target" | "to"> & { "target"?: Partial<EntryTarget>; "to"?: Partial<ModpackMove> }; result: JobStarted };
   "net.status": { params: Empty; result: NetworkStatus };
-  "plugin.asset": { params: Partial<PluginAssetParams>; result: PluginAssetResult };
-  "plugin.catalogue": { params: Partial<CatalogueParams>; result: Catalogue };
-  "plugin.commands": { params: Empty; result: Array<PluginCommand> };
-  "plugin.disable": { params: Partial<PluginRef>; result: PluginInfo };
-  "plugin.enable": { params: Partial<PluginRef>; result: PluginInfo };
-  "plugin.image": { params: Partial<PluginImageParams>; result: ImageFetchResult };
-  "plugin.info": { params: Partial<PluginRef>; result: PluginInfo };
-  "plugin.inspect": { params: Partial<PluginPackageRef>; result: PluginInspection };
-  "plugin.install": { params: Partial<PluginInstallParams>; result: JobStarted };
-  "plugin.list": { params: Empty; result: Array<PluginInfo> };
-  "plugin.messages": { params: Partial<PluginMessagesParams>; result: PluginMessagesResult };
-  "plugin.outdated": { params: Partial<OutdatedParams>; result: Outdated };
-  "plugin.pages": { params: Empty; result: Array<PluginPage> };
-  "plugin.remove": { params: Partial<PluginRef>; result: Empty };
-  "plugin.repo.add": { params: Partial<RepositoryAddParams>; result: RepositoryAdded };
-  "plugin.repo.list": { params: Empty; result: Array<RepositoryInfo> };
-  "plugin.repo.refresh": { params: Partial<RepositoryRefreshParams>; result: RepositoryRefreshed };
-  "plugin.repo.remove": { params: Partial<RepositoryRef>; result: Empty };
-  "plugin.run": { params: Partial<PluginRunParams>; result: JobStarted };
-  "plugin.settings.get": { params: Partial<PluginRef>; result: Array<SettingValue> };
-  "plugin.settings.set": { params: Partial<PluginSettingsSetParams>; result: Empty };
-  "plugin.themes": { params: Empty; result: Array<PluginTheme> };
-  "plugin.ui.action": { params: Omit<Partial<PluginUiActionParams>, "action" | "context"> & { "action"?: Partial<Action>; "context"?: Partial<PageContext> }; result: Array<Effect> };
-  "plugin.ui.render": { params: Omit<Partial<PluginUiRenderParams>, "context"> & { "context"?: Partial<PageContext> }; result: UiNode };
-  "plugin.update": { params: Partial<PluginUpdateParams>; result: JobStarted };
   "process.list": { params: Empty; result: Array<ProcessInfo> };
   "process.logs": { params: Partial<ProcessLogsParams>; result: Array<ProcessLogLine> };
   "process.start": { params: Partial<ProcessSpec>; result: ProcessStartResult };
@@ -419,9 +347,6 @@ export interface Jobs {
   "instance.update": { progress: ProvisionProgress; done: InstanceUpdateDone };
   "java.install": { progress: JavaInstallProgress; done: JavaInstallDone };
   "modpack.update": { progress: ProvisionProgress; done: ModpackDone };
-  "plugin.install": { progress: PluginInstallProgress; done: PluginInstallDone };
-  "plugin.run": { progress: PluginRunProgress; done: PluginRunDone };
-  "plugin.update": { progress: PluginInstallProgress; done: PluginUpdateDone };
   "server.backup.create": { progress: ProvisionProgress; done: BackupDone };
   "server.backup.restore": { progress: ProvisionProgress; done: BackupDone };
   "server.create": { progress: ProvisionProgress; done: ServerDone };
@@ -440,16 +365,8 @@ export interface Topics {
   "account.signed_out": AccountSignedOutEvent;
   "changed": ChangedEvent;
   "content.updates_found": ContentUpdatesFoundEvent;
-  "ipc.closed": IpcClosedEvent;
-  "ipc.readable": IpcReadableEvent;
   "job": JobEvents;
   "net.state": NetworkStatus;
-  "plugin.auto_updated": PluginAutoUpdatedEvent;
-  "plugin.log": PluginLogEvent;
-  "plugin.rolled_back": PluginRolledBackEvent;
-  "plugin.schedule": ScheduleEvent;
-  "plugin.state": PluginStateEvent;
-  "plugin.updates": Outdated;
   "process.exit": ProcessExitEvent;
   "process.metrics": ProcessMetricsEvent;
   "process.output": ProcessOutputEvent;
@@ -464,20 +381,10 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "cape.equip": 30000,
   "content.check_updates": 120000,
   "content.matches": 120000,
-  "daemon.ready": 40000,
   "image.fetch": 30000,
   "instance.create": 60000,
   "modpack.check_update": 120000,
   "modpack.preview_update": 120000,
-  "plugin.catalogue": 120000,
-  "plugin.enable": 60000,
-  "plugin.image": 30000,
-  "plugin.inspect": 120000,
-  "plugin.outdated": 120000,
-  "plugin.repo.add": 60000,
-  "plugin.repo.refresh": 120000,
-  "plugin.ui.action": 10000,
-  "plugin.ui.render": 10000,
   "server.files.compress": 600000,
   "server.files.copy": 600000,
   "server.files.extract": 600000,

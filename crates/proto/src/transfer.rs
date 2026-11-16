@@ -20,7 +20,6 @@ use crate::contract::{Contract, Empty};
 use crate::instance::InstanceInfo;
 use crate::job::{Job, JobStarted};
 use crate::minecraft::ProvisionProgress;
-use crate::plugin::Permission;
 use crate::provider::Provider;
 use crate::warning::WarningInfo;
 
@@ -154,7 +153,6 @@ pub struct ArchiveEntry {
 pub struct InstanceExportFormats;
 impl Contract for InstanceExportFormats {
     const CHANNEL: &'static str = "instance.export.formats";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = Empty;
     type Result = Vec<ExportFormatInfo>;
 }
@@ -164,7 +162,6 @@ impl Contract for InstanceExportFormats {
 pub struct InstanceExport;
 impl Contract for InstanceExport {
     const CHANNEL: &'static str = "instance.export";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     type Params = InstanceExportParams;
     type Result = JobStarted;
 }
@@ -178,7 +175,6 @@ impl Job for InstanceExport {
 pub struct InstanceExportContents;
 impl Contract for InstanceExportContents {
     const CHANNEL: &'static str = "instance.export.contents";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = crate::instance::InstanceRef;
     type Result = Vec<ArchiveEntry>;
 }
@@ -189,7 +185,6 @@ impl Contract for InstanceExportContents {
 pub struct InstanceImport;
 impl Contract for InstanceImport {
     const CHANNEL: &'static str = "instance.import";
-    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     type Params = InstanceImportParams;
     type Result = JobStarted;
 }

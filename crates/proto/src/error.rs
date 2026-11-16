@@ -4,7 +4,7 @@
 //! front-end renders its own localized string from the tag + typed fields.
 //!
 //! Semantic variants translate fully with their fields; operational variants
-//! (`MalformedRequest`, `Io`, `Upstream`, `DownloadFailed`, `PluginInvalid`,
+//! (`MalformedRequest`, `Io`, `Upstream`, `DownloadFailed`,
 //! `Internal`) carry an unbounded English `detail` — a per-path filesystem
 //! message is not localizable and is shown as secondary text under a translated
 //! headline. A semantic variant never carries prose: what it would have said is
@@ -287,8 +287,6 @@ pub enum FileFault {
     ArchiveFormat,
     /// A directory moved or copied to somewhere beneath itself.
     IntoItself,
-    /// A plugin asset whose extension is not one the scheme serves.
-    UnsupportedType,
 }
 
 impl fmt::Display for FileFault {
@@ -302,7 +300,6 @@ impl fmt::Display for FileFault {
             FileFault::NotText => "it is not a text file",
             FileFault::ArchiveFormat => "it is not a .zip or .tar.gz archive",
             FileFault::IntoItself => "a directory cannot be placed inside itself",
-            FileFault::UnsupportedType => "it is not a file type a plugin can serve",
         })
     }
 }
@@ -512,31 +509,6 @@ pub enum ErrorInfo {
     TaskNotFound {
         id: String,
     },
-    PluginNotFound {
-        id: String,
-    },
-    /// The package's grant is not the one the caller approved; inspect it again.
-    PluginApprovalStale,
-    /// The update asks for more than is installed and no approval for its
-    /// grant came with the call; nothing was changed.
-    PluginUpdateNeedsApproval {
-        id: String,
-    },
-    /// A release changes the plugin API and an installed official plugin has no
-    /// build for it, so the update was not downloaded.
-    UpdatePluginsIncompatible {
-        api: String,
-        plugins: Vec<String>,
-    },
-    /// A release changes the plugin API and the build of an installed official
-    /// plugin for it asks for more than that plugin was approved for, so the
-    /// update was not downloaded.
-    UpdatePluginsNeedApproval {
-        api: String,
-        plugins: Vec<String>,
-    },
-    /// A developer-only call while `developer` is off.
-    DeveloperModeOff,
     /// No configured repository matches `reference`.
     RepositoryNotFound {
         reference: String,
@@ -565,57 +537,6 @@ pub enum ErrorInfo {
     RepositoryOfficial {
         repository: String,
     },
-    /// The repository has no build of the plugin this Hestia can install.
-    PluginBuildUnavailable {
-        id: String,
-        detail: String,
-    },
-    /// The package cannot be installed: unreadable, malformed or not a component.
-    PluginInvalid {
-        detail: String,
-    },
-    /// The command is unknown, or its arguments or entry do not match what the
-    /// plugin's manifest declares.
-    PluginCommandInvalid {
-        plugin: String,
-        command: String,
-        detail: String,
-    },
-    /// The page is unknown, or the entry it needs is missing.
-    PluginPageInvalid {
-        plugin: String,
-        page: String,
-        detail: String,
-    },
-    /// The plugin is installed but not running: disabled, failed or without a component.
-    PluginUnavailable {
-        id: String,
-    },
-    /// The plugin's command failed, trapped or timed out.
-    PluginCallFailed {
-        id: String,
-        detail: String,
-    },
-    /// A plugin answered a page render or action with something outside the UI
-    /// vocabulary. The detail stays in the daemon log.
-    PluginUiInvalid {
-        plugin: String,
-        page: String,
-    },
-    /// The value is not one the plugin's setting `key` accepts, or the plugin
-    /// declares no such setting.
-    PluginSettingInvalid {
-        plugin: String,
-        key: String,
-        detail: String,
-    },
-    /// A plugin's interceptor refused the operation. `reason` is the plugin's
-    /// own words, shown as secondary text.
-    PluginVetoed {
-        plugin: String,
-        hook: String,
-        reason: String,
-    },
     /// No file or directory at `path` in the entry's tree.
     FileNotFound {
         path: String,
@@ -628,10 +549,6 @@ pub enum ErrorInfo {
         key: String,
     },
     ConfigKeyUnset {
-        key: String,
-    },
-    /// A plugin reached a setting its access does not allow.
-    ConfigKeyDenied {
         key: String,
     },
     /// A Java-only setting asked of a server that does not run on Java.
@@ -724,16 +641,9 @@ pub enum ErrorInfo {
         name: String,
         candidates: Vec<String>,
     },
-    PluginInstallInProgress {
-        id: String,
-    },
 
     // --- auth ---
     SignInRequired,
-    /// A plugin answered that its own account has to be signed in first.
-    PluginSignInRequired {
-        plugin: String,
-    },
     SessionExpired {
         reference: String,
     },
@@ -934,16 +844,12 @@ impl ErrorInfo {
             | VersionNotFound { .. }
             | FileNotFound { .. }
             | TaskNotFound { .. }
-            | PluginNotFound { .. }
             | RepositoryNotFound { .. }
             | ConfigKeyUnknown { .. }
             | ConfigKeyUnset { .. } => code::NOT_FOUND,
-            SignInRequired
-            | PluginSignInRequired { .. }
-            | SessionExpired { .. }
-            | LoginDeclined
-            | LoginTimedOut => code::UNAUTHORIZED,
-            ConfigKeyDenied { .. } => code::FORBIDDEN,
+            SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
+                code::UNAUTHORIZED
+            }
             UnknownChannel { .. } => "unknown_channel",
             IncompatibleVersion { .. } => "version_mismatch",
             Offline { .. } | OfflineMode => "offline",
@@ -952,8 +858,6 @@ impl ErrorInfo {
             | Upstream { .. }
             | DownloadFailed { .. }
             | StopTimedOut { .. }
-            | PluginCallFailed { .. }
-            | PluginUiInvalid { .. }
             | Internal { .. } => "handler_error",
             _ => code::BAD_REQUEST,
         }
@@ -968,25 +872,10 @@ impl ErrorInfo {
         let hint = match self {
             SignInRequired => "run `hestia account login`".to_string(),
             SessionExpired { .. } => "run `hestia account login` to sign in again".to_string(),
-            DeveloperModeOff => "run `hestia config set developer true`".to_string(),
             MultiSessionDisabled { .. } => {
                 "run `hestia config set instance.multi-session true`".to_string()
             }
-            ContentSourceUnavailable {
-                setting: Some(RequiredSetting { plugin, key }),
-                ..
-            } => format!("run `hestia plugin config {plugin} {key} <value>`"),
-            ContentSourceUnavailable { setting: None, .. } => {
-                "open the plugin's settings with `hestia plugin config <plugin>`".to_string()
-            }
-            NoContentSource => "find one with `hestia plugin browse`".to_string(),
-            ProviderUnknown { .. } => {
-                "install a plugin that provides it; `hestia plugin browse` lists them".to_string()
-            }
             OfflineMode => "run `hestia config set network.offline false`".to_string(),
-            RepositoryExpired { .. } => {
-                "run `hestia plugin repo refresh` once it is reachable".to_string()
-            }
             _ => return None,
         };
         Some(hint)
@@ -1071,16 +960,6 @@ impl fmt::Display for ErrorInfo {
             AccountNotFound { reference } => write!(f, "no account matches '{reference}'"),
             VersionNotFound { reference } => write!(f, "no version matches '{reference}'"),
             TaskNotFound { id } => write!(f, "no scheduled task '{id}'"),
-            PluginNotFound { id } => write!(f, "no plugin '{id}' is installed"),
-            DeveloperModeOff => write!(f, "developer mode is off"),
-            PluginApprovalStale => write!(
-                f,
-                "the package's permissions changed since you reviewed them"
-            ),
-            PluginUpdateNeedsApproval { id } => write!(
-                f,
-                "the update of '{id}' asks for more permissions than you approved"
-            ),
             RepositoryNotFound { reference } => {
                 write!(f, "no plugin repository matches '{reference}'")
             }
@@ -1099,51 +978,10 @@ impl fmt::Display for ErrorInfo {
             RepositoryOfficial { repository } => {
                 write!(f, "'{repository}' is the official repository and cannot be removed")
             }
-            UpdatePluginsIncompatible { api, plugins } => write!(
-                f,
-                "this release uses plugin API {api}, and no build for it is listed for {}; \
-                 the update was not downloaded",
-                plugins.join(", ")
-            ),
-            UpdatePluginsNeedApproval { plugins, .. } => write!(
-                f,
-                "this release needs permissions you have not approved for {}; \
-                 the update was not downloaded",
-                plugins.join(", ")
-            ),
-            PluginBuildUnavailable { id, detail } => {
-                write!(f, "no installable build of '{id}': {detail}")
-            }
-            PluginInvalid { detail } => write!(f, "not a valid plugin package: {detail}"),
-            PluginCommandInvalid {
-                plugin,
-                command,
-                detail,
-            } => write!(f, "plugin '{plugin}' command '{command}': {detail}"),
-            PluginPageInvalid {
-                plugin,
-                page,
-                detail,
-            } => write!(f, "plugin '{plugin}' page '{page}': {detail}"),
-            PluginUnavailable { id } => write!(f, "plugin '{id}' is not running"),
-            PluginCallFailed { id, detail } => write!(f, "plugin '{id}' failed: {detail}"),
-            PluginUiInvalid { plugin, page } => write!(
-                f,
-                "plugin '{plugin}' returned a page '{page}' that cannot be drawn"
-            ),
-            PluginSettingInvalid { plugin, key, detail } => {
-                write!(f, "plugin '{plugin}' setting '{key}': {detail}")
-            }
-            PluginVetoed {
-                plugin,
-                hook,
-                reason,
-            } => write!(f, "plugin '{plugin}' refused at {hook}: {reason}"),
             FileNotFound { path } => write!(f, "no file or directory at '{path}'"),
             FileRejected { path, reason } => write!(f, "'{path}' was refused: {reason}"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),
             ConfigKeyUnset { key } => write!(f, "'{key}' is not set"),
-            ConfigKeyDenied { key } => write!(f, "plugins may not use the setting '{key}'"),
             ConfigKeyNotApplicable { key } => {
                 write!(f, "'{key}' only applies to servers that run on Java")
             }
@@ -1193,9 +1031,7 @@ impl fmt::Display for ErrorInfo {
                 "'{name}' is provided by more than one plugin; use one of: {}",
                 candidates.join(", ")
             ),
-            PluginInstallInProgress { id } => write!(f, "'{id}' is already being installed"),
             SignInRequired => write!(f, "sign in with a Microsoft account first"),
-            PluginSignInRequired { plugin } => write!(f, "plugin '{plugin}' needs you to sign in"),
             SessionExpired { reference } => {
                 write!(f, "your sign-in for '{reference}' expired")
             }
