@@ -160,17 +160,6 @@ impl Spinner {
     }
 }
 
-impl Spinner {
-    /// Relabel the wait; redirected, the new label prints as a line instead.
-    pub fn set(&self, label: impl Into<String>) {
-        let label = label.into();
-        match &self.animator {
-            Some(animator) => animator.set(View::Spinner(label)),
-            None => trail(&label),
-        }
-    }
-}
-
 impl Drop for Spinner {
     fn drop(&mut self) {
         if let Some(animator) = &self.animator {

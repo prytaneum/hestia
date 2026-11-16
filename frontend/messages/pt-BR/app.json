@@ -58,8 +58,6 @@
       "restart_description": "O launcher desconecta brevemente durante a reinicialização. Servidores e instâncias em execução continuam rodando.",
       "restart_title": "Reiniciar o daemon?",
       "restarting": "Reiniciando…",
-      "safe_mode": "modo seguro",
-      "safe_mode_hint": "Os plugins de terceiros não foram carregados. Reinicie o daemon sem o modo seguro para sair dele.",
       "start": "Iniciar daemon",
       "starting": "Iniciando…",
       "version_uptime": "v{version} · ativo há {uptime}"
@@ -213,8 +211,7 @@
       "screenshots": "Capturas",
       "servers": "Servidores",
       "settings": "Configurações",
-      "skins": "Skins",
-      "plugins": "Plugins"
+      "skins": "Skins"
     },
     "network": {
       "blocked_body": "Navegar e instalar conteúdo, entrar na conta, instalar versões do Java e verificar atualizações.",
@@ -262,10 +259,6 @@
       "recent": "Jogados recentemente",
       "recent_play": "{kind} · {instance}",
       "started": "Iniciado"
-    },
-    "safe_mode": {
-      "notice": "Modo seguro: os temas de plugins não são carregados nesta execução.",
-      "reset": "Redefinir tema"
     },
     "search": {
       "content": "Pesquisar conteúdo",

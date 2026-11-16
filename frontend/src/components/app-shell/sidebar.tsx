@@ -1,7 +1,6 @@
 import { useLocation } from '@tanstack/react-router';
 
 import { anchor } from '@/features/onboarding';
-import { usePluginNav } from '@/features/plugins';
 
 import { AccountMenu } from './account-menu';
 import { isActive, NavLink, nav, settingsItem } from './nav';
@@ -9,15 +8,13 @@ import { PinnedSection } from './pinned-section';
 
 export function Sidebar() {
   const { pathname } = useLocation();
-  const pluginNav = usePluginNav();
-  const items = [...nav, ...pluginNav];
-  const exact = items.find((item) => item.to === pathname);
+  const exact = nav.find((item) => item.to === pathname);
 
   return (
     <nav className="flex w-52 shrink-0 flex-col border-r border-border bg-sidebar">
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="space-y-0.5 p-2" {...anchor('nav')}>
-          {items.map((item) => (
+          {nav.map((item) => (
             <NavLink
               key={item.to}
               item={item}

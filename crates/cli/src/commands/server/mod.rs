@@ -22,13 +22,11 @@ use clap::{Parser, Subcommand};
 use client::proto::content::ContentKind;
 use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::minecraft::Edition;
-use client::proto::plugin::CommandScope;
 use client::Client;
 
 use crate::commands::content::{self, ContentCmd};
 use crate::commands::mc;
 use crate::commands::modpack::EntryModpackCmd;
-use crate::commands::plugin::run as plugin_run;
 use crate::exit::ExitStatus;
 use crate::ui::Spinner;
 
@@ -212,9 +210,6 @@ enum ServerAction {
     /// Delete the server (its jar, world and all)
     #[command(visible_alias = "rm")]
     Remove,
-    /// A command an installed plugin contributes for servers
-    #[command(external_subcommand)]
-    External(Vec<String>),
 }
 
 pub async fn run(cmd: ServerCmd) -> Result<ExitStatus> {
@@ -282,9 +277,6 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
         ServerAction::Info => {
             let info = client.server().info(&name).await?;
             entry::show_info(&client, &info).await
-        }
-        ServerAction::External(argv) => {
-            plugin_run::scoped(&client, CommandScope::Server, &name, argv).await
         }
         ServerAction::Monitor => lifecycle::monitor(&client, &name).await,
         ServerAction::Logs { tail, follow } => lifecycle::logs(&client, &name, tail, follow).await,

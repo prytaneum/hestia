@@ -1,5 +1,5 @@
 /**
- * How a provider id is shown. The daemon speaks full ids (`<plugin>.<id>`); a
+ * How a provider id is shown. The daemon speaks full ids (`<owner>.<id>`); a
  * person reads the provider-id alone while no other registered provider shares
  * it, which is also when the daemon accepts that bare name.
  */

@@ -24,13 +24,11 @@ use client::proto::content::ContentKind;
 use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::instance::QuickPlay;
 use client::proto::minecraft::Edition;
-use client::proto::plugin::CommandScope;
 use client::Client;
 
 use crate::commands::content::{self, ContentCmd};
 use crate::commands::mc;
 use crate::commands::modpack::EntryModpackCmd;
-use crate::commands::plugin::run as plugin_run;
 
 pub use lifecycle::{launch, Launch};
 
@@ -98,7 +96,7 @@ pub enum InstanceCmd {
         )]
         modpack: Option<String>,
     },
-    /// Import an instance from an archive (hestia, or a format a plugin adds)
+    /// Import an instance from an archive (hestia)
     Import {
         /// Path to the archive; its format is detected from what is inside it
         path: PathBuf,
@@ -270,11 +268,7 @@ enum InstanceAction {
     },
     /// Write the instance out as one archive (must be stopped)
     Export {
-        #[arg(
-            short,
-            long,
-            help = "Archive format: hestia (hestia's own) or one a plugin adds"
-        )]
+        #[arg(short, long, help = "Archive format: hestia (hestia's own)")]
         format: Option<String>,
         #[arg(
             short,
@@ -301,9 +295,6 @@ enum InstanceAction {
     /// Delete the instance (its saves and all)
     #[command(visible_alias = "rm")]
     Remove,
-    /// A command an installed plugin contributes for instances
-    #[command(external_subcommand)]
-    External(Vec<String>),
 }
 
 pub async fn run(cmd: InstanceCmd) -> Result<()> {
@@ -460,9 +451,6 @@ async fn run_action(client: &Client, name: String, action: InstanceAction) -> Re
             let info =
                 entry::pick_instance(client.instance().list().await?, Some(name.to_string()))?;
             crate::commands::sync::instance_action(client, &info.id, cmd).await
-        }
-        InstanceAction::External(argv) => {
-            plugin_run::scoped(client, CommandScope::Instance, &name, argv).await
         }
         InstanceAction::Remove => {
             let target = EntryTarget::new(EntryKind::Instance, name);

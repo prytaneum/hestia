@@ -40,7 +40,6 @@ pub fn show(view: View) -> Result<()> {
                 print_table(&headers, &rows)?;
             }
         }
-        View::Json(value) => line(&format!("{value:#}"))?,
     }
     Ok(())
 }
@@ -92,7 +91,6 @@ fn warning(text: &str) -> io::Result<()> {
 }
 
 fn detail(rows: &[(String, Cell)]) -> io::Result<()> {
-    let rows: Vec<_> = rows.iter().filter(|(_, cell)| cell.is_shown()).collect();
     let width = rows.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
     for (key, cell) in rows {
         let value = cell.text();

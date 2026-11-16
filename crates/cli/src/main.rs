@@ -1,7 +1,6 @@
 //! hestia — the Hestia command-line interface. A thin client over the daemon.
 
 mod commands;
-mod developer;
 mod exit;
 mod ui;
 
@@ -58,7 +57,7 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::account::AccountCmd,
     },
-    /// Java runtimes (installed from a Java distribution plugin)
+    /// Java runtimes
     Java {
         #[command(subcommand)]
         cmd: commands::java::JavaCmd,
@@ -73,9 +72,6 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::instance::InstanceCmd,
     },
-    /// `hestia <plugin> <command>`: a command an installed plugin contributes
-    #[command(external_subcommand)]
-    External(Vec<String>),
     /// Start a server or launch an instance by name
     Start {
         /// Server or instance name or id
@@ -165,11 +161,6 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::content::BrowseCmd,
     },
-    /// Manage launcher plugins
-    Plugin {
-        #[command(subcommand)]
-        cmd: commands::plugin::PluginCmd,
-    },
     /// Search mods on a content source (alias for `mod search`)
     Search {
         /// Search terms
@@ -233,16 +224,8 @@ enum Command {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
-    let developer = developer::resolve(&args);
     let mut command = Cli::command();
-    if !developer {
-        command = developer::hide_authoring(command);
-    }
     let matches = command.clone().get_matches_from(&args);
-    if !developer && developer::is_authoring(&matches) {
-        eprintln!("{}", developer::OFF_MESSAGE);
-        return ExitCode::FAILURE;
-    }
     let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
 
     // Diagnostics go to an appended logs/hestia.log so they never garble command
@@ -356,8 +339,6 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitStatus> {
         Command::ServerPlugin { cmd } => {
             commands::content::run_browse(client::proto::content::ContentKind::Plugin, cmd).await
         }
-        Command::Plugin { cmd } => commands::plugin::run(cmd).await,
-        Command::External(argv) => commands::plugin::run::top(argv).await,
         Command::Search {
             query,
             loader,

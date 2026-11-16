@@ -20,9 +20,7 @@ export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export type SettingsGroup =
   | 'general'
-  | 'appearance'
   | 'updates'
-  | 'advanced'
   | 'java-defaults'
   | 'java-runtimes'
   | 'content-updates'
@@ -90,26 +88,6 @@ const INDEX: Entry[] = [
       m['settings.tutorial.label'],
       m['settings.tutorial.hint'],
       m['settings.tutorial.replay'],
-    ),
-  },
-  {
-    id: 'developer',
-    tab: 'general',
-    group: 'advanced',
-    text: text(
-      m['settings.advanced'],
-      m['settings.developer.label'],
-      m['settings.developer.description'],
-    ),
-  },
-  {
-    id: 'theme',
-    tab: 'general',
-    group: 'appearance',
-    text: text(
-      m['settings.theme.label'],
-      m['settings.theme.hint'],
-      m['settings.theme.builtin'],
     ),
   },
   {

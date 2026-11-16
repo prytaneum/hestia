@@ -146,7 +146,6 @@ fn view_value(view: &View) -> Value {
                 .collect(),
         ),
         View::Empty(_) => json!([]),
-        View::Json(value) => value.clone(),
     }
 }
 
@@ -246,23 +245,16 @@ mod tests {
             rendered(vec![detail])["data"],
             json!({ "max_memory": "4G" })
         );
-        let running = View::status(
-            "running",
-            [
-                ("pid", Cell::count(7u32)),
-                ("safe mode", Cell::json_only(false)),
-            ],
-        );
+        let running = View::status("running", [("pid", Cell::count(7u32))]);
         let stopped = View::status("stopped", Vec::<(&str, Cell)>::new());
         assert_eq!(
             rendered(vec![running])["data"],
-            json!({ "state": "running", "pid": 7, "safe_mode": false })
+            json!({ "state": "running", "pid": 7 })
         );
         assert_eq!(
             rendered(vec![stopped])["data"],
             json!({ "state": "stopped" })
         );
-        assert!(!Cell::json_only(false).is_shown());
         assert_eq!(
             rendered(vec![View::line("done")])["data"],
             json!({ "message": "done" })

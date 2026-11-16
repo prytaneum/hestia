@@ -16,7 +16,6 @@ import { contentIcon, contentKindLabel } from '@/components/icons';
 import { OfflineState } from '@/components/offline-state';
 import { PickerPanel } from '@/components/picker-panel';
 import {
-  SourceSettingLink,
   selectionKey,
   sourceGroup,
   useSourceOptions,
@@ -101,12 +100,7 @@ export function ContentStep({
             trailing={
               <FilterMenu
                 groups={[
-                  sourceGroup(
-                    sources.list,
-                    sources.active,
-                    onSourceChange,
-                    sources.waiting,
-                  ),
+                  sourceGroup(sources.list, sources.active, onSourceChange),
                 ]}
               />
             }
@@ -198,7 +192,6 @@ function LinkResult({
         {errorHint(query.error) && (
           <p className="text-muted-foreground">{errorHint(query.error)}</p>
         )}
-        <SourceSettingLink error={query.error} />
       </div>
     );
   }

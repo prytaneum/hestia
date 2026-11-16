@@ -17,7 +17,6 @@ import { channels as java } from './java';
 import { channels as job } from './job';
 import { channels as modpack } from './modpack';
 import { channels as net } from './net';
-import { channels as plugin } from './plugin';
 import { channels as screenshot } from './screenshot';
 import { channels as server } from './server';
 import { channels as skin } from './skin';
@@ -40,7 +39,6 @@ export const channels: ChannelHandlers = {
   ...job,
   ...modpack,
   ...net,
-  ...plugin,
   ...server,
   ...skin,
   ...screenshot,

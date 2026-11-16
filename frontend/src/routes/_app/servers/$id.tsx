@@ -1,10 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import type { ContentKind } from '@/api';
-import { isPluginTab, type PluginTab } from '@/features/plugins';
 import { ServerDetailPage, type ServerTab } from '@/features/servers/detail';
 import { isContentKind } from '@/features/shared/content/lib';
 
-const tabs: Record<Exclude<ServerTab, 'overview' | PluginTab>, true> = {
+const tabs: Record<Exclude<ServerTab, 'overview'>, true> = {
   console: true,
   content: true,
   files: true,
@@ -26,10 +25,9 @@ const text = (value: unknown): string | undefined =>
 
 export const Route = createFileRoute('/_app/servers/$id')({
   validateSearch: (search: Record<string, unknown>): Search => {
-    const tab =
-      Object.hasOwn(tabs, search.tab as string) || isPluginTab(search.tab)
-        ? (search.tab as ServerTab)
-        : undefined;
+    const tab = Object.hasOwn(tabs, search.tab as string)
+      ? (search.tab as ServerTab)
+      : undefined;
     return {
       tab,
       kind:

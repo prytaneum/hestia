@@ -5,7 +5,6 @@ import {
   HardDrivesIcon,
   ImagesIcon,
   PackageIcon,
-  PuzzlePieceIcon,
   StorefrontIcon,
   TShirtIcon,
 } from '@phosphor-icons/react';
@@ -56,12 +55,6 @@ export const nav: NavItem[] = [
     label: m['app.nav.skins'],
     icon: TShirtIcon,
     match: ['/skins'],
-  },
-  {
-    to: '/plugins',
-    label: m['app.nav.plugins'],
-    icon: PuzzlePieceIcon,
-    match: ['/plugins'],
   },
 ];
 

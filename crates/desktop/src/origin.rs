@@ -11,8 +11,7 @@ use tauri::WebviewWindow;
 pub fn trust_dev_page(window: &WebviewWindow) {
     use webkit2gtk::WebViewExt;
 
-    let allowed = [crate::proxy::SCHEME, crate::assets::SCHEME, "asset"]
-        .map(|scheme| format!("{scheme}://*/*"));
+    let allowed = [crate::proxy::SCHEME, "asset"].map(|scheme| format!("{scheme}://*/*"));
     let applied = window.with_webview(move |webview| {
         let patterns: Vec<&str> = allowed.iter().map(String::as_str).collect();
         webview.inner().set_cors_allowlist(&patterns);

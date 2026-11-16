@@ -14,7 +14,6 @@ export interface ModpackConfig {
 interface ConfigEntries {
   home?: string;
   autostart?: boolean;
-  developer?: boolean;
   defaults?: { memory?: string; 'jvm-args'?: string };
   content?: { 'auto-update'?: boolean };
   instance?: { 'multi-session'?: boolean };

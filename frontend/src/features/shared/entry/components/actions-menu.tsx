@@ -15,7 +15,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { PluginCommandItems, usePluginCommands } from '@/features/plugins';
 import { m } from '@/paraglide/messages.js';
 import { type EntryActionTarget, useEntryActions } from '../hooks';
 
@@ -25,7 +24,6 @@ import { type EntryActionTarget, useEntryActions } from '../hooks';
  */
 export function EntryActionsMenu({ entry }: { entry: EntryActionTarget }) {
   const actions = useEntryActions(entry);
-  const plugin = usePluginCommands({ kind: entry.kind, id: entry.id });
 
   return (
     <>
@@ -60,7 +58,6 @@ export function EntryActionsMenu({ entry }: { entry: EntryActionTarget }) {
             {actions.pinned ? <PushPinSlashIcon /> : <PushPinIcon />}
             {actions.pinned ? m['app.label.unpin']() : m['app.label.pin']()}
           </DropdownMenuItem>
-          <PluginCommandItems commands={plugin.commands} run={plugin.run} />
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={actions.remove}>
             <TrashIcon />
@@ -69,7 +66,6 @@ export function EntryActionsMenu({ entry }: { entry: EntryActionTarget }) {
         </DropdownMenuContent>
       </DropdownMenu>
       {actions.dialogs}
-      {plugin.dialog}
     </>
   );
 }

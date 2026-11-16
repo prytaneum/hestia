@@ -25,11 +25,6 @@ import {
 } from '@/features/instances/tabs';
 import { anchor, useAutoTour } from '@/features/onboarding';
 import {
-  type PluginTab,
-  PluginTabContents,
-  PluginTabTriggers,
-} from '@/features/plugins';
-import {
   busyReason,
   EntryActionsMenu,
   EntryIconMenu,
@@ -61,8 +56,7 @@ export type InstanceTab =
   | 'worlds'
   | 'servers'
   | 'logs'
-  | 'settings'
-  | PluginTab;
+  | 'settings';
 
 /** The record as the hook serves it — joined with its icon URL. */
 type Instance = NonNullable<ReturnType<typeof useInstance>['data']>;
@@ -228,7 +222,6 @@ function InstanceDetail({
           </TabsTrigger>
           <TabsTrigger value="servers">{m['app.label.servers']()}</TabsTrigger>
           <TabsTrigger value="logs">{m['app.label.logs']()}</TabsTrigger>
-          <PluginTabTriggers kind="instance" />
           <TabsTrigger value="settings">
             {m['app.label.settings']()}
           </TabsTrigger>
@@ -395,8 +388,6 @@ function InstanceDetail({
             onSessionChange={setLogSession}
           />
         </TabsContent>
-
-        <PluginTabContents kind="instance" entry={instance.id} />
 
         <TabsContent value="settings" className="p-5">
           <InstanceSettingsTab

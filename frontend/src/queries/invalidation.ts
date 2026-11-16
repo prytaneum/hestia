@@ -13,9 +13,7 @@ import {
   onDaemonEvent,
   type Topics,
 } from '../api';
-import { notify } from '../lib/notify';
 import { entryOfProcess } from '../lib/process-id';
-import { m } from '../paraglide/messages.js';
 import { invalidate, queryClient } from './client';
 import { FOOTPRINT, keys } from './keys';
 
@@ -65,7 +63,6 @@ const JOB_DONE: JobKeys = {
   'instance.launch': (done) =>
     entryKeys('instances', entryOfProcess(done.processId, 'instance')),
   'java.install': () => [keys.java.runtimes()],
-  'plugin.install': () => [keys.plugins.all],
   'server.backup.create': sweepServers,
   'server.backup.restore': sweepServers,
   'server.worlds.import': sweepServers,
@@ -113,7 +110,7 @@ const CHANGED: Record<Topics['changed']['scope'], QueryKey[]> = {
   sync: [keys.sync.all],
   screenshots: [keys.screenshots.all],
   cache: [keys.cache.all, [FOOTPRINT]],
-  plugins: [keys.plugins.all],
+  plugins: [],
 };
 
 /** The key prefixes a daemon event outdates — exported for the regression test. */
@@ -126,13 +123,6 @@ export function invalidationKeys(event: DaemonEvent): QueryKey[] {
       return jobKeys(event.payload);
     case 'changed':
       return CHANGED[event.payload.scope];
-    case 'plugin.state':
-      return [keys.plugins.all];
-    case 'plugin.updates':
-      return [keys.plugins.outdated()];
-    case 'plugin.rolled_back':
-    case 'plugin.auto_updated':
-      return [keys.plugins.all];
     case 'content.updates_found':
       return [keys.content.available()];
     default:
@@ -148,8 +138,6 @@ const UPSTREAM_KEYS: QueryKey[] = [
   keys.java.all,
   keys.update.all,
   keys.skins.all,
-  keys.plugins.catalogue(),
-  keys.plugins.outdated(),
   [...keys.servers.all, 'versions'],
   [...keys.instances.all, 'versions'],
 ];
@@ -160,19 +148,6 @@ function sweepOnReturnToOnline(status: Topics['net.state']): void {
   const offline = status.state === 'offline';
   if (wasOffline && !offline) for (const key of UPSTREAM_KEYS) invalidate(key);
   wasOffline = offline;
-}
-
-function announceRollback(rollback: Topics['plugin.rolled_back']): void {
-  notify.warning(m['settings.plugins.rolled_back'](rollback), {
-    id: `plugin-rolled-back-${rollback.id}`,
-    description: m['settings.plugins.rolled_back_hint'](rollback),
-  });
-}
-
-function announceAutoUpdate(update: Topics['plugin.auto_updated']): void {
-  notify.success(m['settings.plugins.auto_updated'](update), {
-    id: `plugin-auto-updated-${update.id}`,
-  });
 }
 
 function isEntryUpdatesKey({ queryKey }: { queryKey: QueryKey }): boolean {
@@ -193,9 +168,6 @@ export function startInvalidation(): void {
   started = true;
   onDaemonEvent((event) => {
     for (const key of invalidationKeys(event)) invalidate(key);
-    if (event.topic === 'plugin.rolled_back') announceRollback(event.payload);
-    if (event.topic === 'plugin.auto_updated')
-      announceAutoUpdate(event.payload);
     // An entry's own update list nests under its id, so a check that found
     // something reaches every open one by the key's shape instead.
     if (event.topic === 'content.updates_found')

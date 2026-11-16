@@ -11,8 +11,6 @@
       "nothing_matches": "Nada corresponde à sua pesquisa.",
       "project_missing": "Esse projeto não foi encontrado.",
       "source": "Fonte",
-      "set_source_setting": "Definir {setting}",
-      "source_needs_setting": "{name} (requer a configuração {setting})",
       "subtitle": "Descubra mods, pacotes e shaders",
       "no_sources": "Nenhuma fonte online tem conteúdo para a edição deste servidor. Modrinth e CurseForge cobrem apenas Java. Importe um arquivo de pacote."
     },

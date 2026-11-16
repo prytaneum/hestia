@@ -15,7 +15,6 @@ import { Route as AppBrowseIndexRouteImport } from './routes/_app/browse/index'
 import { Route as AppInstancesIndexRouteImport } from './routes/_app/instances/index'
 import { Route as AppInstancesIdRouteImport } from './routes/_app/instances/$id'
 import { Route as AppOfflineIndexRouteImport } from './routes/_app/offline/index'
-import { Route as AppPluginsIndexRouteImport } from './routes/_app/plugins/index'
 import { Route as AppScreenshotsIndexRouteImport } from './routes/_app/screenshots/index'
 import { Route as AppServersIndexRouteImport } from './routes/_app/servers/index'
 import { Route as AppServersIdRouteImport } from './routes/_app/servers/$id'
@@ -23,8 +22,6 @@ import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/ind
 import { Route as AppSkinsIndexRouteImport } from './routes/_app/skins/index'
 import { Route as AppBrowseKindIndexRouteImport } from './routes/_app/browse/$kind/index'
 import { Route as AppBrowseKindIdRouteImport } from './routes/_app/browse/$kind/$id'
-import { Route as AppPluginsPluginIndexRouteImport } from './routes/_app/plugins/$plugin/index'
-import { Route as AppPluginsPluginPageRouteImport } from './routes/_app/plugins/$plugin/$page'
 
 const AppRouteRoute = AppRouteRouteImport.update({
   id: '/_app',
@@ -53,11 +50,6 @@ const AppInstancesIdRoute = AppInstancesIdRouteImport.update({
 const AppOfflineIndexRoute = AppOfflineIndexRouteImport.update({
   id: '/offline/',
   path: '/offline/',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppPluginsIndexRoute = AppPluginsIndexRouteImport.update({
-  id: '/plugins/',
-  path: '/plugins/',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppScreenshotsIndexRoute = AppScreenshotsIndexRouteImport.update({
@@ -95,16 +87,6 @@ const AppBrowseKindIdRoute = AppBrowseKindIdRouteImport.update({
   path: '/browse/$kind/$id',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppPluginsPluginIndexRoute = AppPluginsPluginIndexRouteImport.update({
-  id: '/plugins/$plugin/',
-  path: '/plugins/$plugin/',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppPluginsPluginPageRoute = AppPluginsPluginPageRouteImport.update({
-  id: '/plugins/$plugin/$page',
-  path: '/plugins/$plugin/$page',
-  getParentRoute: () => AppRouteRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -113,15 +95,12 @@ export interface FileRoutesByFullPath {
   '/browse/': typeof AppBrowseIndexRoute
   '/instances/': typeof AppInstancesIndexRoute
   '/offline/': typeof AppOfflineIndexRoute
-  '/plugins/': typeof AppPluginsIndexRoute
   '/screenshots/': typeof AppScreenshotsIndexRoute
   '/servers/': typeof AppServersIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/skins/': typeof AppSkinsIndexRoute
   '/browse/$kind/$id': typeof AppBrowseKindIdRoute
-  '/plugins/$plugin/$page': typeof AppPluginsPluginPageRoute
   '/browse/$kind/': typeof AppBrowseKindIndexRoute
-  '/plugins/$plugin/': typeof AppPluginsPluginIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
@@ -130,15 +109,12 @@ export interface FileRoutesByTo {
   '/browse': typeof AppBrowseIndexRoute
   '/instances': typeof AppInstancesIndexRoute
   '/offline': typeof AppOfflineIndexRoute
-  '/plugins': typeof AppPluginsIndexRoute
   '/screenshots': typeof AppScreenshotsIndexRoute
   '/servers': typeof AppServersIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/skins': typeof AppSkinsIndexRoute
   '/browse/$kind/$id': typeof AppBrowseKindIdRoute
-  '/plugins/$plugin/$page': typeof AppPluginsPluginPageRoute
   '/browse/$kind': typeof AppBrowseKindIndexRoute
-  '/plugins/$plugin': typeof AppPluginsPluginIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -149,15 +125,12 @@ export interface FileRoutesById {
   '/_app/browse/': typeof AppBrowseIndexRoute
   '/_app/instances/': typeof AppInstancesIndexRoute
   '/_app/offline/': typeof AppOfflineIndexRoute
-  '/_app/plugins/': typeof AppPluginsIndexRoute
   '/_app/screenshots/': typeof AppScreenshotsIndexRoute
   '/_app/servers/': typeof AppServersIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/skins/': typeof AppSkinsIndexRoute
   '/_app/browse/$kind/$id': typeof AppBrowseKindIdRoute
-  '/_app/plugins/$plugin/$page': typeof AppPluginsPluginPageRoute
   '/_app/browse/$kind/': typeof AppBrowseKindIndexRoute
-  '/_app/plugins/$plugin/': typeof AppPluginsPluginIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -168,15 +141,12 @@ export interface FileRouteTypes {
     | '/browse/'
     | '/instances/'
     | '/offline/'
-    | '/plugins/'
     | '/screenshots/'
     | '/servers/'
     | '/settings/'
     | '/skins/'
     | '/browse/$kind/$id'
-    | '/plugins/$plugin/$page'
     | '/browse/$kind/'
-    | '/plugins/$plugin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -185,15 +155,12 @@ export interface FileRouteTypes {
     | '/browse'
     | '/instances'
     | '/offline'
-    | '/plugins'
     | '/screenshots'
     | '/servers'
     | '/settings'
     | '/skins'
     | '/browse/$kind/$id'
-    | '/plugins/$plugin/$page'
     | '/browse/$kind'
-    | '/plugins/$plugin'
   id:
     | '__root__'
     | '/_app'
@@ -203,15 +170,12 @@ export interface FileRouteTypes {
     | '/_app/browse/'
     | '/_app/instances/'
     | '/_app/offline/'
-    | '/_app/plugins/'
     | '/_app/screenshots/'
     | '/_app/servers/'
     | '/_app/settings/'
     | '/_app/skins/'
     | '/_app/browse/$kind/$id'
-    | '/_app/plugins/$plugin/$page'
     | '/_app/browse/$kind/'
-    | '/_app/plugins/$plugin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -260,13 +224,6 @@ declare module '@tanstack/react-router' {
       path: '/offline'
       fullPath: '/offline/'
       preLoaderRoute: typeof AppOfflineIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/plugins/': {
-      id: '/_app/plugins/'
-      path: '/plugins'
-      fullPath: '/plugins/'
-      preLoaderRoute: typeof AppPluginsIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/screenshots/': {
@@ -318,20 +275,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppBrowseKindIdRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/plugins/$plugin/': {
-      id: '/_app/plugins/$plugin/'
-      path: '/plugins/$plugin'
-      fullPath: '/plugins/$plugin/'
-      preLoaderRoute: typeof AppPluginsPluginIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/plugins/$plugin/$page': {
-      id: '/_app/plugins/$plugin/$page'
-      path: '/plugins/$plugin/$page'
-      fullPath: '/plugins/$plugin/$page'
-      preLoaderRoute: typeof AppPluginsPluginPageRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
   }
 }
 
@@ -342,15 +285,12 @@ interface AppRouteRouteChildren {
   AppBrowseIndexRoute: typeof AppBrowseIndexRoute
   AppInstancesIndexRoute: typeof AppInstancesIndexRoute
   AppOfflineIndexRoute: typeof AppOfflineIndexRoute
-  AppPluginsIndexRoute: typeof AppPluginsIndexRoute
   AppScreenshotsIndexRoute: typeof AppScreenshotsIndexRoute
   AppServersIndexRoute: typeof AppServersIndexRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
   AppSkinsIndexRoute: typeof AppSkinsIndexRoute
   AppBrowseKindIdRoute: typeof AppBrowseKindIdRoute
-  AppPluginsPluginPageRoute: typeof AppPluginsPluginPageRoute
   AppBrowseKindIndexRoute: typeof AppBrowseKindIndexRoute
-  AppPluginsPluginIndexRoute: typeof AppPluginsPluginIndexRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
@@ -360,15 +300,12 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppBrowseIndexRoute: AppBrowseIndexRoute,
   AppInstancesIndexRoute: AppInstancesIndexRoute,
   AppOfflineIndexRoute: AppOfflineIndexRoute,
-  AppPluginsIndexRoute: AppPluginsIndexRoute,
   AppScreenshotsIndexRoute: AppScreenshotsIndexRoute,
   AppServersIndexRoute: AppServersIndexRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,
   AppSkinsIndexRoute: AppSkinsIndexRoute,
   AppBrowseKindIdRoute: AppBrowseKindIdRoute,
-  AppPluginsPluginPageRoute: AppPluginsPluginPageRoute,
   AppBrowseKindIndexRoute: AppBrowseKindIndexRoute,
-  AppPluginsPluginIndexRoute: AppPluginsPluginIndexRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(

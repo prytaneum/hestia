@@ -31,9 +31,6 @@ pub enum View {
     /// A list with nothing in it: the note a person reads, and `[]` under
     /// `--json`, so a script never has to tell an empty list from a message.
     Empty(String),
-    /// A structured value a command already holds, printed as-is under
-    /// `--json` and pretty-printed otherwise.
-    Json(serde_json::Value),
 }
 
 /// The machine key for a display label: lowercased, every run of other
@@ -110,9 +107,5 @@ impl View {
             *keys = names.into_iter().map(str::to_owned).collect();
         }
         self
-    }
-
-    pub fn json(value: serde_json::Value) -> View {
-        View::Json(value)
     }
 }

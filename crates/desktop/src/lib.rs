@@ -1,4 +1,3 @@
-mod assets;
 mod bridge;
 mod commands;
 mod origin;
@@ -69,7 +68,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .register_asynchronous_uri_scheme_protocol(proxy::SCHEME, proxy::serve)
-        .register_asynchronous_uri_scheme_protocol(assets::SCHEME, assets::serve)
         .manage(Bridge::default())
         .manage(commands::open::PendingArchive::default())
         .manage(commands::link::PendingRepository::default())
@@ -102,7 +100,6 @@ pub fn run() {
             commands::prefs::prefs_list,
             commands::prefs::prefs_set,
             commands::prefs::prefs_remove,
-            commands::safemode::safe_mode,
             commands::icons::icons_allow,
             commands::screenshots::screenshots_allow,
             commands::open::pending_archive,

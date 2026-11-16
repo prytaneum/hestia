@@ -6,9 +6,9 @@ mod session;
 mod spawn;
 
 pub use facades::{
-    Accounts, App, Cache, Config, Content, Daemon, DevEvent, Entry, Files, Host, Instance, Java,
-    Jobs, LaunchOptions, Modpack, Net, Plugin, Process, ProcessEvent, Screenshot, Server, Skins,
-    Sync, Tasks, Transfer, Update,
+    Accounts, App, Cache, Config, Content, Daemon, Entry, Files, Host, Instance, Java, Jobs,
+    LaunchOptions, Modpack, Net, Process, ProcessEvent, Screenshot, Server, Skins, Sync, Tasks,
+    Transfer, Update,
 };
 pub use ipc::errors::IpcError;
 
@@ -61,18 +61,12 @@ impl Client {
     /// Start the daemon if not already running, then connect. The one path
     /// that spawns `hestiad` — every explicit start action routes through here.
     pub async fn start() -> Result<Client, IpcError> {
-        Client::start_with(false).await
-    }
-
-    /// [`Client::start`], spawning the daemon in safe mode when `safe_mode`.
-    /// A daemon that is already running keeps the mode it started in.
-    pub async fn start_with(safe_mode: bool) -> Result<Client, IpcError> {
         let endpoint = ipc::endpoint::default_endpoint();
         let conn = match ipc::connect(&endpoint).await {
             Ok(conn) => conn,
             Err(_) => {
                 tracing::debug!(endpoint = %endpoint.display(), "daemon not running; starting it");
-                spawn::spawn_daemon(safe_mode)?;
+                spawn::spawn_daemon()?;
                 spawn::connect_with_retry(&endpoint)
                     .await
                     .ok_or(IpcError::ConnectionLost)?
@@ -208,12 +202,6 @@ impl Client {
 
     pub fn screenshot(&self) -> Screenshot<'_> {
         Screenshot {
-            session: &self.session,
-        }
-    }
-
-    pub fn plugin(&self) -> Plugin<'_> {
-        Plugin {
             session: &self.session,
         }
     }

@@ -62,48 +62,6 @@
       "resolving_profile": "Resolving profile",
       "writing_pack_files": "Writing pack files"
     },
-    "plugin": {
-      "availability": {
-        "incompatible": "Incompatible",
-        "prebuilt": "Available",
-        "unreleased": "Unreleased"
-      },
-      "permission": {
-        "account_read": "See the names of signed-in accounts, never their tokens",
-        "config_read": "See the few launcher settings that are safe to share, never keys, locations or update settings",
-        "config_write": "Change the few launcher settings that are safe to hand over; everything that decides where data lives, what runs, what updates and what is downloaded stays yours",
-        "content_read": "Search and inspect mods, packs and other content",
-        "content_write": "Install, update and remove mods, packs and other content",
-        "entry_read": "See your servers and instances and their settings",
-        "entry_write": "Create, change and delete servers and instances, including their files and JVM arguments",
-        "flavor_provide": "Add game distributions that choose what code the game runs, including its main class and arguments",
-        "ipc_connect": "Talk to the programs running on this computer that it lists, such as a chat client",
-        "java_manage": "Install and remove Java runtimes",
-        "java_provide": "Add Java distributions that choose the runtime binary Hestia executes",
-        "java_read": "See installed and available Java runtimes",
-        "launch_patch": "Adjust launch settings from an allowlist when a game or server starts",
-        "network_connect": "Connect to the hosts it lists",
-        "pack_provide": "Add pack formats that choose the game version, loader and files of instances you import",
-        "process_control": "Start and stop servers and games, and run console commands",
-        "process_read": "See which servers and games are running",
-        "process_spawn": "Run the programs it lists",
-        "ui_css": "Restyle the app with its own stylesheet"
-      },
-      "source": {
-        "dev": "Development",
-        "file": "File",
-        "folder": "Folder",
-        "repo": "Repository",
-        "url": "URL"
-      },
-      "state": {
-        "disabled": "Disabled",
-        "enabled": "Enabled",
-        "failed": "Failed",
-        "needs_approval": "Needs approval",
-        "needs_update": "Needs update"
-      }
-    },
     "sync_state": {
       "off": "not shared",
       "overridden": "keeps its own",

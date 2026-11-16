@@ -13,7 +13,6 @@ mod mc;
 pub mod modpack;
 mod names;
 pub mod play;
-pub mod plugin;
 pub mod process;
 pub mod screenshot;
 pub mod server;
@@ -41,11 +40,9 @@ pub async fn connect_running() -> Result<Client> {
 }
 
 /// Explicitly start the daemon and connect.
-pub async fn start(safe_mode: bool) -> Result<Client> {
+pub async fn start() -> Result<Client> {
     let _spinner = Spinner::start("starting the daemon");
-    Client::start_with(safe_mode)
-        .await
-        .context("cannot start the daemon")
+    Client::start().await.context("cannot start the daemon")
 }
 
 /// Wait for a daemon that was asked to stop to go, so a following [`start`]

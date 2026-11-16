@@ -26,17 +26,7 @@ serde = { workspace = true }
 chrono = { workspace = true }
 tui-markdown = { workspace = true }
 serde_json = { workspace = true }
-toml = { workspace = true }
-zip = { workspace = true }
 tokio = { workspace = true }
 futures-util = { workspace = true }
 anyhow = { workspace = true }
-minisign = { workspace = true }
 tracing = { workspace = true }
-wasmparser = { workspace = true }
-
-[dev-dependencies]
-wasm-encoder = { workspace = true }
-
-[build-dependencies]
-wit-parser = { workspace = true }

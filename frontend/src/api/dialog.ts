@@ -4,7 +4,7 @@
  * which only the shell's native picker can produce — a browser file input hands
  * back a sandboxed `File`, never a path.
  */
-import { ask as nativeAsk, open, save } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 
 import type { ContentKind } from './types';
 
@@ -65,11 +65,7 @@ export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
 /** Pick one image and return its absolute path, or null when dismissed. */
 export const pickImage = () => pickOne('Images', IMAGE_EXTENSIONS);
 
-/**
- * The archives an import accepts without any plugin: hestia's own and any zip.
- * A pack format a plugin writes adds its own extension to the list the caller
- * passes.
- */
+/** The archives an import accepts: hestia's own and any zip. */
 export const BASE_ARCHIVE_EXTENSIONS = ['hestia', 'zip'];
 
 /** Pick one instance archive to import; empty when dismissed. */
@@ -88,26 +84,6 @@ export const pickPackFile = (extensions: string[]) =>
 export async function pickFolder(): Promise<string | null> {
   const selection = await open({ multiple: false, directory: true });
   return typeof selection === 'string' ? selection : null;
-}
-
-/** The plugin package extension. */
-export const PLUGIN_EXTENSIONS = ['hplugin'];
-
-/** Pick one plugin package; empty when dismissed. */
-export async function pickPluginPackage(): Promise<string[]> {
-  const path = await pickOne('Plugins', PLUGIN_EXTENSIONS);
-  return path ? [path] : [];
-}
-
-/**
- * A native yes/no box. Plugin approval goes through this rather than a
- * webview modal so a stylesheet contributed by a theme cannot hide or fake it.
- */
-export function ask(
-  message: string,
-  options: { title: string; okLabel: string; cancelLabel: string },
-): Promise<boolean> {
-  return nativeAsk(message, { ...options, kind: 'warning' });
 }
 
 /**

@@ -1,7 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "settings": {
-    "appearance": "Appearance",
     "cache": {
       "clear": "Clear cache",
       "clear_description": "Frees the cached downloads. Files are re-fetched from the network the next time they're needed.",
@@ -63,125 +62,6 @@
       "title": "Modpacks"
     },
     "no_default": "No default set",
-    "plugins": {
-      "approval": {
-        "full_access_warning": "This plugin asks for full access to your computer: it can change your servers and instances, install content and run programs.",
-        "more": "…and more. The full list is on the Plugins page.",
-        "none": "It asks for no permissions.",
-        "nothing_new": "It asks for nothing new.",
-        "install_title": "Install {name} {version}?",
-        "update_title": "Update {name} from {from} to {to}?"
-      },
-      "browse": {
-        "empty": "No plugins match.",
-        "none": "Add a repository to browse the plugins it offers.",
-        "repository": "Repository",
-        "search": "Search plugins"
-      },
-      "continue": "Continue",
-      "drop": "Drop to install",
-      "incompatible_hint": "Needs plugin API {requires}.",
-      "installable_hint": "{version} can be installed instead.",
-      "installed_version": "Installed {version}",
-      "key_id": "Key {key}",
-      "obsolete": "Obsolete",
-      "obsolete_hint": "No repository you added lists this plugin any more. It keeps running, but gets no updates.",
-      "dev": "Dev",
-      "dev_hint": "Running from a folder on this computer. It reloads when its files change.",
-      "official": "Official",
-      "official_hint": "Signed by the official Hestia plugins key.",
-      "repos": {
-        "add": "Add",
-        "add_placeholder": "owner/repo or https://…/plugins.json",
-        "added": "{name} added",
-        "already": "Already added.",
-        "count": "Plugins: {count}",
-        "empty": "No repositories yet.",
-        "hint": "A repository is trusted by its signing key. Only plugins signed with that key are installed from it or updated through it.",
-        "refresh": "Refresh",
-        "remove_description": "Plugins installed from it keep running, but get no updates.",
-        "remove_title": "Remove {name}?",
-        "title": "Repositories",
-        "trust": "Trust and add",
-        "trust_description": "Plugins signed with key {key} will be installable from {name}. Check that the key matches what its author publishes.",
-        "trust_title": "Trust {name}?"
-      },
-      "tabs": {
-        "browse": "Browse",
-        "installed": "Installed"
-      },
-      "unreleased_hint": "Version {version} has no build yet.",
-      "check_update": "Check for update",
-      "check_update_no_link": "Plugin has no recorded link to check.",
-      "up_to_date": "{name} is up to date",
-      "update": "Update",
-      "update_needs_api": "Version {version} needs plugin API {api}.",
-      "update_to": "Update to {version}",
-      "update_rolled_back": "{name} was not updated",
-      "rolled_back": "{id} was rolled back to {restored}",
-      "auto_updated": "{id} updated to {to}",
-      "rolled_back_hint": "Version {version} stopped working shortly after the update. Report the problem to its author.",
-      "updated": "{name} updated to {version}",
-      "updates_available": "{count} updates available",
-      "empty": "No plugins installed.",
-      "full_access": "Full access",
-      "full_access_hint": "Can change your servers and instances, install content or run programs.",
-      "grant": {
-        "contributions": "What it adds",
-        "full_access": "Full access to your computer",
-        "kind": {
-          "endpoints": "Local programs it can talk to",
-          "events": "Events it listens to",
-          "files": "Files it can read in a server",
-          "hooks": "Hooks",
-          "hosts": "Network hosts",
-          "programs": "Programs it can run",
-          "properties": "Launch properties it may set",
-          "schedules": "Schedules it runs on",
-          "secrets": "Secret settings",
-          "themes": "Themes",
-          "unhashed": "Hosts that may serve downloads without a checksum"
-        },
-        "permissions": "Permissions",
-        "pinned": "Programs pinned to a path and hash",
-        "unpinned": "{id}: `{command}` is not on this computer, so it cannot run until you approve the plugin again with it installed"
-      },
-      "hint": "Plugins extend Hestia. A plugin only gets what you approve when you install it.",
-      "install_file": "Install from file",
-      "installed": "{name} installed",
-      "link_hint": "An https link to a .hplugin file. Hestia downloads it once and shows what it asks for before installing anything.",
-      "link_title": "Install from a link",
-      "needs_approval_hint": "Its package changed since you approved it. Install it again to review what it asks for.",
-      "no_permissions": "Asks for no permissions.",
-      "remove_description": "This removes the plugin and deletes all the data it stored. It can't be undone.",
-      "remove_title": "Remove {name}?",
-      "review_hint": "This list is too long for the approval dialog. Read it here, then continue.",
-      "review_title": "Review {name} {version}",
-      "settings": {
-        "help_link": "Learn more",
-        "problem": {
-          "max": "At most {max}",
-          "min": "At least {min}",
-          "pattern": "Not in the expected format"
-        },
-        "secret_set": "Set. Type to replace",
-        "secret_unset": "Not set",
-        "title": "Settings"
-      },
-      "developer": {
-        "title": "Developer",
-        "hint": "Plugins loaded from a folder run in place and reload when their files change.",
-        "load": "Load folder",
-        "reload": "Reload",
-        "empty": "No plugin is loaded from a folder.",
-        "logs": "Log",
-        "log_empty": "No output yet.",
-        "stats": "{calls} calls, {traps} traps, {timeouts} timeouts",
-        "digest": "Grant digest",
-        "cache": "Component cache",
-        "error_chain": "Error chain"
-      }
-    },
     "search_empty": "No setting matches “{query}”.",
     "search_placeholder": "Search settings",
     "start_at_login": "Start Hestia at login",
@@ -222,12 +102,6 @@
       "java": "Java",
       "storage": "Storage"
     },
-    "theme": {
-      "builtin": "Hestia (built-in)",
-      "failed": "The theme \"{name}\" could not be loaded and was turned off.",
-      "hint": "A theme from an installed plugin restyles the app. Turning the plugin off, or removing it, returns to the built-in look.",
-      "label": "Theme"
-    },
     "tutorial": {
       "hint": "Each page walks you through itself again the next time you open it.",
       "label": "Tutorial",
@@ -255,11 +129,6 @@
       "auto_update_description": "Apply mod, pack and shader updates as an instance launches, and to a stopped server as soon as they are found. Held items and a modpack's own content are left alone.",
       "auto_update_label": "Update content automatically",
       "section": "Content updates"
-    },
-    "advanced": "Advanced",
-    "developer": {
-      "label": "Developer mode",
-      "description": "Shows the plugin authoring tools: load a plugin from a folder, watch its log and see extra diagnostics. Turning it off disables plugins loaded from a folder."
     }
   }
 }

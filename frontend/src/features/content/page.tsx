@@ -17,7 +17,6 @@ import { CardGridSkeleton } from '@/components/skeleton';
 import {
   ContentCard,
   ResultGrid,
-  SourceSettingLink,
   sourceGroup,
   useSourceOptions,
 } from '@/features/content/components';
@@ -95,11 +94,8 @@ export function BrowsePage({
       actions={
         <FilterMenu
           groups={[
-            sourceGroup(
-              sources.list,
-              sources.active,
-              (next) => onSourceChange?.(next),
-              sources.waiting,
+            sourceGroup(sources.list, sources.active, (next) =>
+              onSourceChange?.(next),
             ),
           ]}
         />
@@ -132,7 +128,6 @@ export function BrowsePage({
                 icon={WarningCircleIcon}
                 tone="destructive"
                 description={errorHint(link.error) || undefined}
-                action={<SourceSettingLink error={link.error} />}
               >
                 {errorMessage(link.error)}
               </Empty>

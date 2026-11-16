@@ -12,7 +12,6 @@ use super::human_bytes;
 pub struct Cell {
     text: String,
     value: Value,
-    shown: bool,
 }
 
 impl Cell {
@@ -20,7 +19,6 @@ impl Cell {
         Cell {
             text: text.into(),
             value,
-            shown: true,
         }
     }
 
@@ -30,10 +28,6 @@ impl Cell {
 
     pub fn value(&self) -> &Value {
         &self.value
-    }
-
-    pub fn is_shown(&self) -> bool {
-        self.shown
     }
 
     /// A count, an id-like number or any other whole number.
@@ -88,15 +82,6 @@ impl Cell {
     /// Nothing to show: `text` is the placeholder a person sees, the value null.
     pub fn absent(text: impl Into<String>) -> Cell {
         Cell::new(text, Value::Null)
-    }
-
-    /// A value only `--json` carries; the text rendering leaves it out.
-    pub fn json_only(value: impl Serialize) -> Cell {
-        Cell {
-            text: String::new(),
-            value: serde_json::to_value(value).unwrap_or(Value::Null),
-            shown: false,
-        }
     }
 
     /// Any serializable value, shown as `text`, for what no other constructor

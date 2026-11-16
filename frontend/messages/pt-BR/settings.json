@@ -1,7 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "settings": {
-    "appearance": "Aparência",
     "cache": {
       "clear": "Limpar cache",
       "clear_description": "Libera os downloads em cache. Os arquivos são baixados novamente da rede na próxima vez que forem necessários.",
@@ -63,125 +62,6 @@
       "title": "Modpacks"
     },
     "no_default": "Nenhum padrão definido",
-    "plugins": {
-      "approval": {
-        "full_access_warning": "Este plugin pede acesso total ao seu computador: ele pode alterar seus servidores e instâncias, instalar conteúdo e executar programas.",
-        "more": "…e mais. A lista completa está na página Plugins.",
-        "none": "Ele não pede nenhuma permissão.",
-        "nothing_new": "Ele não pede nada de novo.",
-        "install_title": "Instalar {name} {version}?",
-        "update_title": "Atualizar {name} de {from} para {to}?"
-      },
-      "browse": {
-        "empty": "Nenhum plugin corresponde.",
-        "none": "Adicione um repositório para ver os plugins que ele oferece.",
-        "repository": "Repositório",
-        "search": "Buscar plugins"
-      },
-      "continue": "Continuar",
-      "drop": "Solte para instalar",
-      "incompatible_hint": "Precisa da API de plugins {requires}.",
-      "installable_hint": "A versão {version} pode ser instalada no lugar.",
-      "installed_version": "Instalado {version}",
-      "key_id": "Chave {key}",
-      "obsolete": "Obsoleto",
-      "obsolete_hint": "Nenhum repositório que você adicionou lista mais este plugin. Ele continua funcionando, mas não recebe atualizações.",
-      "dev": "Dev",
-      "dev_hint": "Executando de uma pasta neste computador. Recarrega quando os arquivos mudam.",
-      "official": "Oficial",
-      "official_hint": "Assinado pela chave oficial de plugins do Hestia.",
-      "repos": {
-        "add": "Adicionar",
-        "add_placeholder": "dono/repo ou https://…/plugins.json",
-        "added": "{name} adicionado",
-        "already": "Já adicionado.",
-        "count": "Plugins: {count}",
-        "empty": "Nenhum repositório ainda.",
-        "hint": "Um repositório é confiável pela chave com que assina. Só plugins assinados com essa chave são instalados dele ou atualizados por ele.",
-        "refresh": "Atualizar",
-        "remove_description": "Os plugins instalados dele continuam funcionando, mas não recebem atualizações.",
-        "remove_title": "Remover {name}?",
-        "title": "Repositórios",
-        "trust": "Confiar e adicionar",
-        "trust_description": "Plugins assinados com a chave {key} poderão ser instalados de {name}. Confira se a chave é a que o autor publica.",
-        "trust_title": "Confiar em {name}?"
-      },
-      "tabs": {
-        "browse": "Explorar",
-        "installed": "Instalados"
-      },
-      "unreleased_hint": "A versão {version} ainda não tem build.",
-      "check_update": "Verificar atualização",
-      "check_update_no_link": "O plugin não tem um link registrado para verificar.",
-      "up_to_date": "{name} está atualizado",
-      "update": "Atualizar",
-      "update_needs_api": "A versão {version} exige a API de plugins {api}.",
-      "update_to": "Atualizar para {version}",
-      "update_rolled_back": "{name} não foi atualizado",
-      "rolled_back": "{id} foi revertido para {restored}",
-      "auto_updated": "{id} foi atualizado para {to}",
-      "rolled_back_hint": "A versão {version} parou de funcionar logo após a atualização. Relate o problema ao autor.",
-      "updated": "{name} atualizado para {version}",
-      "updates_available": "{count} atualizações disponíveis",
-      "empty": "Nenhum plugin instalado.",
-      "full_access": "Acesso total",
-      "full_access_hint": "Pode alterar seus servidores e instâncias, instalar conteúdo ou executar programas.",
-      "grant": {
-        "contributions": "O que ele adiciona",
-        "full_access": "Acesso total ao seu computador",
-        "kind": {
-          "endpoints": "Programas locais com que pode conversar",
-          "events": "Eventos que ele escuta",
-          "files": "Arquivos que pode ler em um servidor",
-          "hooks": "Hooks",
-          "hosts": "Hosts de rede",
-          "programs": "Programas que ele pode executar",
-          "properties": "Propriedades de inicialização que ele pode definir",
-          "schedules": "Agendamentos em que ele roda",
-          "secrets": "Configurações secretas",
-          "themes": "Temas",
-          "unhashed": "Hosts que podem servir downloads sem checksum"
-        },
-        "permissions": "Permissões",
-        "pinned": "Programas fixados em um caminho e hash",
-        "unpinned": "{id}: `{command}` não está neste computador, então não pode rodar até você aprovar o plugin de novo com ele instalado"
-      },
-      "hint": "Plugins estendem o Hestia. Um plugin só recebe o que você aprova ao instalá-lo.",
-      "install_file": "Instalar de arquivo",
-      "installed": "{name} instalado",
-      "link_hint": "Um link https para um arquivo .hplugin. O Hestia baixa uma vez e mostra o que ele pede antes de instalar qualquer coisa.",
-      "link_title": "Instalar de um link",
-      "needs_approval_hint": "O pacote mudou desde que você o aprovou. Instale de novo para revisar o que ele pede.",
-      "no_permissions": "Não pede nenhuma permissão.",
-      "remove_description": "Isso remove o plugin e apaga todos os dados que ele guardou. Não dá para desfazer.",
-      "remove_title": "Remover {name}?",
-      "review_hint": "Esta lista é longa demais para o diálogo de aprovação. Leia aqui e depois continue.",
-      "review_title": "Revisar {name} {version}",
-      "settings": {
-        "help_link": "Saiba mais",
-        "problem": {
-          "max": "No máximo {max}",
-          "min": "No mínimo {min}",
-          "pattern": "Fora do formato esperado"
-        },
-        "secret_set": "Definido. Digite para substituir",
-        "secret_unset": "Não definido",
-        "title": "Configurações"
-      },
-      "developer": {
-        "title": "Desenvolvedor",
-        "hint": "Plugins carregados de uma pasta rodam no lugar e recarregam quando seus arquivos mudam.",
-        "load": "Carregar pasta",
-        "reload": "Recarregar",
-        "empty": "Nenhum plugin carregado de uma pasta.",
-        "logs": "Log",
-        "log_empty": "Nenhuma saída ainda.",
-        "stats": "{calls} chamadas, {traps} falhas, {timeouts} tempos esgotados",
-        "digest": "Resumo das permissões",
-        "cache": "Cache de componentes",
-        "error_chain": "Cadeia de erros"
-      }
-    },
     "search_empty": "Nenhuma configuração corresponde a “{query}”.",
     "search_placeholder": "Buscar configurações",
     "start_at_login": "Iniciar o Hestia ao fazer login",
@@ -222,12 +102,6 @@
       "java": "Java",
       "storage": "Armazenamento"
     },
-    "theme": {
-      "builtin": "Hestia (padrão)",
-      "failed": "Não foi possível carregar o tema \"{name}\", e ele foi desativado.",
-      "hint": "Um tema de um plugin instalado muda o visual do app. Desativar ou remover o plugin volta ao visual padrão.",
-      "label": "Tema"
-    },
     "tutorial": {
       "hint": "Cada página apresenta o seu tour de novo na próxima vez que você a abrir.",
       "label": "Tutorial",
@@ -255,11 +129,6 @@
       "auto_update_description": "Aplica atualizações de mods, pacotes e shaders ao iniciar uma instância e a um servidor parado assim que forem encontradas. Itens fixados e o conteúdo do próprio modpack não são alterados.",
       "auto_update_label": "Atualizar conteúdo automaticamente",
       "section": "Atualizações de conteúdo"
-    },
-    "advanced": "Avançado",
-    "developer": {
-      "label": "Modo desenvolvedor",
-      "description": "Mostra as ferramentas para criar plugins: carregar um plugin de uma pasta, acompanhar seu log e ver diagnósticos extras. Desativar o modo desativa os plugins carregados de uma pasta."
     }
   }
 }

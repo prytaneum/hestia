@@ -78,7 +78,6 @@ export const keys = {
   prefs: {
     all: ['prefs'] as const,
     list: () => [...keys.prefs.all, 'list'] as const,
-    safeMode: () => [...keys.prefs.all, 'safe-mode'] as const,
   },
   cache: {
     all: ['cache'] as const,
@@ -167,30 +166,6 @@ export const keys = {
     status: () => [...keys.sync.all, 'status'] as const,
     options: () => [...keys.sync.all, 'options'] as const,
     sources: (unit: string) => [...keys.sync.all, 'sources', unit] as const,
-  },
-  plugins: {
-    all: ['plugins'] as const,
-    list: () => [...keys.plugins.all, 'list'] as const,
-    repositories: () => [...keys.plugins.all, 'repositories'] as const,
-    catalogue: () => [...keys.plugins.all, 'catalogue'] as const,
-    outdated: () => [...keys.plugins.all, 'outdated'] as const,
-    pages: () => [...keys.plugins.all, 'pages'] as const,
-    commands: () => [...keys.plugins.all, 'commands'] as const,
-    themes: () => [...keys.plugins.all, 'themes'] as const,
-    settings: (id: string) => [...keys.plugins.all, 'settings', id] as const,
-    render: (plugin: string, page: string, entry?: string, locale?: string) =>
-      [
-        ...keys.plugins.all,
-        'render',
-        plugin,
-        page,
-        entry ?? null,
-        locale ?? null,
-      ] as const,
-    image: (plugin: string, url: string) =>
-      [...keys.plugins.all, 'image', plugin, url] as const,
-    messages: (plugin: string, locale: string) =>
-      [...keys.plugins.all, 'messages', plugin, locale] as const,
   },
   update: {
     all: ['update'] as const,
