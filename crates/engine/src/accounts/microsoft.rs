@@ -5,9 +5,11 @@
 use anyhow::{anyhow, bail, Context, Result};
 use proto::error::Service;
 use reqwest::header::HeaderMap;
+use reqwest::Method;
 use serde_json::{json, Value};
 
 use super::signing::{xbox_signature_header, ProofKey};
+use crate::net::hosts;
 
 const CLIENT_ID: &str = "00000000402b5328";
 const REPLY_URL: &str = "https://login.live.com/oauth20_desktop.srf";
@@ -71,8 +73,8 @@ pub struct MinecraftProfile {
 
 /// Every step goes through the shared client, so a sign-in started while the
 /// network is dropping fails as offline instead of hanging on a dead socket.
-async fn send(service: Service, request: reqwest::RequestBuilder) -> Result<reqwest::Response> {
-    crate::net::send(Some(service), request).await
+async fn send(service: Service, request: reqwest::RequestBuilder) -> Result<crate::net::Answer> {
+    crate::net::call(service, request).await
 }
 
 struct Parsed {
@@ -80,7 +82,7 @@ struct Parsed {
     body: Value,
 }
 
-async fn read(response: reqwest::Response, what: &str) -> Result<Parsed> {
+async fn read(response: crate::net::Answer, what: &str) -> Result<Parsed> {
     let status = response.status().as_u16();
     let headers = response.headers().clone();
     let text = response
@@ -151,7 +153,7 @@ async fn signed_post(
     key: &ProofKey,
     contract_version: bool,
     clock_offset: i64,
-) -> Result<reqwest::Response> {
+) -> Result<crate::net::Answer> {
     let payload = body.to_string();
     let signature = xbox_signature_header(
         key,
@@ -160,8 +162,7 @@ async fn signed_post(
         &payload,
         common::now_unix() + clock_offset,
     );
-    let mut request = crate::net::client()
-        .post(url)
+    let mut request = crate::net::request(&hosts::accounts(), Method::POST, url)?
         .header("Content-Type", "application/json; charset=utf-8")
         .header("Accept", "application/json")
         .header("Signature", signature);
@@ -240,8 +241,7 @@ pub async fn sisu_authenticate(
 async fn exchange_oauth(form: &[(&str, &str)], what: &str, rejection: &str) -> Result<OAuthTokens> {
     let response = send(
         Service::Microsoft,
-        crate::net::client()
-            .post(OAUTH_TOKEN_URL)
+        crate::net::request(&hosts::accounts(), Method::POST, OAUTH_TOKEN_URL)?
             .header("Accept", "application/json")
             .form(form),
     )
@@ -276,8 +276,7 @@ async fn exchange_oauth(form: &[(&str, &str)], what: &str, rejection: &str) -> R
 pub async fn request_device_code() -> Result<DeviceCodeChallenge> {
     let response = send(
         Service::Microsoft,
-        crate::net::client()
-            .post(DEVICE_CODE_URL)
+        crate::net::request(&hosts::accounts(), Method::POST, DEVICE_CODE_URL)?
             .header("Accept", "application/json")
             .form(&[
                 ("client_id", CLIENT_ID),
@@ -322,8 +321,7 @@ pub async fn request_device_code() -> Result<DeviceCodeChallenge> {
 pub async fn poll_device_code(device_code: &str) -> Result<Option<OAuthTokens>> {
     let response = send(
         Service::Microsoft,
-        crate::net::client()
-            .post(OAUTH_TOKEN_URL)
+        crate::net::request(&hosts::accounts(), Method::POST, OAUTH_TOKEN_URL)?
             .header("Accept", "application/json")
             .form(&[
                 ("client_id", CLIENT_ID),
@@ -493,8 +491,7 @@ pub async fn launcher_login(xsts: &XstsToken) -> Result<MinecraftToken> {
     });
     let response = send(
         Service::Mojang,
-        crate::net::client()
-            .post(LAUNCHER_LOGIN_URL)
+        crate::net::request(&hosts::accounts(), Method::POST, LAUNCHER_LOGIN_URL)?
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
             .header("User-Agent", USER_AGENT)
@@ -522,8 +519,7 @@ pub async fn launcher_login(xsts: &XstsToken) -> Result<MinecraftToken> {
 pub async fn minecraft_profile(minecraft_access_token: &str) -> Result<MinecraftProfile> {
     let response = send(
         Service::Mojang,
-        crate::net::client()
-            .get(PROFILE_URL)
+        crate::net::request(&hosts::accounts(), Method::GET, PROFILE_URL)?
             .header("Authorization", format!("Bearer {minecraft_access_token}"))
             .header("Accept", "application/json")
             .header("User-Agent", USER_AGENT),

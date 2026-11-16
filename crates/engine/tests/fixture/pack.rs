@@ -31,17 +31,16 @@ pub struct Replay {
 
 impl Replay {
     pub fn new() -> Replay {
-        let hosts = Hosts {
-            connect: vec!["127.0.0.1".into()],
-            unhashed: Vec::new(),
-        };
+        let hosts = Hosts::new::<&str>(&[], &[])
+            .expect("no hosts")
+            .with_loopback(false);
         Replay {
             info: PackInfo {
                 name: "Replay".into(),
                 members: vec![MARKER.into()],
                 extension: "replay".into(),
             },
-            policy: Arc::new(Policy::new(&hosts)),
+            policy: Arc::new(Policy::new(hosts)),
         }
     }
 }

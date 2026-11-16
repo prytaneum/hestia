@@ -16,6 +16,7 @@ use proto::update::{UpdateChannel, UpdateCheckResult, UpdateInfo, UpdateInstall}
 
 use crate::download::{Downloader, ProgressFn};
 use crate::minecraft::materialize;
+use crate::net::hosts;
 use crate::signature::verify_file;
 use crate::version::is_newer;
 
@@ -134,7 +135,7 @@ impl Update {
         materialize::validate_filename(&name)?;
         std::fs::create_dir_all(&self.dir).context("cannot create the update staging directory")?;
         let dest = self.dir.join(name);
-        Downloader::new(None)
+        Downloader::new(None, hosts::release())
             .fetch(&artifact.url, &dest, None, on_progress)
             .await?;
         if let Err(e) = verify_file(&dest, &artifact.signature, common::app::update_pubkeys()) {
@@ -176,9 +177,10 @@ fn endpoint(channel: UpdateChannel) -> String {
 }
 
 async fn fetch_manifest(channel: UpdateChannel) -> Result<Manifest> {
-    let envelope: Envelope = crate::net::get_json(Service::Release, &endpoint(channel))
-        .await
-        .context("cannot read the update manifest")?;
+    let envelope: Envelope =
+        crate::net::get_json(Service::Release, &hosts::release(), &endpoint(channel))
+            .await
+            .context("cannot read the update manifest")?;
     Ok(envelope.data)
 }
 

@@ -12,6 +12,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use proto::net::{NetworkState, NetworkStatus};
+use reqwest::Method;
 use tokio::sync::watch;
 
 /// Mojang's version manifest rather than a third-party connectivity endpoint: it
@@ -111,12 +112,10 @@ impl Network {
     async fn probe(&self) {
         self.last_probe_unix
             .store(common::now_unix(), Ordering::Relaxed);
-        let result = super::client()
-            .head(PROBE_URL)
-            .timeout(PROBE_TIMEOUT)
-            .send()
-            .await;
-        match result {
+        let Ok(request) = super::request(&super::hosts::mojang(), Method::HEAD, PROBE_URL) else {
+            return;
+        };
+        match request.timeout(PROBE_TIMEOUT).send().await {
             Err(error) if super::retry::is_transport(&error) => self.observe_unreachable(),
             _ => self.observe_reachable(),
         }

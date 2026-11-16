@@ -8,13 +8,13 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
 use futures_util::StreamExt;
+use kernel::vetting::{Limits, Policy};
 use proto::download::{Checksum, DownloadProgress};
 use tokio::io::AsyncWriteExt;
 
 use crate::cache::Cache;
 use crate::checksum::Hasher;
 use crate::net;
-use crate::vouch::Policy;
 
 /// Why a transfer stopped, kept apart from the message so a caller that has to
 /// answer typed (a plugin) can tell a missing file from a refusal. Always
@@ -35,46 +35,18 @@ fn typed(fault: Fault) -> anyhow::Error {
 
 pub type ProgressFn<'a> = dyn Fn(&DownloadProgress) -> Result<()> + Send + Sync + 'a;
 
-/// The policy an artifact is fetched under, by its URL: `None` for a core one.
-pub type PolicyFor<'a> = &'a (dyn Fn(&str) -> Option<Arc<Policy>> + Send + Sync);
+/// The policy an artifact is fetched under, by its URL.
+pub type PolicyFor<'a> = &'a (dyn Fn(&str) -> Arc<Policy> + Send + Sync);
 
+/// Fetches under `policy`: the hosts, the size cap and the redirect rules are its.
 pub struct Downloader<'a> {
     cache: Option<&'a Cache>,
-    untrusted_limit: Option<u64>,
-    policy: Option<Arc<Policy>>,
+    policy: Arc<Policy>,
 }
 
 impl<'a> Downloader<'a> {
-    pub fn new(cache: Option<&'a Cache>) -> Self {
-        Downloader {
-            cache,
-            untrusted_limit: None,
-            policy: None,
-        }
-    }
-
-    /// For a file a plugin named: it is fetched under `policy`, which holds
-    /// every redirect hop to the plugin's grant. `None` leaves a core download.
-    pub fn vouched(mut self, policy: Option<Arc<Policy>>) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// Refuses a body larger than `max_bytes`, as it streams, on top of whatever
-    /// else the downloader was built to enforce.
-    pub fn limited(mut self, max_bytes: u64) -> Self {
-        self.untrusted_limit = Some(max_bytes);
-        self
-    }
-
-    /// For a URL a user typed: refuses a redirect off https and a body larger
-    /// than `max_bytes`. The caller checks the scheme of `url` itself.
-    pub fn untrusted(max_bytes: u64) -> Downloader<'static> {
-        Downloader {
-            cache: None,
-            untrusted_limit: Some(max_bytes),
-            policy: None,
-        }
+    pub fn new(cache: Option<&'a Cache>, policy: Arc<Policy>) -> Self {
+        Downloader { cache, policy }
     }
 
     /// Fetch `url` to `destination`. Errors on a network error, a non-2xx status,
@@ -157,16 +129,14 @@ impl<'a> Downloader<'a> {
         checksum: Option<&Checksum>,
         on_progress: &ProgressFn<'_>,
     ) -> Result<()> {
-        let response = match &self.policy {
-            Some(policy) => policy.get(url, checksum.is_none()).await?,
-            None => {
-                let client = match self.untrusted_limit {
-                    Some(_) => net::https_only_client(),
-                    None => net::client(),
-                };
-                net::send(None, client.get(url)).await?
-            }
-        };
+        let response = net::fetch(
+            &self.policy,
+            None,
+            url,
+            checksum.is_none(),
+            Limits::DOWNLOAD,
+        )
+        .await?;
         if !response.status().is_success() {
             let status = response.status().as_u16();
             return Err(typed(Fault::Status {
@@ -200,12 +170,13 @@ impl<'a> Downloader<'a> {
     }
 
     fn ensure_within_limit(&self, url: &str, size: u64) -> Result<()> {
-        match self.untrusted_limit {
-            Some(limit) if size > limit => Err(typed(Fault::TooLarge {
+        let limit = Limits::DOWNLOAD.bytes;
+        if size > limit {
+            return Err(typed(Fault::TooLarge {
                 detail: format!("{url}: larger than {limit} bytes"),
-            })),
-            _ => Ok(()),
+            }));
         }
+        Ok(())
     }
 }
 
@@ -284,4 +255,97 @@ async fn serve_from_cache(
         return Ok(false);
     }
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use kernel::vetting::Hosts;
+    use proto::download::HashAlgorithm;
+    use proto::error::ErrorInfo;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    use super::*;
+
+    const BODY: &[u8] = b"jar bytes";
+
+    async fn serve() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            loop {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = vec![0u8; 1024];
+                let _ = stream.read(&mut request).await;
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    BODY.len()
+                );
+                let _ = stream.write_all(head.as_bytes()).await;
+                let _ = stream.write_all(BODY).await;
+            }
+        });
+        port
+    }
+
+    fn policy(unhashed: bool) -> Arc<Policy> {
+        let hosts = Hosts::new::<&str>(&[], &[]).unwrap();
+        Arc::new(Policy::new(hosts.with_loopback(unhashed)))
+    }
+
+    fn sha1(bytes: &[u8]) -> Checksum {
+        let mut hasher = Hasher::new(HashAlgorithm::Sha1);
+        hasher.update(bytes);
+        Checksum {
+            algorithm: HashAlgorithm::Sha1,
+            hex: hasher.hex_digest(),
+        }
+    }
+
+    fn detail(error: anyhow::Error) -> String {
+        match error.downcast::<ErrorInfo>().expect("a typed error") {
+            ErrorInfo::DownloadFailed { detail } => detail,
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_download_is_vetted_and_verified_before_it_is_kept() {
+        let port = serve().await;
+        let url = format!("http://127.0.0.1:{port}/a.jar");
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("a.jar");
+        let progress: &ProgressFn<'_> = &|_| Ok(());
+
+        Downloader::new(None, policy(false))
+            .fetch(&url, &target, Some(&sha1(BODY)), progress)
+            .await
+            .expect("a hashed file from a granted host");
+        assert_eq!(std::fs::read(&target).unwrap(), BODY);
+
+        let other = dir.path().join("b.jar");
+        let mismatch = Downloader::new(None, policy(false))
+            .fetch(&url, &other, Some(&sha1(b"other")), progress)
+            .await
+            .expect_err("checksum mismatch");
+        assert!(detail(mismatch).contains("checksum mismatch"));
+        assert!(!other.exists() && !common::atomic::staged(&other).exists());
+
+        let unhashed = Downloader::new(None, policy(false))
+            .fetch(&url, &other, None, progress)
+            .await
+            .expect_err("a host not declared unhashed");
+        assert!(detail(unhashed).contains("unhashed"));
+
+        Downloader::new(None, policy(true))
+            .fetch(&url, &other, None, progress)
+            .await
+            .expect("a declared unhashed host");
+
+        let core = Downloader::new(None, crate::net::hosts::mojang())
+            .fetch(&url, &dir.path().join("c.jar"), Some(&sha1(BODY)), progress)
+            .await
+            .expect_err("a core policy never reaches loopback");
+        assert!(detail(core).contains("only https"));
+    }
 }

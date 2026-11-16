@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
+use kernel::vetting::Policy;
 use proto::content::ContentKind;
 use proto::minecraft::{Edition, GameVersion, Requirement};
 
@@ -16,7 +17,6 @@ use crate::cache::Cache;
 use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::profile::{InstanceProfile, ServerProfile};
 use crate::process::ProcessSupervisor;
-use crate::vouch::Policy;
 
 /// A resolution request: a game version and, for modloaders, an optional pinned
 /// loader version (the newest stable loader is chosen when absent). `meta` and
@@ -213,16 +213,14 @@ pub trait FlavorProvider: Send + Sync {
         bail!("unknown instance flavor: {}", self.info().id)
     }
 
+    /// The policy the artifact at `url` in this flavor's profile is downloaded
+    /// under: the hosts the flavor states. A profile persists, so this is
+    /// asked again whenever its files are fetched.
+    fn download_policy(&self, url: &str) -> Arc<Policy>;
+
     /// Build whatever the profile cannot name — the patched jar a NeoForge
     /// client runs, which exists nowhere to download. Idempotent: a client
     /// install runs on every launch and must cost nothing once done.
-    /// The policy the artifact at `url` in this flavor's profile is downloaded
-    /// under; `None` for one the launcher itself names. A profile persists, so
-    /// this is asked again whenever its files are fetched.
-    fn download_policy(&self, _url: &str) -> Option<Arc<Policy>> {
-        None
-    }
-
     async fn install(
         &self,
         _side: Side,

@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
+use kernel::vetting::Policy;
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, VersionQuery, LOCAL_SOURCE,
 };
@@ -277,14 +278,14 @@ impl Engine {
         &self,
         plugin: &Arc<dyn PackProvider>,
         read: PackRead,
-    ) -> Result<(ResolvedModpack, Option<Arc<crate::vouch::Policy>>)> {
+    ) -> Result<(ResolvedModpack, Arc<Policy>)> {
         let Some(delegate) = read.resolve else {
             let mut resolved = ResolvedModpack {
                 source: LOCAL_SOURCE.to_string(),
                 ..read.pack
             };
             self.content.recognise_files(&mut resolved.files).await;
-            return Ok((resolved, Some(plugin.policy())));
+            return Ok((resolved, plugin.policy()));
         };
         let theirs = self
             .content

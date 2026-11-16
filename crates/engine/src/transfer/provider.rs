@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use kernel::vetting::Policy;
 use proto::provider::pack::{PackInfo, PackRead, PackWritten, WriteQuery};
 use proto::warning::WarningInfo;
 
 use super::archive::Reader;
 use crate::minecraft::Loaders;
-use crate::vouch::Policy;
 
 /// A provider's answer after vetting, with what the host dropped from it.
 pub struct Vetted {

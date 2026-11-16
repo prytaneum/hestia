@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
+use kernel::vetting::Policy;
 use proto::error::ErrorInfo;
 use proto::minecraft::{Artifact, ProvisionPhase, ProvisionProgress};
 
@@ -13,17 +14,15 @@ use crate::cancel::Job;
 use crate::content::install;
 use crate::engine::Engine;
 use crate::minecraft::materialize;
-use crate::vouch::Policy;
 
 /// A file to fetch to `target`; `label` and `source` name it if its author has
-/// opted out of distribution. `policy` is the one a plugin-named file is
-/// fetched under, `None` for a file the launcher or a `.mrpack`'s own index names.
+/// opted out of distribution. `policy` is the one the file is fetched under.
 pub(super) struct Download {
     pub artifact: Artifact,
     pub target: PathBuf,
     pub label: String,
     pub source: String,
-    pub policy: Option<Arc<Policy>>,
+    pub policy: Arc<Policy>,
 }
 
 impl Engine {

@@ -337,6 +337,7 @@ impl Engine {
         // After the sync pass: a legacy index mirrors into the game directory,
         // which that pass reconciles.
         materialize::ensure_assets(
+            &flavor.download_policy(&record.profile.asset_index.artifact.url),
             &store,
             &plan.assets,
             &assets_root,

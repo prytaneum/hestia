@@ -20,6 +20,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
+use kernel::vetting::Policy;
 use proto::content::{
     ContentFile, ContentInspectResult, ContentKind, ContentMatch, ContentProject, ContentSource,
     ContentVersion, InstalledContent, ModpackFile, ResolvedModpack, ResolvedUrl, SearchQuery,
@@ -27,7 +28,6 @@ use proto::content::{
 };
 
 use crate::roster::{RegisterError, Roster, Standing};
-use crate::vouch::Policy;
 use proto::error::ErrorInfo;
 use provider::ContentProvider;
 pub(crate) use provider::{LocalFile, UrlRef};
@@ -425,11 +425,11 @@ impl Content {
     }
 
     /// The policy the files of source `id` are downloaded under. An empty or
-    /// local source names no remote files; any other unknown source is refused
-    /// rather than assumed to be the launcher's own.
-    pub(crate) fn download_policy(&self, id: &str) -> Result<Option<Arc<Policy>>> {
+    /// local source names files only through an archive, which is untrusted;
+    /// any other unknown source is refused.
+    pub(crate) fn download_policy(&self, id: &str) -> Result<Arc<Policy>> {
         if id.is_empty() || id == LOCAL_SOURCE {
-            return Ok(None);
+            return Ok(crate::net::hosts::untrusted());
         }
         Ok(self.provider(id)?.download_policy())
     }
@@ -497,6 +497,9 @@ mod tests {
         }
         fn kinds(&self) -> Vec<ContentKind> {
             Vec::new()
+        }
+        fn download_policy(&self) -> Arc<Policy> {
+            crate::net::hosts::untrusted()
         }
         fn datapacks_as_mods(&self) -> bool {
             self.id == "mods"

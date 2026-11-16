@@ -4,6 +4,7 @@
 use std::io::Write;
 use std::sync::Arc;
 
+use crate::fixture;
 use engine::{Adoptium, Cancel, Java};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -71,7 +72,10 @@ async fn adoptium_installs_a_runtime_through_the_core_roster() {
     }
     let home = tempfile::tempdir().expect("temp home");
     let base = serve(archive()).await;
-    let java = Java::with_default(home.path().join("java"), Arc::new(Adoptium::at(base)));
+    let java = Java::with_default(
+        home.path().join("java"),
+        Arc::new(Adoptium::at(base, fixture::loopback())),
+    );
 
     let releases = java.releases("adoptium").await.expect("releases");
     assert_eq!(

@@ -1,71 +1,74 @@
-//! Every outbound HTTP request the engine makes goes through here: one pooled
-//! client with real timeouts, a bounded retry, one classification of what went
-//! wrong, and one place that observes whether the machine can reach upstream.
+//! Every outbound HTTP request the engine makes goes through here: the kernel's
+//! network policy vets it, then one place retries what is worth retrying,
+//! classifies what went wrong and observes whether the machine can reach upstream.
 //!
-//! A fetch written anywhere else would be a request with no timeout — the shape
-//! that turns a dropped connection into a job that hangs until it is cancelled.
+//! A fetch written anywhere else would be a request with no vetting and no
+//! timeout — the shape that turns a dropped connection into a job that hangs
+//! until it is cancelled.
 
-pub(crate) mod guard;
+mod answer;
+pub(crate) mod hosts;
 pub(crate) mod image;
 mod reach;
 mod retry;
 pub(crate) mod store;
 
+pub(crate) use answer::{call, Answer};
 pub(crate) use reach::network;
 pub use reach::Network;
 
-use std::sync::OnceLock;
-use std::time::Duration;
-
 use anyhow::Result;
+use kernel::vetting::{self, Failure, Limits, Policy, Refusal};
 use proto::error::{ErrorInfo, Service};
-use reqwest::{RequestBuilder, Response};
+use reqwest::{Method, RequestBuilder, Response};
 use serde::de::DeserializeOwned;
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-/// A dropped connection usually stops delivering rather than resetting, which
-/// without this reads as a transfer that is merely very slow — forever.
-const READ_TIMEOUT: Duration = Duration::from_secs(30);
-/// The whole-request budget for a metadata call. A download sets none: a large
-/// artifact on a slow line is not a failure, and `READ_TIMEOUT` already catches
-/// a stalled one.
-const META_TIMEOUT: Duration = Duration::from_secs(45);
-
-/// One pooled client keeps connections alive across requests — a fresh client
-/// per request pays a TCP + TLS handshake for every one of the thousands of
-/// small fetches an asset materialisation makes.
-pub(crate) fn client() -> &'static reqwest::Client {
-    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-    CLIENT.get_or_init(|| builder().build().expect("default reqwest client builds"))
+/// The refusal as an [`ErrorInfo`] with the typed reason attached, so a caller
+/// that answers a plugin can tell a refusal from a transfer failure.
+fn refused(reason: Refusal) -> anyhow::Error {
+    anyhow::Error::new(ErrorInfo::from(reason.clone())).context(reason)
 }
 
-/// For a URL a user typed rather than one a catalogue vouches for: a redirect
-/// may not leave https, so a link cannot be downgraded in flight.
-pub(crate) fn https_only_client() -> &'static reqwest::Client {
-    const MAX_REDIRECTS: usize = 5;
-    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-    CLIENT.get_or_init(|| {
-        let policy = reqwest::redirect::Policy::custom(|attempt| {
-            if attempt.url().scheme() != "https" {
-                attempt.error("redirected away from https")
-            } else if attempt.previous().len() >= MAX_REDIRECTS {
-                attempt.error("too many redirects")
-            } else {
-                attempt.follow()
-            }
-        });
-        builder()
-            .redirect(policy)
-            .build()
-            .expect("https-only reqwest client builds")
-    })
+/// A request to an API host `policy` declares, under the request limits; send
+/// it with [`call`] so its body is read under them too.
+pub(crate) fn request(policy: &Policy, method: Method, url: &str) -> Result<RequestBuilder> {
+    policy
+        .request(method, url, Limits::REQUEST)
+        .map_err(refused)
 }
 
-fn builder() -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
-        .user_agent(common::app::user_agent())
-        .connect_timeout(CONNECT_TIMEOUT)
-        .read_timeout(READ_TIMEOUT)
+/// `url` under `policy`, redirects vetted on every hop, each hop sent through
+/// [`send`]. The body is read with [`read`] or streamed under `limits.bytes`.
+pub(crate) async fn fetch(
+    policy: &Policy,
+    service: Option<Service>,
+    url: &str,
+    unhashed: bool,
+    limits: Limits,
+) -> Result<Response> {
+    policy
+        .get(url, unhashed, limits, |request| {
+            send(service.clone(), request)
+        })
+        .await
+        .map_err(|failure| match failure {
+            Failure::Refused(reason) => refused(reason),
+            Failure::Send(error) => error,
+        })
+}
+
+/// A body read under `limits.bytes`.
+pub(crate) async fn read(
+    service: Option<Service>,
+    response: Response,
+    limits: Limits,
+) -> Result<Vec<u8>> {
+    vetting::read(response, limits)
+        .await
+        .map_err(|failure| match failure {
+            Failure::Refused(reason) => refused(reason),
+            Failure::Send(error) => stream_failure(service, &error),
+        })
 }
 
 /// Send `request`, retrying what is worth retrying and recording what the
@@ -97,7 +100,7 @@ pub async fn send(service: Option<Service>, request: RequestBuilder) -> Result<R
                 }
             }
             Err(error) => {
-                if guard::was_refused(&error) {
+                if vetting::was_refused(&error) {
                     network().observe_reachable();
                     return Err(ErrorInfo::DownloadFailed {
                         detail: "the host resolves to a non-public address".into(),
@@ -134,43 +137,36 @@ pub fn require_success(service: Service, response: Response) -> Result<Response>
     if status.is_success() {
         return Ok(response);
     }
-    Err(ErrorInfo::Upstream {
+    Err(status_failure(service, status))
+}
+
+fn status_failure(service: Service, status: reqwest::StatusCode) -> anyhow::Error {
+    ErrorInfo::Upstream {
         service,
         detail: format!("HTTP {}", status.as_u16()),
     }
-    .into())
+    .into()
 }
 
-pub async fn get_json<T: DeserializeOwned>(service: Service, url: &str) -> Result<T> {
-    let response = get(service.clone(), url).await?;
-    read_body(service, response.json::<T>().await)
+pub async fn get_json<T: DeserializeOwned>(
+    service: Service,
+    policy: &Policy,
+    url: &str,
+) -> Result<T> {
+    let body = get_bytes(service.clone(), policy, url).await?;
+    serde_json::from_slice(&body).map_err(|error| answer::malformed(service, error))
 }
 
-pub async fn get_text(service: Service, url: &str) -> Result<String> {
-    let response = get(service.clone(), url).await?;
-    read_body(service, response.text().await)
+pub async fn get_text(service: Service, policy: &Policy, url: &str) -> Result<String> {
+    let body = get_bytes(service.clone(), policy, url).await?;
+    String::from_utf8(body).map_err(|error| answer::malformed(service, error))
 }
 
-pub async fn get(service: Service, url: &str) -> Result<Response> {
+async fn get_bytes(service: Service, policy: &Policy, url: &str) -> Result<Vec<u8>> {
     tracing::debug!(url, %service, "GET");
-    let response = send(
-        Some(service.clone()),
-        client().get(url).timeout(META_TIMEOUT),
-    )
-    .await?;
-    require_success(service, response)
-}
-
-/// A body that stops arriving mid-read is the same network drop as one that
-/// never started, so it lands on the same state and the same error.
-fn read_body<T>(service: Service, result: reqwest::Result<T>) -> Result<T> {
-    result.map_err(|error| {
-        if retry::is_transport(&error) {
-            network().observe_unreachable();
-            return offline(Some(service));
-        }
-        upstream(Some(service), &error)
-    })
+    let response = fetch(policy, Some(service.clone()), url, true, Limits::REQUEST).await?;
+    let response = require_success(service.clone(), response)?;
+    read(Some(service), response, Limits::REQUEST).await
 }
 
 /// Classify a failure that happened while streaming a response body, which the
@@ -211,12 +207,15 @@ fn upstream(service: Option<Service>, error: &reqwest::Error) -> anyhow::Error {
 
 #[cfg(test)]
 mod tests {
+    use kernel::vetting::Hosts;
+
     use super::*;
 
     #[tokio::test]
     async fn a_resolver_refusal_is_a_typed_failure_and_not_a_dropped_network() {
+        let policy = Policy::new(Hosts::open_unhashed());
         let started = std::time::Instant::now();
-        let error = send(None, guard::client().get("https://localhost/"))
+        let error = fetch(&policy, None, "https://localhost/", true, Limits::REQUEST)
             .await
             .expect_err("localhost resolves to loopback");
 

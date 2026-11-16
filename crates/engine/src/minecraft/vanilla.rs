@@ -2,14 +2,17 @@
 //! piston-meta detail JSON.
 
 use std::borrow::Cow;
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use kernel::vetting::Policy;
 use proto::minecraft::{Edition, GameVersion};
 
 use super::meta::mojang;
 use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile, ServerRuntime};
 use super::provider::{FlavorInfo, FlavorProvider, ResolveRequest, BOTH_SIDES};
+use crate::net::hosts;
 
 pub(super) const ID: &str = "vanilla";
 
@@ -36,6 +39,10 @@ impl FlavorProvider for Vanilla {
 
     async fn versions(&self) -> Result<Vec<GameVersion>> {
         mojang::versions().await
+    }
+
+    fn download_policy(&self, _url: &str) -> Arc<Policy> {
+        hosts::mojang()
     }
 
     async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {

@@ -3,9 +3,11 @@
 
 use std::borrow::Cow;
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use kernel::vetting::Policy;
 use proto::minecraft::{Artifact, Edition, GameVersion};
 
 use super::materialize::OnProgress;
@@ -14,6 +16,7 @@ use super::profile::{ServerProfile, ServerRuntime};
 use super::provider::{
     FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, SERVER_ONLY,
 };
+use crate::net::hosts;
 
 pub(crate) mod nbt;
 pub(crate) mod world;
@@ -76,6 +79,10 @@ impl FlavorProvider for Bedrock {
 
     async fn versions(&self) -> Result<Vec<GameVersion>> {
         bedrock::versions().await
+    }
+
+    fn download_policy(&self, _url: &str) -> Arc<Policy> {
+        hosts::bedrock()
     }
 
     async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {

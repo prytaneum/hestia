@@ -43,7 +43,6 @@ mod transfer;
 mod update;
 mod usage;
 mod version;
-mod vouch;
 
 pub use accounts::{Accounts, LoginChallenge, ReauthRequired};
 pub use builtin::builtins;
@@ -64,6 +63,7 @@ pub use files::FileTree;
 pub use instances::{InstanceRecord, Instances};
 pub use java::{Adoptium, Java, JavaInstallOutcome, JavaPackage, JavaProvider, JavaTarget};
 pub use jvm::JavaSettings;
+pub use kernel::vetting::{Hosts, Policy};
 pub use minecraft::launch::LaunchPlan;
 pub use minecraft::profile::{
     AssetIndex, InstanceProfile, Library, Native, ServerJar, ServerLaunch, ServerProfile,
@@ -86,4 +86,3 @@ pub use transfer::archive::Reader;
 pub use transfer::{PackProvider, Vetted};
 pub use update::Update;
 pub use usage::dir_size;
-pub use vouch::{Hosts, Policy};

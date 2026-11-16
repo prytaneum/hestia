@@ -11,10 +11,11 @@ use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use image::ImageFormat;
+use kernel::vetting::{Limits, Refusal};
 use proto::error::ErrorInfo;
 use proto::icon::{EntryIcon, IconBackground, IconGenerator};
 
-use crate::net;
+use crate::net::{self, hosts};
 use common::schema::{self, Document};
 
 const STEM: &str = "icon";
@@ -105,30 +106,20 @@ pub(crate) fn read_file(path: &Path) -> Result<Vec<u8>> {
 
 /// Download an icon a source published, bounded like a picked one.
 pub(crate) async fn fetch(url: &str) -> Result<Vec<u8>> {
-    let parsed = reqwest::Url::parse(url).context("the icon url is not a url")?;
-    if parsed.scheme() != "https" {
-        bail!("the icon url is not https");
-    }
-    let request = net::client().get(parsed).timeout(FETCH_TIMEOUT);
-    let mut response = net::send(None, request)
+    let limits = Limits {
+        time: Some(FETCH_TIMEOUT),
+        bytes: MAX_BYTES,
+    };
+    let response = net::fetch(&hosts::typed(), None, url, true, limits)
         .await?
         .error_for_status()
         .context("the icon could not be downloaded")?;
-    if response.content_length().is_some_and(|len| len > MAX_BYTES) {
-        bail!(too_large());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
+    net::read(None, response, limits)
         .await
-        .map_err(|e| net::stream_failure(None, &e))?
-    {
-        bytes.extend_from_slice(&chunk);
-        if bytes.len() as u64 > MAX_BYTES {
-            bail!(too_large());
-        }
-    }
-    Ok(bytes)
+        .map_err(|error| match error.downcast_ref::<Refusal>() {
+            Some(Refusal::TooLarge(_)) => too_large().into(),
+            _ => error,
+        })
 }
 
 fn extension_of(image: &[u8]) -> Result<&'static str> {

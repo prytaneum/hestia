@@ -11,9 +11,11 @@
 use anyhow::{bail, Context, Result};
 use proto::error::Service;
 use proto::skins::SkinVariant;
+use reqwest::Method;
 use serde_json::{json, Value};
 
 use crate::accounts::USER_AGENT;
+use crate::net::hosts;
 
 const PROFILE_URL: &str = "https://api.minecraftservices.com/minecraft/profile";
 const SKIN_URL: &str = "https://api.minecraftservices.com/minecraft/profile/skins";
@@ -50,15 +52,14 @@ impl Profile {
 
 /// Every call goes through the shared client so a sign-in or skin change that
 /// starts while the network is dropping fails as offline rather than hanging.
-async fn send(service: Service, request: reqwest::RequestBuilder) -> Result<reqwest::Response> {
-    crate::net::send(Some(service), request).await
+async fn send(service: Service, request: reqwest::RequestBuilder) -> Result<crate::net::Answer> {
+    crate::net::call(service, request).await
 }
 
 pub async fn fetch_profile(token: &str) -> Result<Profile> {
     let response = send(
         Service::Mojang,
-        crate::net::client()
-            .get(PROFILE_URL)
+        crate::net::request(&hosts::accounts(), Method::GET, PROFILE_URL)?
             .bearer_auth(token)
             .header("Accept", "application/json")
             .header("User-Agent", USER_AGENT),
@@ -86,8 +87,7 @@ pub async fn upload_skin(
         );
     let response = send(
         Service::Mojang,
-        crate::net::client()
-            .post(SKIN_URL)
+        crate::net::request(&hosts::accounts(), Method::POST, SKIN_URL)?
             .bearer_auth(token)
             .header("Accept", "application/json")
             .header("User-Agent", USER_AGENT)
@@ -103,8 +103,7 @@ pub async fn upload_skin(
 pub async fn set_skin_url(token: &str, url: &str, variant: SkinVariant) -> Result<Option<Profile>> {
     let response = send(
         Service::Mojang,
-        crate::net::client()
-            .post(SKIN_URL)
+        crate::net::request(&hosts::accounts(), Method::POST, SKIN_URL)?
             .bearer_auth(token)
             .header("Accept", "application/json")
             .header("User-Agent", USER_AGENT)
@@ -119,8 +118,7 @@ pub async fn set_skin_url(token: &str, url: &str, variant: SkinVariant) -> Resul
 pub async fn reset_skin(token: &str) -> Result<()> {
     let response = send(
         Service::Mojang,
-        crate::net::client()
-            .delete(ACTIVE_SKIN_URL)
+        crate::net::request(&hosts::accounts(), Method::DELETE, ACTIVE_SKIN_URL)?
             .bearer_auth(token)
             .header("Accept", "application/json")
             .header("User-Agent", USER_AGENT),
@@ -133,8 +131,7 @@ pub async fn reset_skin(token: &str) -> Result<()> {
 pub async fn set_cape(token: &str, cape_id: &str) -> Result<()> {
     let response = send(
         Service::Mojang,
-        crate::net::client()
-            .put(ACTIVE_CAPE_URL)
+        crate::net::request(&hosts::accounts(), Method::PUT, ACTIVE_CAPE_URL)?
             .bearer_auth(token)
             .header("Accept", "application/json")
             .header("User-Agent", USER_AGENT)
@@ -148,8 +145,7 @@ pub async fn set_cape(token: &str, cape_id: &str) -> Result<()> {
 pub async fn clear_cape(token: &str) -> Result<()> {
     let response = send(
         Service::Mojang,
-        crate::net::client()
-            .delete(ACTIVE_CAPE_URL)
+        crate::net::request(&hosts::accounts(), Method::DELETE, ACTIVE_CAPE_URL)?
             .bearer_auth(token)
             .header("Accept", "application/json")
             .header("User-Agent", USER_AGENT),
@@ -162,10 +158,11 @@ pub async fn clear_cape(token: &str) -> Result<()> {
 /// Download a texture PNG (used to preserve the current skin before it is
 /// replaced by a change).
 pub async fn fetch_texture(url: &str) -> Result<Vec<u8>> {
+    // Mojang's profile names textures over plain http; the host serves https too.
+    let url = url.replacen("http://", "https://", 1);
     let response = send(
         Service::Mojang,
-        crate::net::client()
-            .get(url)
+        crate::net::request(&hosts::accounts(), Method::GET, &url)?
             .header("User-Agent", USER_AGENT),
     )
     .await?;
@@ -175,10 +172,10 @@ pub async fn fetch_texture(url: &str) -> Result<Vec<u8>> {
             response.status().as_u16()
         );
     }
-    Ok(response.bytes().await?.to_vec())
+    response.bytes().await
 }
 
-async fn read(response: reqwest::Response, what: &str) -> Result<Value> {
+async fn read(response: crate::net::Answer, what: &str) -> Result<Value> {
     let status = response.status().as_u16();
     let text = response
         .text()

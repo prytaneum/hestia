@@ -2,12 +2,12 @@
 //! host itself (and so a strict `img-src` can stay strict).
 //!
 //! The URL comes from untrusted content, so every fetch goes through the
-//! guarded client and its own checks: https only, a host name rather than an
-//! address, no credentials, at most [`MAX_REDIRECTS`] hops each re-checked, a
-//! size cap while streaming, and a body that must sniff as an image. What
-//! arrives is stored in the content-addressed cache by its SHA-256, with a small
-//! URL index beside it, so a repeat view — or an offline one — is served from
-//! disk.
+//! network policy for a URL nobody granted: https, a host name rather than an
+//! address, no credentials, a resolver that refuses this machine, at most
+//! [`MAX_BYTES`] and [`TOTAL_TIMEOUT`], redirects vetted on every hop, and a
+//! body that must sniff as an image. What arrives is stored in the
+//! content-addressed cache by its SHA-256, with a small URL index beside it, so
+//! a repeat view — or an offline one — is served from disk.
 
 mod index;
 mod sniff;
@@ -16,17 +16,17 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::Result;
+use kernel::vetting::{Hosts, Limits, Policy};
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::ErrorInfo;
 use reqwest::Url;
 use sha2::{Digest, Sha256};
 
-use super::{guard, network, stream_failure};
+use super::{fetch, network, read};
 use crate::cache::{Cache, IMAGE_INDEX};
 use index::{Entry, Index};
 
-const MAX_BYTES: usize = 10 * 1024 * 1024;
-const MAX_REDIRECTS: usize = 5;
+const MAX_BYTES: u64 = 10 * 1024 * 1024;
 const TOTAL_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Debug)]
@@ -36,21 +36,26 @@ pub struct Image {
 }
 
 pub struct ImageProxy {
-    client: reqwest::Client,
+    policy: Policy,
+    limits: Limits,
     cache: Cache,
     index: Index,
-    #[cfg(test)]
-    local: Option<std::net::SocketAddr>,
 }
 
 impl ImageProxy {
     pub fn new(cache_dir: PathBuf) -> Self {
+        Self::reaching(cache_dir, Hosts::open_unhashed())
+    }
+
+    fn reaching(cache_dir: PathBuf, hosts: Hosts) -> Self {
         ImageProxy {
-            client: guard::client().clone(),
+            policy: Policy::new(hosts),
+            limits: Limits {
+                time: Some(TOTAL_TIMEOUT),
+                bytes: MAX_BYTES,
+            },
             index: Index::new(cache_dir.join(IMAGE_INDEX)),
             cache: Cache::new(cache_dir),
-            #[cfg(test)]
-            local: None,
         }
     }
 
@@ -59,7 +64,7 @@ impl ImageProxy {
     pub async fn fetch(&self, url: &str) -> Result<Image> {
         let mut target = Url::parse(url).map_err(|_| refused("not a valid URL"))?;
         target.set_fragment(None);
-        self.check_target(&target)?;
+        self.policy.vet(&target, true).map_err(refused)?;
 
         if let Some(hit) = self.cached(target.as_str()) {
             tracing::debug!(host = target.host_str(), "image served from cache");
@@ -70,9 +75,10 @@ impl ImageProxy {
         }
 
         let host = target.host_str().unwrap_or_default().to_string();
-        let image = tokio::time::timeout(TOTAL_TIMEOUT, self.download(target.clone()))
+        let image = tokio::time::timeout(TOTAL_TIMEOUT, self.download(target.as_str()))
             .await
-            .map_err(|_| refused("the host took too long to answer"))??;
+            .map_err(|_| refused("the host took too long to answer"))?
+            .map_err(as_refused)?;
         tracing::debug!(host, bytes = image.bytes.len(), mime = %image.mime, "image fetched");
         self.remember(target.as_str(), &image);
         Ok(image)
@@ -104,88 +110,21 @@ impl ImageProxy {
         }
     }
 
-    fn check_target(&self, url: &Url) -> Result<()> {
-        #[cfg(test)]
-        if self.local.is_some_and(|local| {
-            url.host_str() == Some(&local.ip().to_string()) && url.port() == Some(local.port())
-        }) {
-            return Ok(());
+    async fn download(&self, url: &str) -> Result<Image> {
+        let response = fetch(&self.policy, None, url, true, self.limits).await?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(refused(format!(
+                "the host answered HTTP {}",
+                status.as_u16()
+            )));
         }
-        if url.scheme() != "https" {
-            return Err(refused("only https images are fetched"));
-        }
-        let Some(host) = url.host_str() else {
-            return Err(refused("the URL has no host"));
-        };
-        if guard::is_ip_literal(host) {
-            return Err(refused("an IP address is not a host name"));
-        }
-        if !url.username().is_empty() || url.password().is_some() {
-            return Err(refused("the URL carries credentials"));
-        }
-        Ok(())
-    }
-
-    /// Redirects are walked here, not by the client, so that a hop to `http://`
-    /// or to an address is stopped by the same checks as the first request.
-    async fn download(&self, start: Url) -> Result<Image> {
-        let mut url = start;
-        for _ in 0..=MAX_REDIRECTS {
-            self.check_target(&url)?;
-            let mut response = self
-                .client
-                .get(url.clone())
-                .send()
-                .await
-                .map_err(classify)?;
-            network().observe_reachable();
-            let status = response.status();
-            tracing::debug!(
-                host = url.host_str(),
-                status = status.as_u16(),
-                "image response"
-            );
-
-            if status.is_redirection() {
-                let location = response
-                    .headers()
-                    .get(reqwest::header::LOCATION)
-                    .and_then(|value| value.to_str().ok())
-                    .ok_or_else(|| refused("a redirect named no location"))?;
-                url = url
-                    .join(location)
-                    .map_err(|_| refused("a redirect named an invalid location"))?;
-                url.set_fragment(None);
-                continue;
-            }
-            if !status.is_success() {
-                return Err(refused(format!(
-                    "the host answered HTTP {}",
-                    status.as_u16()
-                )));
-            }
-            if response
-                .content_length()
-                .is_some_and(|length| length > MAX_BYTES as u64)
-            {
-                return Err(refused("the image is larger than 10 MiB"));
-            }
-
-            let mut bytes = Vec::new();
-            while let Some(chunk) = response.chunk().await.map_err(classify)? {
-                if bytes.len() + chunk.len() > MAX_BYTES {
-                    return Err(refused("the image is larger than 10 MiB"));
-                }
-                bytes.extend_from_slice(&chunk);
-            }
-            let mime =
-                sniff::mime(&bytes).ok_or_else(|| refused("the response is not an image"))?;
-            return Ok(Image {
-                mime: mime.to_string(),
-                bytes,
-            });
-        }
-        Err(refused("too many redirects"))
+        let bytes = read(None, response, self.limits).await?;
+        let mime = sniff::mime(&bytes).ok_or_else(|| refused("the response is not an image"))?;
+        Ok(Image {
+            mime: mime.to_string(),
+            bytes,
+        })
     }
 }
 
@@ -203,13 +142,15 @@ fn refused(reason: impl std::fmt::Display) -> anyhow::Error {
     .into()
 }
 
-/// A request the guard stopped is an answer, not a dropped network, and
-/// reqwest's own message would carry the full URL.
-fn classify(error: reqwest::Error) -> anyhow::Error {
-    if guard::was_refused(&error) {
-        return refused("the host resolves to a non-public address");
+/// A refusal by the policy is an answer about this image, which reads better
+/// attributed to it; a dropped network stays what it was.
+fn as_refused(error: anyhow::Error) -> anyhow::Error {
+    match error.downcast_ref::<ErrorInfo>() {
+        Some(ErrorInfo::DownloadFailed { detail }) if !detail.starts_with("image refused") => {
+            refused(detail)
+        }
+        _ => error,
     }
-    stream_failure(None, &error.without_url())
 }
 
 #[cfg(test)]
@@ -225,8 +166,8 @@ mod tests {
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n pixels";
 
     /// A plain-HTTP origin on loopback, which stands in for the internet: the
-    /// proxy is told this one address is reachable and everything else follows
-    /// its production rules.
+    /// proxy's open policy also grants plain-http loopback, and everything else
+    /// follows its production rules.
     struct Origin {
         addr: std::net::SocketAddr,
         hits: Arc<AtomicUsize>,
@@ -274,16 +215,8 @@ mod tests {
             format!("http://{}{path}", self.addr)
         }
 
-        fn proxy(&self, cache: PathBuf) -> ImageProxy {
-            ImageProxy {
-                client: reqwest::Client::builder()
-                    .redirect(reqwest::redirect::Policy::none())
-                    .no_proxy()
-                    .build()
-                    .expect("client"),
-                local: Some(self.addr),
-                ..ImageProxy::new(cache)
-            }
+        fn proxy(cache: PathBuf) -> ImageProxy {
+            ImageProxy::reaching(cache, Hosts::open_unhashed().with_loopback(true))
         }
     }
 
@@ -318,7 +251,7 @@ mod tests {
     async fn a_redirect_to_plain_http_is_refused() {
         let origin = Origin::start().await;
         let dir = tempfile::tempdir().expect("temp dir");
-        let proxy = origin.proxy(dir.path().to_path_buf());
+        let proxy = Origin::proxy(dir.path().to_path_buf());
 
         let error = proxy
             .fetch(&origin.url("/moved"))
@@ -333,7 +266,7 @@ mod tests {
     async fn a_response_that_is_not_an_image_is_refused_and_not_kept() {
         let origin = Origin::start().await;
         let dir = tempfile::tempdir().expect("temp dir");
-        let proxy = origin.proxy(dir.path().to_path_buf());
+        let proxy = Origin::proxy(dir.path().to_path_buf());
 
         let error = proxy
             .fetch(&origin.url("/page"))
@@ -348,7 +281,7 @@ mod tests {
     async fn a_repeat_fetch_is_served_from_the_cache_until_it_is_damaged_or_cleared() {
         let origin = Origin::start().await;
         let dir = tempfile::tempdir().expect("temp dir");
-        let proxy = origin.proxy(dir.path().to_path_buf());
+        let proxy = Origin::proxy(dir.path().to_path_buf());
         let cache = Cache::new(dir.path().to_path_buf());
         let url = origin.url("/logo.png");
 

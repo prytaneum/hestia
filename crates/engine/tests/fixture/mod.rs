@@ -11,14 +11,24 @@ use std::sync::Arc;
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use engine::{
-    AssetIndex, Content, ContentProvider, FlavorInfo, FlavorProvider, InstanceProfile, LatestQuery,
-    LocalFile, Minecraft, ServerJar, ServerLaunch, ServerProfile, ServerRuntime, Side, UrlRef,
+    AssetIndex, Content, ContentProvider, FlavorInfo, FlavorProvider, Hosts, InstanceProfile,
+    LatestQuery, LocalFile, Minecraft, Policy, ServerJar, ServerLaunch, ServerProfile,
+    ServerRuntime, Side, UrlRef,
 };
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, VersionQuery,
 };
 
 use proto::minecraft::{Artifact, Edition, GameVersion};
+
+/// The policy every stand-in hands out: the loopback host the file servers
+/// run on, which the `loopback` feature of the vetting policy allows in tests.
+pub fn loopback() -> Arc<Policy> {
+    let hosts = Hosts::new::<&str>(&[], &[])
+        .expect("no hosts")
+        .with_loopback(true);
+    Arc::new(Policy::new(hosts))
+}
 
 /// A flavor that resolves to a profile naming `artifact`, or fails when it is
 /// `None` — the two halves of what a provider can do to a create.
@@ -115,6 +125,9 @@ impl FlavorProvider for Flavor {
     async fn versions(&self) -> Result<Vec<GameVersion>> {
         Ok(self.catalogue())
     }
+    fn download_policy(&self, _url: &str) -> Arc<Policy> {
+        loopback()
+    }
     async fn resolve_server(&self, request: &engine::ResolveRequest<'_>) -> Result<ServerProfile> {
         Ok(ServerProfile {
             flavor: self.info.id.to_string(),
@@ -173,6 +186,9 @@ impl ContentProvider for Source {
     }
     fn kinds(&self) -> Vec<ContentKind> {
         vec![ContentKind::Mod, ContentKind::DataPack]
+    }
+    fn download_policy(&self) -> Arc<Policy> {
+        loopback()
     }
     async fn search(&self, _query: &SearchQuery) -> Result<SearchResult> {
         Ok(SearchResult {

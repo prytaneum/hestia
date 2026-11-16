@@ -6,13 +6,14 @@ pub mod bedrock;
 pub mod mojang;
 
 use anyhow::{Context, Result};
+use kernel::vetting::Policy;
 use proto::error::Service;
 use serde_json::Value;
 
 use crate::net;
 
-async fn fetch_json(service: Service, url: &str) -> Result<Value> {
-    let body = fetch_text(service, url).await?;
+async fn fetch_json(service: Service, policy: &Policy, url: &str) -> Result<Value> {
+    let body = fetch_text(service, policy, url).await?;
     serde_json::from_str(&body).with_context(|| format!("{url} returned malformed JSON"))
 }
 
@@ -20,8 +21,8 @@ async fn fetch_json(service: Service, url: &str) -> Result<Value> {
 /// network is gone. A version list changes rarely and a stale one is far more
 /// useful than a failed page — front-ends report the offline state alongside,
 /// so a cached answer is never mistaken for a live one.
-async fn fetch_text(service: Service, url: &str) -> Result<String> {
-    match net::get_text(service, url).await {
+async fn fetch_text(service: Service, policy: &Policy, url: &str) -> Result<String> {
+    match net::get_text(service, policy, url).await {
         Ok(body) => {
             net::store::save(url, &body);
             Ok(body)

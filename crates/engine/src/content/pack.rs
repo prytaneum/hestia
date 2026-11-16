@@ -8,6 +8,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Result;
+use kernel::vetting::Policy;
 use proto::content::{ModpackFile, SideSupport};
 use proto::minecraft::{ConfigEntry, ProvisionPhase};
 use proto::provider::pack::OverrideTrees;
@@ -16,7 +17,6 @@ use proto::warning::WarningInfo;
 use crate::cancel::Job;
 use crate::icon;
 use crate::transfer::archive::{Extracted, Reader};
-use crate::vouch::Policy;
 
 /// Which side an install is for — which of the two side-specific override trees
 /// applies, and which `env` field decides whether a file is wanted.
@@ -57,7 +57,7 @@ pub(crate) struct Archive {
     trees: OverrideTrees,
     /// What the files the pack names are fetched under: the grant of the plugin
     /// that read it, or of the source it delegated its files to.
-    policy: Option<Arc<Policy>>,
+    policy: Arc<Policy>,
     /// The vetted JVM settings the pack asks for, as `config` entries, for the
     /// instance an install creates.
     config: Vec<ConfigEntry>,
@@ -73,7 +73,7 @@ pub(crate) struct Archive {
 /// itself.
 pub(crate) struct Contributed {
     pub(crate) trees: OverrideTrees,
-    pub(crate) policy: Option<Arc<Policy>>,
+    pub(crate) policy: Arc<Policy>,
     pub(crate) config: Vec<ConfigEntry>,
     pub(crate) format: String,
     pub(crate) icon: Option<String>,
@@ -116,7 +116,7 @@ impl Archive {
         &self.config
     }
 
-    pub(crate) fn policy(&self) -> Option<Arc<Policy>> {
+    pub(crate) fn policy(&self) -> Arc<Policy> {
         self.policy.clone()
     }
 
@@ -187,7 +187,7 @@ mod tests {
                     client: vec!["client-overrides".to_string()],
                     server: vec!["server-overrides".to_string()],
                 },
-                policy: None,
+                policy: crate::net::hosts::untrusted(),
                 config: Vec::new(),
                 format: String::new(),
                 icon: None,

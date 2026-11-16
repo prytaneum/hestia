@@ -11,6 +11,7 @@ use proto::error::Service;
 use super::fetch_json;
 use crate::minecraft::profile::{AssetIndex, Library, Native};
 use crate::minecraft::rules::{allow_manifest as rules_allow, host_os};
+use crate::net::hosts;
 
 const MANIFEST: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 
@@ -21,7 +22,7 @@ struct Entry {
 }
 
 async fn manifest() -> Result<Vec<Entry>> {
-    let j = fetch_json(Service::Mojang, MANIFEST).await?;
+    let j = fetch_json(Service::Mojang, &hosts::mojang(), MANIFEST).await?;
     let versions = j
         .get("versions")
         .and_then(Value::as_array)
@@ -65,7 +66,7 @@ pub async fn version_json(id: &str) -> Result<Value> {
         .ok_or_else(|| proto::error::ErrorInfo::VersionNotFound {
             reference: id.to_string(),
         })?;
-    fetch_json(Service::Mojang, &entry.url).await
+    fetch_json(Service::Mojang, &hosts::mojang(), &entry.url).await
 }
 
 pub fn client_artifact(version: &Value) -> Result<Artifact> {

@@ -7,6 +7,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
+use kernel::vetting::Policy;
 use proto::content::{
     ContentFailure, ContentKind, ContentProject, InstalledContent, ModpackFile, ResolvedModpack,
 };
@@ -23,7 +24,6 @@ use crate::content::pool::Pool;
 use crate::content::{exclude, install, modpack, pack, record};
 use crate::engine::Engine;
 use crate::minecraft::{materialize, Side};
-use crate::vouch::Policy;
 
 impl Engine {
     /// The install itself, once the entry exists: refuse a pack the entry
@@ -205,7 +205,7 @@ impl Engine {
         ctx: &EntryContent,
         files: &[(ContentKind, &ModpackFile)],
         resolved: &ResolvedModpack,
-        policy: &Option<Arc<Policy>>,
+        policy: &Arc<Policy>,
         job: &Job<'_>,
     ) -> (Vec<Supplied>, Vec<ContentFailure>, Vec<WarningInfo>) {
         let mut named = HashSet::new();
@@ -283,7 +283,7 @@ impl Engine {
         files: &[&ModpackFile],
         previous: Option<&InstalledModpack>,
         patterns: &exclude::OverridePatterns,
-        policy: &Option<Arc<Policy>>,
+        policy: &Arc<Policy>,
         job: &Job<'_>,
     ) -> Vec<ModpackOverride> {
         let ownership = Ownership::of(previous);

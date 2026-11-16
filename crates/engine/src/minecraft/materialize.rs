@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use futures_util::StreamExt;
+use kernel::vetting::Policy;
 use proto::download::{Checksum, HashAlgorithm};
 use proto::minecraft::{Artifact, ProvisionPhase, ProvisionProgress};
 use serde_json::Value;
@@ -18,7 +19,6 @@ use super::profile::{AssetIndex, Library, Native};
 
 use crate::cache::Cache;
 use crate::download::{Downloader, PolicyFor};
-use crate::vouch::Policy;
 
 const ASSET_HOST: &str = "https://resources.download.minecraft.net";
 const CONCURRENT_FETCHES: usize = 16;
@@ -56,10 +56,10 @@ pub(crate) fn present(path: &Path, size: u64) -> bool {
 }
 
 /// Ensure one artifact at `destination`, reporting byte progress under `phase`.
-/// `policy` is the one a plugin-named artifact is fetched under, `None` for a core one.
+/// `policy` is the one the artifact is fetched under.
 pub async fn ensure_artifact(
     cache: Option<&Cache>,
-    policy: Option<Arc<Policy>>,
+    policy: Arc<Policy>,
     artifact: &Artifact,
     destination: &Path,
     phase: ProvisionPhase,
@@ -71,8 +71,7 @@ pub async fn ensure_artifact(
     }
     on_progress.check()?;
     let meter = Meter::new(tally);
-    Downloader::new(cache)
-        .vouched(policy)
+    Downloader::new(cache, policy)
         .fetch(
             &artifact.url,
             destination,
@@ -197,8 +196,7 @@ pub async fn ensure_libraries(
             on_progress.check()?;
             let destination = safe_join(root, &library.path)?;
             let meter = fetched.meter();
-            Downloader::new(cache)
-                .vouched(policy_for(&library.artifact.url))
+            Downloader::new(cache, policy_for(&library.artifact.url))
                 .fetch(
                     &library.artifact.url,
                     &destination,
@@ -293,7 +291,7 @@ pub struct AssetStore {
 /// small, and a launch needs its objects to know what it has to download.
 pub async fn read_assets(
     cache: Option<&Cache>,
-    policy: Option<Arc<Policy>>,
+    policy: Arc<Policy>,
     index: &AssetIndex,
     root: &Path,
     game_dir: &Path,
@@ -307,8 +305,7 @@ pub async fn read_assets(
             detail: "asset index".to_string(),
             ..ProvisionProgress::default()
         });
-        Downloader::new(cache)
-            .vouched(policy)
+        Downloader::new(cache, policy)
             .fetch(
                 &index.artifact.url,
                 &index_path,
@@ -360,6 +357,7 @@ pub async fn read_assets(
 /// `root` (`objects/<hh>/<hash>`), shared by every version and never fetched
 /// twice, then mirror the whole index into the legacy tree when it declares one.
 pub async fn ensure_assets(
+    policy: &Arc<Policy>,
     store: &AssetStore,
     missing: &[AssetObject],
     root: &Path,
@@ -391,7 +389,7 @@ pub async fn ensure_assets(
             let meter = fetched.meter();
             // The objects tree is itself content-addressed; going through
             // the download cache would only store every asset twice.
-            Downloader::new(None)
+            Downloader::new(None, policy.clone())
                 .fetch(
                     &format!("{ASSET_HOST}/{}/{}", &object.hash[..2], object.hash),
                     &object.path(objects_root),

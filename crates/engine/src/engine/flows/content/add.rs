@@ -272,7 +272,7 @@ impl Engine {
             target: staged.clone(),
             label: filename.to_string(),
             source: String::new(),
-            policy: None,
+            policy: crate::net::hosts::typed(),
         };
         let packs = match self
             .download(&download, ProvisionPhase::Content, on_progress)

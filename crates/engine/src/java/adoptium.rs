@@ -1,17 +1,22 @@
 //! Eclipse Temurin release catalogue via the Adoptium API. Fetches metadata
 //! only; downloading, extraction, and registration live in `Java`.
 
+use std::sync::Arc;
+
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
+use kernel::vetting::Policy;
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::Service;
 use proto::java::JavaRelease;
 use proto::provider::Provider;
+use reqwest::Method;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
 use super::platform::JavaTarget;
 use super::provider::{JavaPackage, JavaProvider};
+use crate::net::hosts;
 
 const API_BASE: &str = "https://api.adoptium.net";
 
@@ -19,16 +24,21 @@ pub const ID: &str = "adoptium";
 
 pub struct Adoptium {
     base: String,
+    policy: Arc<Policy>,
 }
 
 impl Adoptium {
     pub fn new() -> Self {
-        Self::at(API_BASE)
+        Self::at(API_BASE, hosts::adoptium())
     }
 
-    /// Point at another API root; the seam a test uses to serve a recorded index.
-    pub fn at(base: impl Into<String>) -> Self {
-        Adoptium { base: base.into() }
+    /// Point at another API root under another policy; the seam a test uses to
+    /// serve a recorded index.
+    pub fn at(base: impl Into<String>, policy: Arc<Policy>) -> Self {
+        Adoptium {
+            base: base.into(),
+            policy,
+        }
     }
 }
 
@@ -49,11 +59,11 @@ impl JavaProvider for Adoptium {
     }
 
     async fn releases(&self) -> Result<Vec<JavaRelease>> {
-        releases(&self.base).await
+        releases(&self.base, &self.policy).await
     }
 
     async fn resolve(&self, major: i32, target: &JavaTarget) -> Result<JavaPackage> {
-        resolve(&self.base, major, target).await
+        resolve(&self.base, &self.policy, major, target).await
     }
 }
 
@@ -89,25 +99,34 @@ struct Package {
     size: u64,
 }
 
-async fn fetch_json<T: DeserializeOwned>(url: &str, query: &[(&str, &str)]) -> Result<T> {
+async fn fetch_json<T: DeserializeOwned>(
+    policy: &Policy,
+    url: &str,
+    query: &[(&str, &str)],
+) -> Result<T> {
     tracing::debug!(url, "adoptium GET");
-    let response =
-        crate::net::send(Some(service()), crate::net::client().get(url).query(query)).await?;
-    let response = crate::net::require_success(service(), response)?;
-    response
+    let request = crate::net::request(policy, Method::GET, url)?.query(query);
+    crate::net::call(service(), request)
+        .await?
+        .success()?
         .json()
         .await
-        .context("adoptium returned malformed JSON")
 }
 
-async fn releases(base: &str) -> Result<Vec<JavaRelease>> {
-    let j = fetch_json(&format!("{base}/v3/info/available_releases"), &[]).await?;
+async fn releases(base: &str, policy: &Policy) -> Result<Vec<JavaRelease>> {
+    let j = fetch_json(policy, &format!("{base}/v3/info/available_releases"), &[]).await?;
     releases_from_json(j)
 }
 
-async fn resolve(base: &str, major: i32, target: &JavaTarget) -> Result<JavaPackage> {
+async fn resolve(
+    base: &str,
+    policy: &Arc<Policy>,
+    major: i32,
+    target: &JavaTarget,
+) -> Result<JavaPackage> {
     let url = format!("{base}/v3/assets/latest/{major}/hotspot");
     let assets = fetch_json(
+        policy,
         &url,
         &[
             ("os", &target.os),
@@ -117,7 +136,7 @@ async fn resolve(base: &str, major: i32, target: &JavaTarget) -> Result<JavaPack
         ],
     )
     .await?;
-    package_from_json(assets, major, target)
+    package_from_json(assets, major, target, policy.clone())
 }
 
 fn releases_from_json(j: AvailableReleases) -> Result<Vec<JavaRelease>> {
@@ -135,7 +154,12 @@ fn releases_from_json(j: AvailableReleases) -> Result<Vec<JavaRelease>> {
     Ok(releases)
 }
 
-fn package_from_json(assets: Vec<Asset>, major: i32, target: &JavaTarget) -> Result<JavaPackage> {
+fn package_from_json(
+    assets: Vec<Asset>,
+    major: i32,
+    target: &JavaTarget,
+    policy: Arc<Policy>,
+) -> Result<JavaPackage> {
     for asset in assets {
         let binary = asset.binary;
         if binary.os != target.os
@@ -156,7 +180,7 @@ fn package_from_json(assets: Vec<Asset>, major: i32, target: &JavaTarget) -> Res
                 hex: package.checksum,
             },
             size: package.size,
-            policy: None,
+            policy: policy.clone(),
         };
         if resolved.url.is_empty()
             || resolved.archive_name.is_empty()

@@ -11,6 +11,7 @@ use proto::minecraft::{GameVersion, VersionKind};
 use serde_json::Value;
 
 use super::fetch_json;
+use crate::net::hosts;
 
 const LINKS: &str = "https://net-secondary.web.minecraft-services.net/api/v1.0/download/links";
 const FEED: &str = "https://raw.githubusercontent.com/Bedrock-OSS/BDS-Versions/main/versions.json";
@@ -97,9 +98,10 @@ pub async fn download_url(version: &str) -> Result<String> {
 }
 
 async fn catalogue(host: Host) -> Result<(Vec<Build>, Option<String>)> {
+    let policy = hosts::bedrock_catalogue();
     let (links, feed) = tokio::join!(
-        fetch_json(Service::Mojang, LINKS),
-        fetch_json(Service::BedrockVersions, FEED)
+        fetch_json(Service::Mojang, &policy, LINKS),
+        fetch_json(Service::BedrockVersions, &policy, FEED)
     );
     let links = links
         .and_then(|body| parse_links(&body, host))

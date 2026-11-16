@@ -235,8 +235,7 @@ impl Java {
         cancel: &crate::cancel::Cancel,
         on_progress: &(impl Fn(&JavaInstallProgress) + Send + Sync),
     ) -> Result<()> {
-        Downloader::new(None)
-            .vouched(package.policy.clone())
+        Downloader::new(None, package.policy.clone())
             .fetch(
                 &package.url,
                 &paths.archive,
