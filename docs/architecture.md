@@ -97,8 +97,10 @@ What is yours sits at the top level. What the launcher can regenerate sits under
 ├── config.json          settings
 ├── accounts.json        signed-in accounts (owner-only)
 ├── plugins.json         the plugins you turned off
+├── repositories.json    plugin repositories: pinned key, highest sequence seen
 ├── plugins.key          the key that vouches for the compiled plugin cache (owner-only)
 ├── plugins/<id>/        an installed plugin: package, approved digest, settings, secrets (owner-only)
+│                        (<id>.previous and <id>.staging exist only mid-update)
 ├── sandbox/<id>/        the plugin's own files, its `/data`
 ├── servers/<slug>/      one directory per server
 ├── instances/<slug>/    one directory per instance
@@ -179,19 +181,40 @@ start, and WASM plugins are then listed but never run): compiled components unde
 start after recovery, off the accept loop; a plugin that reaches the trap limit is disabled and stays so across
 restarts, and removing one deletes its cache entry.
 
-**Trust.** A WASM plugin comes from a directory (a dev install, refused unless `plugins.developer` is on) or from a
-repository. A repository is added with a pinned minisign key (`repositories.json`), and its signed `index.json` lists
-each release with the SHA-256 of its manifest and component, so a package is trusted by digest and a download is held
-to it. The signature's trusted comment, `hestia-index <repository> <sequence> <expires>`, must match the body, so it
-cannot be lifted onto another repository or a longer life; an index below the highest sequence seen is a replay, one past
-`expires` is dead, and Hestia's own keys (`trust::OFFICIAL_KEYS`, none yet) are refused for any repository a user adds.
-Index and package fetches go through `vetting` on the repository's host and the hosts its signed index names. The
-approval record (`approval.json`) keeps the approved grant, the source (dev, or repository and signer) and any
-revocation. An update is held to the installed signer and replaces the files through a `.previous` directory: a version
-that fails to link or to start is rolled back, and a restart restores the previous version of an update that never
-finished. It asks for approval again when `grant::widens` finds a permission, a scope entry (host, endpoint, unchecked host,
-or program by path, arguments and digest) or a required package the approved grant lacked; nothing updates without the digest of what was shown. A version the index revokes is marked in
-its record, so it never starts again.
+**Trust.** A WASM plugin comes from a directory (a dev install) or from a repository. A dev install is refused unless
+`plugins.developer` is on, and it runs only while it is: the daemon tells the registry when the setting changes, so
+turning it off lists every dev install `failed` (enabling one answers why) and turning it on starts them again.
+
+A repository is added with a pinned minisign key (`repositories.json`). Its `index.json`, signed under that key, lists
+per plugin id the author's key and the releases: the URL, SHA-256 and size of each `.hplugin`. The signature's trusted
+comment, `hestia-index <repository> <sequence> <expires>`, must match the body, so it cannot be lifted onto another
+repository or a longer life; an index below the highest sequence seen is a replay, one past `expires` is dead, and one
+that expires more than 30 days out is refused. Index and package fetches go through `vetting` on the repository's host
+and the hosts its signed index names.
+
+A release is a `.hplugin`: a zip of exactly `plugin.toml`, `plugin.wasm` and `plugin.minisig`. The author signs, with
+their own key, `hestia-hplugin-v1\n<id>\n<version>\n<sha256 plugin.toml>\n<sha256 plugin.wasm>\n` (the manifest's id
+and version), never the archive bytes. It is accepted only when the index verified under the repository key, the file
+matches the index's digest and size, and the signature verifies under the author key the index lists for that id. An
+entry beyond the three, a directory, a path with `/`, `\` or `..`, a symlink or a duplicate is refused, and each entry
+is read under the caps of a loose package, counted as it decompresses. Keys are compared by their ed25519 bytes, never
+by minisign's key id. `trust::OFFICIAL_KEYS` (none yet) are Hestia's: a repository cannot pin one, and only a package
+signed by one is shown as official, so no index can make another key official.
+
+The approval record (`approval.json`) keeps the approved grant, the source (dev, or the repository with its key and the
+author's key) and any revocation; the repository and author key enter the approval digest, and the prompt shows the
+repository and the author's fingerprint. An update must be listed by the repository under the key that vouched for the
+install and signed by the same author key, whatever the index now says; an author-key change is refused, not applied.
+It replaces the files through a `.previous` directory: a version that fails to link or to start is rolled back, and a
+restart restores the previous version of an update that never finished (a finished one renames `.previous` to
+`.staging` before deleting it, and `remove` deletes both). It asks for approval again when `grant::widens` finds a
+permission, a scope entry (host, endpoint, unchecked host, or program by path, arguments and digest), a required
+package or an export the approved grant lacked; nothing updates without the digest of what was shown.
+
+Every repository's index is fetched when the daemon starts, after recovery, and every 6 hours while online. A version
+the index revokes is marked in its record, disabled and listed in the `revoked` of `plugin.updates`, so it never starts
+again. A repository that was removed and added again starts from sequence 0, which is also how to recover one whose
+stored sequence a stolen key pushed out of reach.
 
 `vetting` is the one network policy: every request and download, core or plugin, is held to https, a granted host (a
 wildcard matches one label and never a public suffix), a resolver that refuses addresses inside the machine, a time and

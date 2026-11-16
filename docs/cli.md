@@ -532,7 +532,7 @@ hestia job cancel <id>           # cancel one by the id `job list` shows
 ## Plugins
 
 ```bash
-hestia plugin list               # every plugin: id, name, version, state, requires
+hestia plugin list               # every plugin: id, name, version, state, source, requires
 hestia plugin enable <id>        # also enables what it requires, first
 hestia plugin disable <id>       # refused while an enabled plugin requires it
 hestia plugin add <dir>          # install from a directory (developer mode); shows what it asks for first (--yes skips)
@@ -550,15 +550,19 @@ hestia plugin secret set <id> <key>   # store a secret for a plugin that asks fo
 approval covers the exact package, so one that changes between the prompt and the install is refused. `secret set`
 reads the value from stdin when it is not a terminal.
 
-`add` is a dev install: it needs `hestia config set plugins.developer true`, since nothing signs a directory. A
-repository is an `index.json` and its minisign signature at the same URL plus `.minisig`; `repo add` pins the key you
-give and fetches the index once. Only the key you pinned vouches for the index, a key that stands for Hestia is refused
-for any repository you add, and an index that is expired, older than one already seen or signed for another repository
-is refused. An update never applies on its own: `update` asks again when the new version needs a permission, a scope
-entry (a host, an endpoint, an unchecked host or a program with another path, arguments or digest) or a required
-package the approved one did not, and it must be signed by the key that signed the installed
-version. One that fails to load is rolled back. A version the signed index revokes is disabled the next time
-`updates` fetches it, and stays off after a restart.
+`add` is a dev install: it needs `hestia config set plugins.developer true`, since nothing signs a directory, and the
+plugin runs only while the setting stays on. A repository is an `index.json` and its minisign signature at the same URL
+plus `.minisig`; `repo add` pins the key you give and fetches the index once. The index lists each plugin with its
+author's key and releases; a release is a `.hplugin` the author signed. `get` shows the repository, the author's key
+fingerprint and whether it is Hestia's own before the prompt. Only the key you pinned vouches for the index, a key that
+stands for Hestia is refused for any repository you add, and an index that is expired, lives more than 30 days, is
+older than one already seen or is signed for another repository is refused. An update never applies on its own:
+`update` asks again when the new version needs a permission, a scope entry (a host, an endpoint, an unchecked host or a
+program with another path, arguments or digest), a required package or an export the approved one did not, and it must
+be signed by the author key that signed the installed version, from the repository you installed it through. One that
+fails to load is rolled back. A version the signed index revokes is disabled when the daemon checks every repository
+(at start and every 6 hours) or when `updates` does, is listed there, and stays off after a restart. `repo remove`
+followed by `repo add` starts the sequence floor again, which recovers a repository whose floor is out of reach.
 
 ## Download cache
 
