@@ -167,21 +167,6 @@ stateDiagram-v2
 config, process I/O, console transport, status, backup pause and resume, worlds and import, content sync and player
 lists. A flow calls `edition::...` and never branches on an edition.
 
-## Self-update
-
-`update/` owns the whole path: the check against the release manifest (`latest.json`), the download for this platform,
-minisign verification against `update_pubkeys()`, and running it. No front-end does any of it.
-
-| Module       | Role                                                                                              |
-|--------------|---------------------------------------------------------------------------------------------------|
-| `mod.rs`     | the manifest, check and download, and the guard that `apply` takes only a file this daemon staged |
-| `install.rs` | how this copy was installed (NSIS, AppImage, deb, rpm, unmanaged), detected rather than recorded  |
-| `apply.rs`   | one entry point per platform                                                                      |
-
-The install shape picks the artifact and the installer: a package asks the manifest's `formats` map for its own format
-and accepts nothing else. The `portable` feature short-circuits to unmanaged. The channel (`update.channel`) is the last
-segment of the feed URL (`.../updates/stable`, `.../beta`).
-
 ## Provider seams
 
 Flavors (`FlavorProvider`), content sources (`ContentProvider`), Java distributions (`JavaProvider`) and pack formats
@@ -253,5 +238,4 @@ matching the equipped skin is a key comparison.
 | `cancel.rs`    | `Cancel`, the cooperative flag, and `Job`, which carries it beside the progress reporter               |
 | `registry.rs`  | `allocate_id` (a UUIDv7) and `dir_name` (a slug), shared by the entry stores                           |
 | `usage.rs`     | directory footprint; a symlink is a boundary                                                           |
-| `signature.rs` | minisign verification for the updater                                                                  |
 | `error.rs`     | the engine's `thiserror` enums, mapped at the daemon's service boundary                                |

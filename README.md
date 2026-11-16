@@ -75,7 +75,7 @@ new plugin system; until then Hestia plays and hosts vanilla only.
 
 A few more things it does: several concurrent sessions of one instance, starting straight into a world or onto a server,
 in-place version changes both ways (downgrades warn, and a server is backed up first), game settings and multiplayer
-lists shared across instances, a system tray, and self-update.
+lists shared across instances, and a system tray.
 
 Old versions are covered too: a pre-1.19 client's LWJGL natives are unpacked from their classifier jars, and an asset
 index that predates the hashed store is mirrored to the named tree those clients read.
@@ -91,8 +91,7 @@ everything: the desktop app, the daemon, the tray, and the
 | **Linux** (x86_64)   | `.deb` · `.rpm` · AppImage · portable `.tar.gz` |
 | **Windows** (x86_64) | `.exe` (NSIS) · portable `.zip`                  |
 
-The Windows installer lets you deselect components and puts the CLI on `PATH`. The desktop app updates itself from the
-release feed.
+The Windows installer lets you deselect components and puts the CLI on `PATH`.
 
 <details>
 <summary><b>Or build it from source</b></summary>

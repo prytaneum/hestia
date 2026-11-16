@@ -1,8 +1,7 @@
 # Changelog
 
 Release notes, newest first. The release workflow reads the section matching
-the version being cut into `latest.json`'s `notes`, so what the updater offers
-is what is written here.
+the version being cut as the Release's notes.
 
 One `## <version>` heading per release. Everything until the next heading is
 that release's notes, rendered as markdown.
@@ -14,6 +13,8 @@ Hestia is being rebuilt around a plugin kernel. Until plugins return, it plays a
 - **Removed for now.** The Modrinth and CurseForge sources, every flavor but vanilla, the pack formats other than
   Hestia's own, and Discord presence, with the `content.curseforge-key` and `discord.enabled` settings. They return as
   plugins.
+- **Self-update is removed.** `hestia update`, the desktop's update panel, the `update.channel` setting and the signed
+  release feed are gone, to be revisited later. Install a newer release by hand.
 - **Plugins.** `hestia plugin list`, `enable` and `disable` show and switch Hestia's plugins.
 
 ## 1.0.0-beta.3

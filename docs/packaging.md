@@ -88,69 +88,6 @@ What it adds over stock:
 - **Update-friendly** — running a newer setup over an existing install upgrades in place (no uninstall detour), reusing
   the recorded install directory, install mode, and components; downgrades take the stock uninstall-first path.
 
-## Auto-updates
-
-The **daemon** owns self-update — `engine/src/update/`, reached over `update.check`,
-`update.download` and `update.apply`. Every front-end is a caller; none reads the manifest, holds a key, or runs an
-installer.
-
-It polls the feed API, one manifest per release channel — `…/updates/stable` or `…/updates/beta`, chosen by the
-`update.channel` setting. On a `v*` tag the
-release workflow's `manifest` job composes `latest.json`, attaches it to the Release as provenance, and **publishes** it
-to the channel the tag names — a prerelease suffix (`v1.3.0-beta.1`) is beta, a plain `v1.3.0` is stable. Nothing reads
-the repository's releases to decide what is current. The full HTTP contract, both directions, is in
-[update-feed.md](update-feed.md).
-
-Publishing needs the `UPDATE_FEED_URL` variable and the `UPDATE_FEED_TOKEN` secret — an API token minted for an admin
-account on the feed API, sent as `x-api-key`. The `preflight` job refuses a **stable** release without them; a beta is
-warned and ships as a download only, so a prerelease can go out before the feed it will be served from exists. Its
-`latest.json` is still attached to the Release, and publishing it later is that same PUT by hand. The manifest itself,
-which the API answers wrapped in its `{success, message, data}` envelope:
-
-```json
-{
-  "version": "0.1.0",
-  "notes": "…",
-  "platforms": {
-    "windows-x86_64": {
-      "url": "…-setup.exe",
-      "signature": "…"
-    },
-    "linux-x86_64": {
-      "url": "….AppImage",
-      "signature": "…",
-      "formats": {
-        "deb": {
-          "url": "….deb",
-          "signature": "…"
-        },
-        "rpm": {
-          "url": "….rpm",
-          "signature": "…"
-        }
-      }
-    }
-  }
-}
-```
-
-A platform's top-level entry is its default artifact — the NSIS setup, the AppImage. `formats` carries the rest, and is
-additive: a build that predates a format never asks for it and reads the same manifest a newer one does.
-
-How a copy was installed is **detected, not recorded** (`update/install.rs`), and decides both which artifact is asked
-for and how it is applied:
-
-| Install             | Detected by                                                                 | Applied with                                                   |
-|---------------------|-----------------------------------------------------------------------------|----------------------------------------------------------------|
-| NSIS                | `uninstall.exe` at the layout root                                          | the setup, `/P /UPDATE`, via `ShellExecuteW` so UAC can prompt |
-| AppImage            | `$APPIMAGE`                                                                 | staged beside the image, renamed over it                       |
-| deb / rpm           | the binary is under a system prefix and `dpkg-query -S` / `rpm -qf` owns it | `dpkg -i` / `rpm -U`, escalated                                |
-| portable, `target/` | anything else, and always under the `portable` feature                      | nothing — the front-end offers the download URL                |
-
-Escalation on Linux tries `pkexec` first (the one step that can *prompt*), then passwordless `sudo`. When neither can
-even ask, the daemon returns `ElevationRequired` carrying the exact command — `hestia update` then offers to run it,
-because the CLI has a terminal the daemon does not.
-
 ## The portable archives
 
 Tauri has no portable target, so [`scripts/package.sh`](../scripts/package.sh) builds them itself — and they are **not**
@@ -179,71 +116,13 @@ which the same lookup handles.
 
 ## Signing
 
-Two independent signatures, often confused. Only one of them is mandatory.
+Hestia has no self-update, so no release artifact carries a signature of its own. Windows installers currently ship
+**unsigned**, which costs only warnings:
 
-|                                         | What it proves                   | Who checks it             | Required?                                    |
-|-----------------------------------------|----------------------------------|---------------------------|----------------------------------------------|
-| **Update signature** (minisign/Ed25519) | this download came from us       | `engine/src/signature.rs` | **yes** — the updater cannot work without it |
-| **Authenticode** (code signing cert)    | Windows knows who published this | Windows SmartScreen + UAC | no — costs a warning, not a failure          |
-
-### The update key
-
-One minisign keypair. The **public** half lives in exactly one place —
-`common::app::UPDATE_PUBKEY` — because only the daemon verifies anything;
-`crates/common/tests/updater.rs` fails the build if a second copy reappears in `tauri.conf.json`.
-
-The **private** half signs releases through [`scripts/sign.sh`](../scripts/sign.sh), either as the
-`RELEASE_SIGNING_KEY` repository secret (with `RELEASE_SIGNING_KEY_PASSWORD`) or locally by whoever cuts the release. CI
-signs the finished artifacts itself rather than letting the bundler do it: the bundler never signed `.deb` or `.rpm`
-at all, and those are exactly what the `formats` map needs. Offline is the safer default, because:
-
-> **A build trusts only the keys compiled into it.** Nothing sent later changes
-> that, so a successor key has to ship *before* it is needed — which is what
-> `UPDATE_PUBKEY_NEXT` is for. Lose both halves of both keys and the installs
-> in the field can never accept another update.
-
-### Rotating the signing key
-
-Two keys ship in every build. `UPDATE_PUBKEY` signs releases;
-`UPDATE_PUBKEY_NEXT` is the successor, whose private half stays offline and out of CI until the day it is needed. To
-rotate:
-
-1. Swap the values — the spare becomes `UPDATE_PUBKEY`, in `common::app`. That is the only file to touch.
-2. Generate a fresh spare into `UPDATE_PUBKEY_NEXT`, private half offline.
-3. Replace `RELEASE_SIGNING_KEY` / `..._PASSWORD` with the new signing key's, and cut a release.
-
-Builds already in the field verify against the successor they were shipped with, so they accept the new release without
-an intermediate version.
-
-**Tauri's own procedure is different and weaker.** Upstream
-([tauri#7585](https://github.com/tauri-apps/tauri/issues/7585), open) documents a staggered rotation: sign v2 with the
-*old* key while shipping the *new*
-pubkey, then sign v3 with the new key. It needs no extra code, but it requires still holding the old key — useless if
-the key was lost or leaked — and it strands anyone who skips the intermediate version, which for a launcher is routine.
-Carrying the successor instead is what OpenBSD's signify does, what
-[sparkle#1501](https://github.com/sparkle-project/Sparkle/issues/1501) proposes for Sparkle, and what tauri#7585 asks
-for (`pubkey: Option<Vec<String>>`, "try the first, and if it fails try the second").
-
-`engine/src/signature.rs` accepts any key in the set, so a rotation costs nothing at the verification site — this was
-awkward only while the desktop verified through `tauri-plugin-updater`, whose config holds exactly one key.
-
-Testing the update path locally never means editing these constants:
-[`scripts/update.sh --env`](../scripts/update.sh) hands the endpoint and the key to trust to a **debug** build through
-`HESTIA_UPDATE_ENDPOINT` and `HESTIA_UPDATE_PUBKEY`, and the second is honoured only alongside the first — so there is
-nothing to paste in and nothing to put back. A release build reads neither.
-
-`scripts/package.sh` builds unsigned, since signing is a separate step. CI refuses a **tagged** release with no key
-configured — the guard is in the `preflight` job, which runs before anything is built, so a release that could never
-publish a `latest.json` fails in seconds rather than after every platform has compiled.
-
-### Authenticode
-
-Windows installers currently ship **unsigned**, which costs only warnings:
-
-| Install mode | First install                             | Auto-update      |
-|--------------|-------------------------------------------|------------------|
-| per-user     | SmartScreen once                          | silent           |
-| per-machine  | SmartScreen once, UAC "Unknown publisher" | UAC every update |
+| Install mode | First install                             |
+|--------------|-------------------------------------------|
+| per-user     | SmartScreen once                          |
+| per-machine  | SmartScreen once, UAC "Unknown publisher" |
 
 `nsis.installMode` is `both`, so the user chooses. Signing does not remove the per-machine UAC prompt; it replaces
 "Unknown publisher" with the publisher name and removes the SmartScreen block.
@@ -293,15 +172,14 @@ image around the original's runtime.
   instead of compiling sidecars it never ships. `deny` runs `cargo-deny`. The workflow also declares
   `workflow_call`, so the release can reuse it verbatim.
 - [`release.yml`](../.github/workflows/release.yml) — on a `v*` tag: `preflight`, then `gate` and `package` side by
-  side, then `manifest`.
+  side, then `publish`.
   `preflight` refuses the release before anything is compiled if the tag, `Cargo.toml` and `tauri.conf.json` disagree on
-  the version, if `CHANGELOG.md` has no matching section, if the updater signing key is missing, or if a stable release
-  has no feed credentials to publish itself with. `gate` calls
+  the version, or if `CHANGELOG.md` has no matching section. `gate` calls
   `ci.yml`, since that workflow's own triggers cover branches but not tags. `package` verifies `Cargo.lock` is
   current (`cargo fetch --locked`) and runs four jobs at once — `scripts/package.sh bundle` and
   `scripts/package.sh portable`, each on a Linux and a Windows runner, because the two are separate compiles of the
   whole tree — uploading the results as workflow artifacts. It does not wait for `gate`, and it publishes nothing:
-  `manifest` needs both, and is the one job that attaches artifacts to the GitHub Release, so a tag publishes a whole
+  `publish` needs both, and is the one job that attaches artifacts to the GitHub Release, so a tag publishes a whole
   release or none of it. A manual `workflow_dispatch` is a dry run: the same gates run, but it uploads workflow
   artifacts without touching a Release. A tag can only restore a build cache saved on the default branch, so a dry
   run dispatched there is what makes the tagged build a warm one.

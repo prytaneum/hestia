@@ -122,7 +122,7 @@ The socket lives elsewhere: the runtime directory is ephemeral and per session, 
 
 | Module     | Provides                                                                                                    |
 |------------|-------------------------------------------------------------------------------------------------------------|
-| `app`      | `NAME`, `ID`, `TRAY_ID`, `VENDOR`, `CHANNEL`, `VERSION`, the update key, `user_agent()`                     |
+| `app`      | `NAME`, `ID`, `TRAY_ID`, `VENDOR`, `CHANNEL`, `VERSION`, `user_agent()`                                     |
 | `paths`    | the data-home resolution above, `sibling_binary`, `install_scope`, `log_dir`, `config_path`                 |
 | `logging`  | `init_logging(console_level, Option<FileLog>)`: the subscriber, the crash hook, a `LogGuard`                |
 | `crash`    | the panic hook and `record()` for crashes that never touch the Rust stack (webview errors)                  |
@@ -183,7 +183,7 @@ under Bun in CI.
 | Page                                         | Covers                                                                            |
 |----------------------------------------------|-----------------------------------------------------------------------------------|
 | [The socket boundary](architecture/wire.md)  | contracts, the envelope, the client SDK, jobs, events, failures                     |
-| [The engine](architecture/engine.md)         | the aggregate root, config, cache, downloads, Java, supervisor, self-update, accounts and skins |
+| [The engine](architecture/engine.md)         | the aggregate root, config, cache, downloads, Java, supervisor, accounts and skins |
 | [The daemon](architecture/daemon.md)         | serve loop, router, runtime, job managers, autostart                              |
 | [Minecraft providers](architecture/minecraft.md) | editions, flavors, catalogues, profiles, materialize, launch plans, RCON      |
 | [Servers and instances](architecture/entries.md) | entry stores, provisioning, backups, sync, worlds, Bedrock                    |
@@ -195,7 +195,7 @@ under Bun in CI.
 
 `v1.0.0-beta.3`. Every capability works end to end, from wire contract to at least one front-end: vanilla instances
 and servers (Java and Bedrock) with an RCON or stdin console, backups, in-place version changes, local content and
-modpack files, import and export, shared instance settings, Microsoft sign-in, skins, self-update and offline operation.
+modpack files, import and export, shared instance settings, Microsoft sign-in, skins and offline operation.
 Core carries vanilla, Adoptium and Hestia's own archive. The provider seams (flavors, content sources, pack formats,
 Java distributions) are in place and empty; other loaders, content sources and pack formats return with the new plugin
 system. There is no known gap down to the oldest launchable versions.
@@ -227,7 +227,7 @@ Rust (edition 2021) under `rustfmt`, `clippy -D warnings` and `cargo-deny`.
 | Serialization     | serde / serde_json                                                     |
 | Logging           | tracing, flexi_logger                                                  |
 | HTTP              | reqwest (rustls)                                                       |
-| Crypto            | p256 (Xbox proof keys), sha1/sha2, minisign verification               |
+| Crypto            | p256 (Xbox proof keys), sha1/sha2                                      |
 | Archives          | `tar` + `flate2`, `zip`, all in-process                                |
 | Game data         | fastnbt (`level.dat`)                                                  |
 | CLI               | clap, ratatui                                                          |
@@ -240,7 +240,7 @@ Rust (edition 2021) under `rustfmt`, `clippy -D warnings` and `cargo-deny`.
 |----------------------------------------|-------------------------------------------------------------------------------------------|
 | `crates/proto/tests/`                  | envelope and contract encodings, wire casing and omission rules, golden fixtures |
 | `crates/engine/tests/`                 | persistence, the sign-in state machine, process-tree termination, provisioning, content, pack and Java flows against native test providers |
-| `crates/engine/src/**`                 | unit tests beside the code: archive detection, launch plans, schema stamping, sync reconciliation, download vetting, signatures |
+| `crates/engine/src/**`                 | unit tests beside the code: archive detection, launch plans, schema stamping, sync reconciliation, download vetting |
 | `crates/client/tests/`                 | the SDK against a scripted daemon: marshalling, typed failures, timeouts, version mismatch, every way a job settles |
 | `crates/daemon/tests/e2e.rs`           | a client-to-daemon round trip over a real socket                                          |
 | `crates/engine/tests/fixture/`         | the native flavor, content source and pack format the flow tests drive                    |

@@ -51,7 +51,7 @@ is not enabled in the runtime's plugin registry. The kernel's own channels have 
 ### Job managers
 
 `runtime/managers/` holds one value, `Jobs`, and a file per family: Java install, server create and update, instance
-launch, backup, content, modpack, transfer, self-update download. Each answers at once with a job id, runs blocking
+launch, backup, content, modpack, transfer. Each answers at once with a job id, runs blocking
 engine work off-thread and publishes `JobEvent`s through the hub.
 
 A `start_*` function builds a `Spec` (id, prefix, the claim it holds) and hands `Jobs::run::<C>` a closure taking the
@@ -106,7 +106,7 @@ entry and refuse whatever holds it.
 | Registrar                | Channels                                                                                          |
 |--------------------------|---------------------------------------------------------------------------------------------------|
 | `lifecycle`              | `health.ping`, `app.info`, `daemon.status`, `daemon.stop`, `events.subscribe`, `job.list`, `job.cancel` |
-| `config`, `cache`, `java`, `update` | `config.*`, `cache.*`, `java.*`, `update.check`, `update.download`                     |
+| `config`, `cache`, `java` | `config.*`, `cache.*`, `java.*`                                                                  |
 | `accounts`, `skins`      | `account.*`, `skin.*`, `cape.*`                                                                   |
 | `process`                | `process.start\|stop\|list\|status\|logs`                                                         |
 | `entry`                  | what a server and an instance share: `entry.flavors\|versions\|loaders\|rename\|remove\|stop\|logs\|config.*` |

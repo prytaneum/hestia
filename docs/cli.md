@@ -692,17 +692,6 @@ naming both flags — a script has to state which it meant. With nothing running
 immediately. The tray's **Quit** and the desktop's stop button always mean
 `--keep`: neither can ask, and neither should end a running server on your behalf.
 
-## Updating Hestia
-
-```bash
-hestia update                    # check, confirm, download and apply
-hestia update --yes              # no confirmation prompt
-```
-
-The installer is verified against a compiled-in signing key before it runs; an artifact that fails to verify is
-discarded rather than applied. The desktop has its own updater under Settings (it can replace a running binary and
-restart into it, which the CLI path cannot).
-
 ## Global flags
 
 Accepted in any position.
