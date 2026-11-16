@@ -98,39 +98,6 @@ pub struct RequiredSetting {
     pub key: String,
 }
 
-/// What a plugin's content source says of itself: the `info` of the
-/// `content-source` export, which the host turns into a [`ContentSource`].
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct SourceInfo {
-    pub name: String,
-    pub kinds: Vec<ContentKind>,
-    /// Whether the source has no datapack project type, so a datapack is a
-    /// `Mod` project whose versions carry the `datapack` loader.
-    pub datapacks_as_mods: bool,
-    /// The game editions the source's catalogue is for; empty reads as Java alone.
-    pub editions: Vec<Edition>,
-    /// The key of one of the plugin's own settings that must be set before the
-    /// source serves; the host keeps the source out of use, and says which
-    /// setting is missing, until it is.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub requires_setting: Option<String>,
-}
-
-/// A project (and optionally a version) a plugin's source recognised in a page
-/// URL: the answer of the `content-source` export's `parse-url`.
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct SourceUrl {
-    pub project: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub kind: Option<ContentKind>,
-}
-
 /// The project and version a source recognised in the URL of a file it
 /// serves: the answer of the `content-source` export's `recognise-file-url`.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]

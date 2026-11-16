@@ -6,8 +6,5 @@ import type { ChannelHandlers } from '../support';
 export const channels: ChannelHandlers = {
   'host.info': (): HostInfoResult => ({
     totalMemoryBytes: 16 * 1024 ** 3,
-    os: 'linux',
-    arch: 'x86_64',
-    pathSeparator: ':',
   }),
 };

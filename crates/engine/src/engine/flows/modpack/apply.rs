@@ -23,7 +23,7 @@ use crate::content::pool::Pool;
 use crate::content::{exclude, install, modpack, pack, record};
 use crate::engine::Engine;
 use crate::minecraft::{materialize, Side};
-use crate::plugins::vouch::Policy;
+use crate::vouch::Policy;
 
 impl Engine {
     /// The install itself, once the entry exists: refuse a pack the entry

@@ -43,6 +43,7 @@ mod transfer;
 mod update;
 mod usage;
 mod version;
+mod vouch;
 
 pub use accounts::{Accounts, LoginChallenge, ReauthRequired};
 pub use cache::{Cache, CacheEntry, CacheUsage};
@@ -72,12 +73,6 @@ pub use minecraft::{
     ResolveRequest, Side, BOTH_SIDES, CLIENT_ONLY, REQUIRED_JAVA_MAJORS, SERVER_ONLY,
 };
 pub use net::Network;
-pub use plugins::vouch::{Hosts, Policy};
-pub use plugins::{
-    approval_digest, is_official_signer, key_id_of, pin_on_path, refuse_official_key,
-    resolve_on_path, revocation, target_triple, verify_build, verify_index, Listings, ManagedJava,
-    RepoError, Resolver,
-};
 pub use plugins::{Builtin, Busy, Descriptor, PluginError, Plugins};
 #[cfg(windows)]
 pub use process::run_relay;
@@ -92,3 +87,4 @@ pub use transfer::archive::Reader;
 pub use transfer::{PackProvider, Vetted};
 pub use update::Update;
 pub use usage::dir_size;
+pub use vouch::{Hosts, Policy};

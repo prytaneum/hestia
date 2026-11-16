@@ -16,7 +16,7 @@ use proto::content::{
 use serde_json::Value;
 
 use super::install;
-use crate::plugins::vouch::Policy;
+use crate::vouch::Policy;
 
 /// A project reference recognised in a platform's own site URL, optionally
 /// pinned to one version. `kind` is what the URL's own path says the project is.

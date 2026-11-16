@@ -97,50 +97,6 @@ fn dev_pubkey() -> Option<&'static str> {
     None
 }
 
-/// Standard-format minisign public keys (`RW…`) of the official plugins
-/// repository, current key first, then the rotation spare. Its CI signs with
-/// the current key; the spare's private half stays offline. A plugin signed by
-/// either is official. A binary trusts only the keys compiled into it, so the
-/// spare ships before it is needed: to rotate, sign with the spare, then release
-/// a build that lists it first and adds a new spare. With no key nothing is
-/// official, so the set fails closed. These are a different key and format from
-/// [`UPDATE_PUBKEY`], so one cannot sign an app update and an update key cannot
-/// make a plugin official.
-pub const OFFICIAL_PLUGIN_PUBKEYS: &[&str] = &[
-    "RWQQBf6dBpEvpJiznp3nTLoynPyWQPPjmukLSE82dq1BOA6H5mlI6Hep",
-    "RWQFJGKG1jnGmh8VBwbwWYgSPS2kkeBelJfWeFAE0WZ3pQjh+RLncFAR",
-];
-
-/// The official plugins repository, as `owner/repo`. It is present in every
-/// install and cannot be removed; it is pinned to [`OFFICIAL_PLUGIN_PUBKEYS`].
-pub const OFFICIAL_PLUGIN_REPOSITORY: &str = "prytaneum/plugins";
-
-/// The keys whose plugins are official. `HESTIA_OFFICIAL_PLUGIN_PUBKEY`
-/// replaces the compiled-in set for a local test, in a **debug** build only.
-pub fn official_plugin_pubkeys() -> Vec<&'static str> {
-    match dev_official_pubkey() {
-        Some(key) => vec![key],
-        None => OFFICIAL_PLUGIN_PUBKEYS.to_vec(),
-    }
-}
-
-#[cfg(debug_assertions)]
-fn dev_official_pubkey() -> Option<&'static str> {
-    use std::sync::OnceLock;
-
-    static KEY: OnceLock<Option<&'static str>> = OnceLock::new();
-    *KEY.get_or_init(|| {
-        let key = std::env::var("HESTIA_OFFICIAL_PLUGIN_PUBKEY").ok()?;
-        let key = key.trim();
-        (!key.is_empty()).then(|| &*Box::leak(key.to_string().into_boxed_str()))
-    })
-}
-
-#[cfg(not(debug_assertions))]
-fn dev_official_pubkey() -> Option<&'static str> {
-    None
-}
-
 /// The agent every outbound HTTP request identifies itself with.
 ///
 /// PaperMC and Modrinth both *ask* for a contact URL or address alongside the

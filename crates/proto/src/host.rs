@@ -1,6 +1,5 @@
 //! Facts about the machine the daemon runs on, for a front-end that must
-//! offer only what that machine can honour, and for any plugin: the channel is
-//! ambient, so everything it answers is harmless to hand out.
+//! offer only what that machine can honour.
 
 use serde::{Deserialize, Serialize};
 
@@ -14,12 +13,6 @@ pub struct HostInfoResult {
     /// ceiling the daemon enforces on a `memory` setting.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_memory_bytes: Option<u64>,
-    /// `windows`, `osx` or `linux`: the vocabulary of a rule's `os.name`.
-    pub os: String,
-    /// `x86`, `x86_64` or `arm64`: the vocabulary of a rule's `os.arch`.
-    pub arch: String,
-    /// What joins the entries of a classpath or `PATH`: `:` or `;`.
-    pub path_separator: String,
 }
 
 pub struct HostInfo;

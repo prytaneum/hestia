@@ -13,7 +13,7 @@ use crate::cancel::Job;
 use crate::content::install;
 use crate::engine::Engine;
 use crate::minecraft::materialize;
-use crate::plugins::vouch::Policy;
+use crate::vouch::Policy;
 
 /// A file to fetch to `target`; `label` and `source` name it if its author has
 /// opted out of distribution. `policy` is the one a plugin-named file is

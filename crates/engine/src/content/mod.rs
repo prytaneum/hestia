@@ -26,8 +26,8 @@ use proto::content::{
     SearchResult, VersionQuery, LOCAL_SOURCE,
 };
 
-use crate::plugins::vouch::Policy;
 use crate::roster::{RegisterError, Roster, Standing};
+use crate::vouch::Policy;
 use proto::error::ErrorInfo;
 use provider::ContentProvider;
 pub(crate) use provider::{LocalFile, UrlRef};

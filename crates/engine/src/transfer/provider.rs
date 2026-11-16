@@ -11,7 +11,7 @@ use proto::warning::WarningInfo;
 
 use super::archive::Reader;
 use crate::minecraft::Loaders;
-use crate::plugins::vouch::Policy;
+use crate::vouch::Policy;
 
 /// A provider's answer after vetting, with what the host dropped from it.
 pub struct Vetted {

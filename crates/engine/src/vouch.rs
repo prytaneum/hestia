@@ -9,7 +9,6 @@ use std::time::Duration;
 
 use proto::error::ErrorInfo;
 use proto::minecraft::Artifact;
-use proto::plugin::network_matches;
 use reqwest::header::LOCATION;
 use reqwest::{Response, Url};
 
@@ -92,6 +91,20 @@ impl From<Refused> for ErrorInfo {
 pub struct Hosts {
     pub connect: Vec<String>,
     pub unhashed: Vec<String>,
+}
+
+/// Whether the granted host `entry` reaches `host`, which is lowercase and has
+/// no trailing dot: an exact name, or for `*.domain` a name exactly one label
+/// below `domain`, never `domain` itself nor anything deeper.
+fn network_matches(entry: &str, host: &str) -> bool {
+    let entry = entry.trim_end_matches('.').to_ascii_lowercase();
+    match entry.strip_prefix("*.") {
+        Some(domain) => host
+            .strip_suffix(domain)
+            .and_then(|rest| rest.strip_suffix('.'))
+            .is_some_and(|label| !label.is_empty() && !label.contains('.')),
+        None => host == entry,
+    }
 }
 
 impl Hosts {

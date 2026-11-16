@@ -277,7 +277,7 @@ impl Engine {
         &self,
         plugin: &Arc<dyn PackProvider>,
         read: PackRead,
-    ) -> Result<(ResolvedModpack, Option<Arc<crate::plugins::vouch::Policy>>)> {
+    ) -> Result<(ResolvedModpack, Option<Arc<crate::vouch::Policy>>)> {
         let Some(delegate) = read.resolve else {
             let mut resolved = ResolvedModpack {
                 source: LOCAL_SOURCE.to_string(),

@@ -5,16 +5,12 @@ use proto::rules::{Rule, RuleAction};
 use serde_json::Value;
 
 /// The machine rules are evaluated against.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Target {
     /// `windows`, `osx` or `linux`: the vocabulary of a rule's `os.name`.
     pub os: String,
     /// `x86`, `x86_64` or `arm64`: the vocabulary of a rule's `os.arch`.
     pub arch: String,
-    /// The Java major the host runs this version with, when known.
-    pub java_major: Option<i32>,
-    /// What joins the entries of a classpath: `:` or `;`.
-    pub path_separator: String,
 }
 
 /// Host OS in Mojang's rule vocabulary (`os.name`).
@@ -41,14 +37,11 @@ pub(crate) fn host_arch() -> &'static str {
     }
 }
 
-/// What a plugin is told of this machine; `java_major` is the one the game will
-/// run on, when the caller knows it.
-pub(crate) fn host_target(java_major: Option<i32>) -> Target {
+/// This machine in the vocabulary of a rule's `os`.
+pub(crate) fn host_target() -> Target {
     Target {
         os: host_os().to_string(),
         arch: host_arch().to_string(),
-        java_major: java_major.filter(|major| *major > 0),
-        path_separator: if cfg!(windows) { ";" } else { ":" }.to_string(),
     }
 }
 
@@ -80,7 +73,7 @@ pub(crate) fn allow(rules: &[Rule], target: &Target) -> bool {
 /// value that is not a list of rules does not gate anything.
 pub(crate) fn allow_manifest(rules: &Value) -> bool {
     match serde_json::from_value::<Vec<Rule>>(rules.clone()) {
-        Ok(rules) => allow(&rules, &host_target(None)),
+        Ok(rules) => allow(&rules, &host_target()),
         Err(_) => true,
     }
 }
@@ -96,7 +89,6 @@ mod tests {
         Target {
             os: os.into(),
             arch: arch.into(),
-            ..Target::default()
         }
     }
 

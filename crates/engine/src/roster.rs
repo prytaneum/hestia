@@ -12,14 +12,13 @@ use proto::error::ErrorInfo;
 
 pub(crate) const BUILTIN_OWNER: &str = "builtin";
 
-/// How far a plugin's providers are trusted to answer a bare name. Registration
+/// How far an owner's providers are trusted to answer a bare name. Registration
 /// order within a standing is first come.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Standing {
-    /// Signed by the official plugins key.
+    /// Answers a bare name first.
     Official,
-    /// A developer-mode install, which stands in for an official plugin only
-    /// where none provides the name.
+    /// Answers a bare name only where no `Official` provider does.
     Developer,
     #[default]
     Community,

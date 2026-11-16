@@ -509,34 +509,6 @@ pub enum ErrorInfo {
     TaskNotFound {
         id: String,
     },
-    /// No configured repository matches `reference`.
-    RepositoryNotFound {
-        reference: String,
-    },
-    /// The address is not a Hestia plugin repository, or its index is malformed.
-    RepositoryInvalid {
-        detail: String,
-    },
-    /// The index names another key than the one trusted when the repository
-    /// was added. Both are key ids.
-    RepositoryKeyChanged {
-        pinned: String,
-        declared: String,
-    },
-    /// An index or build failed its signature, was signed for something else,
-    /// is older than the one kept, or does not match its checksum.
-    RepositoryRefused {
-        detail: String,
-    },
-    /// The repository's index is past its expiry, so nothing new is installed
-    /// from it until a fresh one is fetched. Installed plugins keep running.
-    RepositoryExpired {
-        repository: String,
-    },
-    /// The official repository ships with Hestia and cannot be removed.
-    RepositoryOfficial {
-        repository: String,
-    },
     /// No file or directory at `path` in the entry's tree.
     FileNotFound {
         path: String,
@@ -865,7 +837,6 @@ impl ErrorInfo {
             | FileNotFound { .. }
             | TaskNotFound { .. }
             | PluginNotFound { .. }
-            | RepositoryNotFound { .. }
             | ConfigKeyUnknown { .. }
             | ConfigKeyUnset { .. } => code::NOT_FOUND,
             SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
@@ -982,24 +953,6 @@ impl fmt::Display for ErrorInfo {
             AccountNotFound { reference } => write!(f, "no account matches '{reference}'"),
             VersionNotFound { reference } => write!(f, "no version matches '{reference}'"),
             TaskNotFound { id } => write!(f, "no scheduled task '{id}'"),
-            RepositoryNotFound { reference } => {
-                write!(f, "no plugin repository matches '{reference}'")
-            }
-            RepositoryInvalid { detail } => {
-                write!(f, "not a Hestia plugin repository: {detail}")
-            }
-            RepositoryKeyChanged { pinned, declared } => write!(
-                f,
-                "the repository now declares key {declared}, but key {pinned} was trusted"
-            ),
-            RepositoryRefused { detail } => write!(f, "the repository was refused: {detail}"),
-            RepositoryExpired { repository } => write!(
-                f,
-                "the index of '{repository}' has expired, so nothing new installs from it"
-            ),
-            RepositoryOfficial { repository } => {
-                write!(f, "'{repository}' is the official repository and cannot be removed")
-            }
             FileNotFound { path } => write!(f, "no file or directory at '{path}'"),
             FileRejected { path, reason } => write!(f, "'{path}' was refused: {reason}"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),

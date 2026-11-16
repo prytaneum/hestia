@@ -14,7 +14,7 @@ use tokio::io::AsyncWriteExt;
 use crate::cache::Cache;
 use crate::checksum::Hasher;
 use crate::net;
-use crate::plugins::vouch::Policy;
+use crate::vouch::Policy;
 
 /// Why a transfer stopped, kept apart from the message so a caller that has to
 /// answer typed (a plugin) can tell a missing file from a refusal. Always

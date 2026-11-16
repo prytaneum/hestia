@@ -43,8 +43,7 @@ pub struct FileReadResult {
 }
 
 /// Reads a text file whole. A binary file or one past the editable size is
-/// refused rather than truncated. A plugin reaches only the files its grant
-/// lists, since the game directory also holds `rcon.password`.
+/// refused rather than truncated.
 pub struct ServerFilesRead;
 impl Contract for ServerFilesRead {
     const CHANNEL: &'static str = "server.files.read";

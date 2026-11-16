@@ -60,4 +60,3 @@ libc = "0.2"
 tokio = { workspace = true, features = ["test-util"] }
 engine = { path = ".", features = ["loopback"] }
 tempfile.workspace = true
-minisign = { workspace = true }

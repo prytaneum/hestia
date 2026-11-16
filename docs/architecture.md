@@ -119,7 +119,7 @@ The socket lives elsewhere: the runtime directory is ephemeral and per session, 
 
 | Module     | Provides                                                                                                    |
 |------------|-------------------------------------------------------------------------------------------------------------|
-| `app`      | `NAME`, `ID`, `TRAY_ID`, `VENDOR`, `CHANNEL`, `VERSION`, the update and official-plugin keys, `user_agent()` |
+| `app`      | `NAME`, `ID`, `TRAY_ID`, `VENDOR`, `CHANNEL`, `VERSION`, the update key, `user_agent()`                     |
 | `paths`    | the data-home resolution above, `sibling_binary`, `install_scope`, `log_dir`, `config_path`                 |
 | `logging`  | `init_logging(console_level, Option<FileLog>)`: the subscriber, the crash hook, a `LogGuard`                |
 | `crash`    | the panic hook and `record()` for crashes that never touch the Rust stack (webview errors)                  |
@@ -208,7 +208,7 @@ Rust (edition 2021) under `rustfmt`, `clippy -D warnings` and `cargo-deny`.
 |----------------------------------------|-------------------------------------------------------------------------------------------|
 | `crates/proto/tests/`                  | envelope and contract encodings, wire casing and omission rules, golden fixtures |
 | `crates/engine/tests/`                 | persistence, the sign-in state machine, process-tree termination, provisioning, content, pack and Java flows against native test providers |
-| `crates/engine/src/**`                 | unit tests beside the code: archive detection, launch plans, schema stamping, sync reconciliation, download vetting, program pins, signatures |
+| `crates/engine/src/**`                 | unit tests beside the code: archive detection, launch plans, schema stamping, sync reconciliation, download vetting, signatures |
 | `crates/client/tests/`                 | the SDK against a scripted daemon: marshalling, typed failures, timeouts, version mismatch, every way a job settles |
 | `crates/daemon/tests/e2e.rs`           | a client-to-daemon round trip over a real socket                                          |
 | `crates/engine/tests/fixture/`         | the native flavor, content source and pack format the flow tests drive                    |

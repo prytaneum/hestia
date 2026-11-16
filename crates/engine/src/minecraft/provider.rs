@@ -15,9 +15,8 @@ use proto::minecraft::{Edition, GameVersion, Requirement};
 use crate::cache::Cache;
 use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::profile::{InstanceProfile, ServerProfile};
-use crate::plugins::resolve_on_path;
-use crate::plugins::vouch::Policy;
 use crate::process::ProcessSupervisor;
+use crate::vouch::Policy;
 
 /// A resolution request: a game version and, for modloaders, an optional pinned
 /// loader version (the newest stable loader is chosen when absent). `meta` and
@@ -56,8 +55,7 @@ pub struct JavaInstall<'a> {
     /// The vanilla jar for this side, already materialized; none for a server
     /// whose own jar is built.
     pub minecraft_jar: Option<&'a Path>,
-    /// The Java major `java` is, the profile's: what a plugin flavor's `build`
-    /// is told and what its `profile` programs run on.
+    /// The Java major of `java`, from the profile.
     pub java_major: i32,
     pub java: &'a Path,
 }
@@ -103,15 +101,34 @@ pub struct Prerequisite {
 }
 
 impl Prerequisite {
-    pub const GIT: Prerequisite = Prerequisite {
-        command: Cow::Borrowed("git"),
-        name: Cow::Borrowed("Git"),
-        url: Cow::Borrowed("https://git-scm.com/downloads"),
-    };
-
     /// Whether the command resolves on `PATH`.
     pub fn installed(&self) -> bool {
         resolve_on_path(&self.command).is_some()
+    }
+}
+
+/// The first executable named `name` in a `PATH` directory. A relative
+/// directory is skipped: it would resolve against wherever the daemon runs.
+fn resolve_on_path(name: &str) -> Option<std::path::PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .filter(|dir| dir.is_absolute())
+        .map(|dir| dir.join(format!("{name}{}", std::env::consts::EXE_SUFFIX)))
+        .find(|candidate| is_executable(candidate))
+}
+
+fn is_executable(path: &Path) -> bool {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        metadata.is_file()
     }
 }
 

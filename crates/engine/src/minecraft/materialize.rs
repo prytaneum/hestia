@@ -18,7 +18,7 @@ use super::profile::{AssetIndex, Library, Native};
 
 use crate::cache::Cache;
 use crate::download::{Downloader, PolicyFor};
-use crate::plugins::vouch::Policy;
+use crate::vouch::Policy;
 
 const ASSET_HOST: &str = "https://resources.download.minecraft.net";
 const CONCURRENT_FETCHES: usize = 16;

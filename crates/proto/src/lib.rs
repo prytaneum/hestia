@@ -5,7 +5,6 @@ pub mod accounts;
 pub mod app;
 pub mod backup;
 pub mod cache;
-pub mod catalogue;
 pub mod change;
 pub mod config;
 pub mod content;
@@ -35,7 +34,6 @@ pub mod process;
 pub mod profile;
 pub mod provider;
 
-pub mod repository;
 pub mod rules;
 pub mod screenshot;
 pub mod server;

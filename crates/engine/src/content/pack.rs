@@ -15,8 +15,8 @@ use proto::warning::WarningInfo;
 
 use crate::cancel::Job;
 use crate::icon;
-use crate::plugins::vouch::Policy;
 use crate::transfer::archive::{Extracted, Reader};
+use crate::vouch::Policy;
 
 /// Which side an install is for — which of the two side-specific override trees
 /// applies, and which `env` field decides whether a file is wanted.

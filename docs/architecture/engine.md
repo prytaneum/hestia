@@ -173,15 +173,13 @@ The install shape picks the artifact and the installer: a package asks the manif
 and accepts nothing else. The `portable` feature short-circuits to unmanaged. The channel (`update.channel`) is the last
 segment of the feed URL (`.../updates/stable`, `.../beta`).
 
-## Provider seams and plugin groundwork
+## Provider seams and the plugin registry
 
 Flavors (`FlavorProvider`), content sources (`ContentProvider`), Java distributions (`JavaProvider`) and pack formats
 (`PackProvider`) are traits held in a runtime-mutable `Roster` (`roster.rs`); only the built-ins are registered: vanilla
-Java and Bedrock, Adoptium, and Hestia's own archive. No content source is built in. `engine/src/plugins/` keeps only
-download vetting (`vouch`: `Policy` and host matching), program pinning (`program.rs`, `invocation.rs`) and the signed
-repository index code (`index.rs`, `catalogue.rs`, `repositories.rs`, `repos.rs`, `official.rs`, `api.rs`). Nothing
-calls those yet. Flavors, content sources, pack formats and Java distributions beyond the built-ins return with the new
-plugin system.
+Java and Bedrock, Adoptium, and Hestia's own archive. No content source is built in. A provider may hand downloads a
+`vouch::Policy` (granted hosts, checksums, redirects); the built-ins hand none, so their downloads take the plain path.
+Flavors, content sources, pack formats and Java distributions beyond the built-ins return with the new plugin system.
 
 Beside them sits the registry (`registry.rs`, `builtin.rs`): built-ins implement `Builtin` (a descriptor with `provides`
 and `requires`, plus `enable` and `disable`) and are enabled in dependency order. Disabling is refused while an enabled

@@ -95,9 +95,6 @@ pub enum WarningInfo {
         pack_game_version: String,
         target: String,
     },
-    /// A repository could not be refreshed, so its last good listing is shown.
-    /// `detail` is operational English, shown as secondary text.
-    RepositoryStale { repository: String, detail: String },
     /// A pack format's export could not carry something faithfully. `detail`
     /// is the plugin's own operational English, shown as secondary text.
     PackExportWarned { pack: String, detail: String },
@@ -165,10 +162,6 @@ impl WarningInfo {
             }
             PackNotMoved { .. } => {
                 "its mods may not load; move the pack yourself when a build for this version is published"
-                    .to_string()
-            }
-            RepositoryStale { .. } => {
-                "the listing may be out of date; try again when the repository is reachable"
                     .to_string()
             }
             PackExportWarned { .. } => {
@@ -253,9 +246,6 @@ impl fmt::Display for WarningInfo {
                 "the modpack '{pack}' {version_number} is built for Minecraft {pack_game_version} \
                  and has no version for {target}"
             ),
-            RepositoryStale { repository, detail } => {
-                write!(f, "'{repository}' could not be refreshed: {detail}")
-            }
             PackExportWarned { pack, detail } => {
                 write!(f, "the {pack} export is not exact: {detail}")
             }

@@ -1,16 +1,14 @@
 //! The pack format vocabulary: an archive format that carries a game version, a
 //! loader and the files to run it with, such as a Modrinth or CurseForge pack
-//! or another launcher's instance. The host owns every archive: the guest is
+//! or another launcher's instance. The host owns every archive: a format is
 //! handed the member names and the text of the members it declared, and every
 //! path, URL and tree it answers is vetted before a byte is copied or fetched.
-
-use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
 use crate::content::{InstalledContent, ResolvedModpack};
 
-/// What a pack format says of itself. Asked once, when the plugin is enabled.
+/// What a pack format says of itself. Asked once, when the format is registered.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(default, rename_all = "camelCase")]
@@ -20,90 +18,11 @@ pub struct PackInfo {
     /// at: a path (`manifest.json`) or a pattern whose `*` stands for any run
     /// of characters inside one path segment (`*.cfg`, `.minecraft/*.json`). An
     /// archive none of them matches is not this format's, and the host reads
-    /// the matching members as text for [`Read`].
+    /// the matching members as text.
     pub members: Vec<String>,
     /// The extension an export of this format is given, which is what makes it
     /// one the user can export to. Empty for a format that can only be read.
     pub extension: String,
-}
-
-/// Whether `pattern` is a [`PackInfo::members`] entry: a relative path of
-/// segments with no `.` or `..`, no backslash and no control character.
-pub fn is_member_pattern(pattern: &str) -> bool {
-    !pattern.is_empty()
-        && !pattern.contains('\\')
-        && !pattern.chars().any(char::is_control)
-        && pattern
-            .split('/')
-            .all(|segment| !segment.is_empty() && segment != "." && segment != "..")
-}
-
-/// Whether the archive member `name` is one `pattern` declares.
-pub fn member_matches(pattern: &str, name: &str) -> bool {
-    let (mut patterns, mut names) = (pattern.split('/'), name.split('/'));
-    loop {
-        match (patterns.next(), names.next()) {
-            (None, None) => return true,
-            (Some(pattern), Some(name)) if segment_matches(pattern, name) => {}
-            _ => return false,
-        }
-    }
-}
-
-fn segment_matches(pattern: &str, name: &str) -> bool {
-    let mut parts = pattern.split('*');
-    let Some(first) = parts.next() else {
-        return false;
-    };
-    let Some(mut rest) = name.strip_prefix(first) else {
-        return false;
-    };
-    let mut parts = parts.peekable();
-    while let Some(part) = parts.next() {
-        if parts.peek().is_none() {
-            return rest.ends_with(part);
-        }
-        match rest.find(part) {
-            Some(at) => rest = &rest[at + part.len()..],
-            None => return false,
-        }
-    }
-    rest.is_empty()
-}
-
-/// The member names of an archive and the text of the members the format
-/// declared, relative to the directory the pack would start at, so a format can
-/// look inside before it claims. A declared member that is not UTF-8 text, is
-/// over the size bound or would pass the total bound is left out of `members`,
-/// and the archive is not refused for it.
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ClaimQuery {
-    pub files: Vec<String>,
-    pub members: BTreeMap<String, String>,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
-#[serde(default, rename_all = "camelCase")]
-pub struct Claim {
-    pub claimed: bool,
-}
-
-/// The archive's member names and the text of the members the format declared,
-/// all relative to the directory the pack starts at. A declared member that is
-/// not UTF-8 text refuses the archive before the guest is asked.
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ReadQuery {
-    pub files: Vec<String>,
-    pub members: BTreeMap<String, String>,
-    /// The loader keys the registered flavors declare for this format in their
-    /// `interchange` map, so a reader can pick the component or dependency a
-    /// flavor actually claims. Keys only: which flavor owns one is the host's.
-    pub loaders: Vec<String>,
 }
 
 /// A manifest a content source resolves into the pack's files.
@@ -205,7 +124,7 @@ pub struct WriteQuery {
     pub content: Vec<PoolItem>,
 }
 
-/// A file the guest writes into the archive.
+/// A file the format writes into the archive.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(default, rename_all = "camelCase")]

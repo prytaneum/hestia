@@ -9,7 +9,7 @@ use proto::download::Checksum;
 use proto::java::JavaRelease;
 
 use super::platform::JavaTarget;
-use crate::plugins::vouch::Policy;
+use crate::vouch::Policy;
 
 /// One resolved build of a runtime, ready to download.
 pub struct JavaPackage {
@@ -27,7 +27,7 @@ pub struct JavaPackage {
 
 #[async_trait]
 pub trait JavaProvider: Send + Sync {
-    /// The id the provider is selected by: bare only for an official plugin's, `<plugin>.<id>` otherwise.
+    /// The id the provider is selected by: bare for a built-in, `<owner>.<id>` for one registered under an owner.
     fn id(&self) -> &str;
 
     /// The feature versions on offer, ascending.

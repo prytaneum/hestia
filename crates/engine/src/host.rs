@@ -5,15 +5,10 @@ use std::sync::OnceLock;
 use proto::host::HostInfoResult;
 use sysinfo::{MemoryRefreshKind, System};
 
-/// The facts about this machine a caller may always be told: operating system,
-/// architecture and path separator in the vocabulary a plugin is queried with.
+/// The facts about this machine a caller may always be told.
 pub fn info() -> HostInfoResult {
-    let target = crate::minecraft::rules::host_target(None);
     HostInfoResult {
         total_memory_bytes: total_memory(),
-        os: target.os,
-        arch: target.arch,
-        path_separator: target.path_separator,
     }
 }
 

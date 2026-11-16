@@ -1,8 +1,8 @@
-//! Exporting an instance through a pack format a plugin contributes. The
-//! guest is handed the instance's description, the game directory's files and
-//! the content pool, and answers the manifests to store and which of those
-//! files to carry; the host vets the answer and does the writing, so a plugin
-//! never opens the instance or the archive.
+//! Exporting an instance through a pack format. The format is handed the
+//! instance's description, the game directory's files and the content pool, and
+//! answers the manifests to store and which of those files to carry; the host
+//! vets the answer and does the writing, so a format never opens the instance or
+//! the archive.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};

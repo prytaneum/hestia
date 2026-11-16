@@ -1,6 +1,3 @@
-use std::collections::BTreeMap;
-
-use crate::content::ContentKind;
 use crate::minecraft::Artifact;
 use serde::{Deserialize, Serialize};
 
@@ -241,34 +238,4 @@ impl InstanceProfile {
             .map(|library| library.path.as_str())
             .collect()
     }
-}
-
-/// What a plugin's flavor says of itself: the `info` of the `flavor` export.
-/// The host registers it as `<plugin>.<id>`.
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
-#[serde(default, rename_all = "camelCase")]
-pub struct FlavorDescription {
-    pub name: String,
-    pub summary: String,
-    /// The content kind the flavor's own loader consumes; none for a flavor that loads nothing.
-    pub loads: Option<ContentKind>,
-    pub server: bool,
-    pub client: bool,
-    /// Ids of the plugin's own `[[programs]]` the flavor needs on this computer
-    /// before it can build or install. The host checks them when it lists the
-    /// flavor, so a front-end can say what is missing before a build starts.
-    pub requires: Vec<String>,
-    /// The name a content platform gives this flavor's loader (`fabric`,
-    /// `paper`), which content queries filter by. Absent, the flavor's id.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub loader: Option<String>,
-    /// Further loader names whose content the flavor also runs, such as `spigot`
-    /// for a flavor built on it; a version published for any of them fits.
-    pub compatible: Vec<String>,
-    /// How each interchange format names this flavor's loader, as
-    /// `{ format-id: key }`: `mrpack` for a Modrinth pack's `dependencies` key,
-    /// `prism` for a Prism or MultiMC component uid, or the id of a pack format
-    /// a plugin contributes. A format reads a pack's loader through its key.
-    pub interchange: BTreeMap<String, String>,
 }
