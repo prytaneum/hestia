@@ -1,6 +1,7 @@
 //! The daemon's long-lived collaborators in one place — the anti-churn seam a
 //! new subsystem hangs off, mirroring the engine's aggregate root.
 
+mod calls;
 mod cancellations;
 mod changed;
 mod claims;
@@ -29,6 +30,7 @@ use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
 
+pub use calls::RouterCalls;
 pub use cancellations::Cancellations;
 pub use changed::Changed;
 pub use claims::{create_key, Claim, Claims, JobKind};
@@ -389,16 +391,19 @@ impl Runtime {
     }
 }
 
-/// Who a request came from, for the request span.
+/// Who a request came from, for the request span. A plugin's call carries the
+/// plugins that led to it.
 #[derive(Clone, Debug)]
 pub enum Caller {
     Client,
+    Plugin(kernel::Chain),
 }
 
 impl fmt::Display for Caller {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Caller::Client => f.write_str("client"),
+            Caller::Plugin(chain) => write!(f, "plugin:{}", chain.plugins().join(">")),
         }
     }
 }

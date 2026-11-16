@@ -67,6 +67,13 @@ impl EventHub {
         listeners.push((key.to_string(), listener));
     }
 
+    pub fn unlisten(&self, key: &str) {
+        self.listeners
+            .lock()
+            .unwrap()
+            .retain(|(held, _)| held != key);
+    }
+
     /// Whether any live subscriber takes every event (unfiltered) — only these
     /// receive an idless broadcast like `process.metrics`.
     pub fn has_broadcast_subscriber(&self) -> bool {

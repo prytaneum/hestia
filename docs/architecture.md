@@ -197,6 +197,19 @@ the enabled ones. A component's exports are found per interface, a missing one m
 guests in `crates/kernel/tests/guest/` and `guest-services/` once per run; `examples/typescript/` builds a
 `lifecycle`-only plugin with `jco` under Bun in CI.
 
+A built-in exposes a WIT package of its own through `crates/kernel/src/api/<package>/`: its table (`Builtin::table`,
+merged into the kernel's by `Plugins::new`, which refuses a row outside the package the built-in `provides`, an
+interface or permission already in another table, and a provided package without a table), the adapter (the generated
+`Host` traits, converting to its contracts and calling `HostCalls`) and the calls into the extension points it defines
+(`Sandbox::extend`; a malformed extension export fails the load). Importing the package is a requirement on that
+built-in: an install is refused without it, a restart leaves the plugin `failed`, and the built-in cannot be disabled
+while an enabled plugin needs it. `HostCalls` is the router as the plugin: the daemon's `RouterCalls` routes as
+`Caller::Plugin(chain)`, and `run_job` waits for the job's `done` and cancels the job if the plugin stops waiting.
+Every call enters its plugin into the `Chain` before it runs, so a plugin already in the chain, or a chain deeper than
+8, is refused before anything runs. The `probe` feature compiles the test built-in `hestia:probe` and the adapter
+plumbing, which no production package uses yet; the kernel tests drive it with
+`tests/guest-services/src/bin/consumer.rs`.
+
 The services a plugin calls reach the host through the `Services` trait the sandbox is given (`with_services`); the
 defaults provide nothing, so `settings` answers `unsupported` and `confirm` is declined. `/data` is the only WASI
 preopen and holds the plugin's own files (`<data_home>/plugin-data/<id>/`); settings and secrets are schema documents in

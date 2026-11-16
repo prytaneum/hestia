@@ -63,6 +63,7 @@
       "invalid_value": "{reason}.",
       "io": "Uma operação de arquivo falhou ({operation}): {detail}",
       "java_install_in_progress": "O Java {major} já está sendo instalado.",
+      "job_cancelled": "A tarefa {channel} foi cancelada.",
       "provider_unknown": "Nada chamado {name} está instalado. Disponíveis: {available}.",
       "provider_ambiguous": "{name} é fornecido por mais de um plugin. Use um destes: {candidates}.",
       "login_declined": "O login foi recusado.",

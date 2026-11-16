@@ -63,6 +63,7 @@
       "invalid_value": "{reason}.",
       "io": "A file operation failed ({operation}): {detail}",
       "java_install_in_progress": "Java {major} is already being installed.",
+      "job_cancelled": "The {channel} job was cancelled.",
       "provider_unknown": "Nothing named {name} is installed. Available: {available}.",
       "provider_ambiguous": "{name} is provided by more than one plugin. Use one of: {candidates}.",
       "login_declined": "The sign-in was declined.",

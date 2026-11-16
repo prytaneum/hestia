@@ -9,7 +9,7 @@ use ipc::protocol::{decode_request, encode_response, DecodeError};
 use ipc::Connection;
 use tracing::Instrument;
 
-use crate::runtime::{Caller, Changed, HandlerContext, Router, Runtime};
+use crate::runtime::{Caller, Changed, HandlerContext, Router, RouterCalls, Runtime};
 use crate::services::make_router;
 
 pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
@@ -41,11 +41,15 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
     crate::runtime::spawn_network_watcher(runtime.clone());
     // After recovery and once plugins can see the network state: each `init`
     // may take its whole budget, and clients must not wait on them.
+    // The router first: an `init` may call a built-in's package through it.
+    let router = Arc::new(make_router());
+    if let Some(sandbox) = runtime.sandbox() {
+        sandbox.set_calls(Arc::new(RouterCalls::new(router.clone(), &runtime)));
+    }
     let restoring = runtime.clone();
     tokio::spawn(async move { restoring.plugins().restore().await });
     crate::runtime::spawn_ready_watcher(&runtime);
     crate::runtime::spawn_update_watcher(runtime.clone());
-    let router = Arc::new(make_router());
 
     tracing::info!("hestiad listening on {}", endpoint.display());
     crate::tray::spawn();
