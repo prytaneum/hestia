@@ -14,16 +14,16 @@ pub enum HostError {
 }
 
 #[derive(Debug, Clone)]
-enum Reach {
+enum Allowed {
     Any,
     Only(Vec<String>),
 }
 
-impl Reach {
+impl Allowed {
     fn matches(&self, host: &str) -> bool {
         match self {
-            Reach::Any => true,
-            Reach::Only(entries) => entries.iter().any(|entry| matches(entry, host)),
+            Allowed::Any => true,
+            Allowed::Only(entries) => entries.iter().any(|entry| matches(entry, host)),
         }
     }
 }
@@ -34,8 +34,8 @@ impl Reach {
 /// a service's CDN rather than each of its hosts.
 #[derive(Debug, Clone)]
 pub struct Hosts {
-    connect: Reach,
-    unhashed: Reach,
+    connect: Allowed,
+    unhashed: Allowed,
     /// Plain-http loopback, granted only by a test policy; `Some(true)` also
     /// lets its files carry no checksum.
     loopback: Option<bool>,
@@ -51,8 +51,8 @@ impl Hosts {
                 .collect::<Result<Vec<_>, _>>()
         };
         Ok(Hosts {
-            connect: Reach::Only(entries(connect)?),
-            unhashed: Reach::Only(entries(unhashed)?),
+            connect: Allowed::Only(entries(connect)?),
+            unhashed: Allowed::Only(entries(unhashed)?),
             loopback: None,
         })
     }
@@ -61,8 +61,8 @@ impl Hosts {
     /// must still carry a checksum.
     pub fn open() -> Self {
         Hosts {
-            connect: Reach::Any,
-            unhashed: Reach::Only(Vec::new()),
+            connect: Allowed::Any,
+            unhashed: Allowed::Only(Vec::new()),
             loopback: None,
         }
     }
@@ -71,8 +71,8 @@ impl Hosts {
     /// one: a page, an image.
     pub fn open_unhashed() -> Self {
         Hosts {
-            connect: Reach::Any,
-            unhashed: Reach::Any,
+            connect: Allowed::Any,
+            unhashed: Allowed::Any,
             loopback: None,
         }
     }
@@ -89,7 +89,7 @@ impl Hosts {
     }
 
     pub(super) fn lists_hosts(&self) -> bool {
-        matches!(self.connect, Reach::Only(_))
+        matches!(self.connect, Allowed::Only(_))
     }
 
     pub(super) fn reaches(&self, host: &str) -> bool {

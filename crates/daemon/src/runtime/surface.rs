@@ -41,13 +41,13 @@ impl Drop for Asked<'_> {
 }
 
 impl Surface {
-    /// `<data_home>/plugin-data/<id>` is the plugin's `/data`;
+    /// `<data_home>/sandbox/<id>` is the plugin's `/data`;
     /// `<data_home>/plugins/<id>` holds what only Hestia reads, apart from it,
     /// so no link inside `/data` can name it by a relative path.
     pub fn new(hub: Arc<EventHub>, data_home: PathBuf) -> Self {
         Surface {
             hub,
-            data_root: data_home.join("plugin-data"),
+            data_root: kernel::sandbox_root(&data_home),
             state_root: data_home.join("plugins"),
             questions: Mutex::default(),
         }

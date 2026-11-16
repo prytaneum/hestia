@@ -1,6 +1,5 @@
-use proto::plugin::{Grant, ProgramPin, ScopeKind};
+use proto::plugin::{Grant, Program, ScopeKind};
 
-use crate::grant::program::Invocation;
 use crate::vetting::{Hosts, Policy};
 
 /// Where a plugin may go, read from the scopes the user approved: the hosts it
@@ -8,8 +7,7 @@ use crate::vetting::{Hosts, Policy};
 /// What is not listed here is refused, so the default reaches nothing.
 pub(super) struct Reach {
     pub policy: Policy,
-    pub programs: Vec<Invocation>,
-    pub pins: Vec<ProgramPin>,
+    pub programs: Vec<Program>,
     pub endpoints: Vec<String>,
 }
 
@@ -19,7 +17,6 @@ impl Default for Reach {
         Reach {
             policy: Policy::new(nothing),
             programs: Vec::new(),
-            pins: Vec::new(),
             endpoints: Vec::new(),
         }
     }
@@ -42,12 +39,7 @@ impl Reach {
                     }
                 }
                 ("process:spawn", ScopeKind::Programs) => {
-                    reach.programs = scope
-                        .values
-                        .iter()
-                        .filter_map(|entry| Invocation::parse(entry))
-                        .collect();
-                    reach.pins = scope.pins.clone();
+                    reach.programs = scope.programs.clone();
                 }
                 ("ipc:connect", ScopeKind::Endpoints) => reach.endpoints = scope.values.clone(),
                 _ => {}

@@ -35,7 +35,8 @@ pub(super) struct Call {
 /// empty environment; the network is `wasi:http` through the plugin's policy.
 pub(crate) struct State {
     pub(super) plugin: String,
-    online: bool,
+    pub(super) online: bool,
+    pub(super) connections: usize,
     log_lines: usize,
     pub(super) shared: Shared,
     pub(super) call: Call,
@@ -43,7 +44,7 @@ pub(crate) struct State {
     pub(super) held: Vec<String>,
     pub(super) drawn: Drawn,
     wasi: WasiCtx,
-    table: ResourceTable,
+    pub(super) table: ResourceTable,
     pub(super) memory: MemoryCap,
     pub(super) reach: Arc<Reach>,
     http: WasiHttpCtx,
@@ -75,6 +76,7 @@ impl State {
         State {
             plugin: plugin.to_owned(),
             online,
+            connections: 0,
             log_lines: 0,
             shared,
             call,
@@ -86,6 +88,7 @@ impl State {
             http: WasiHttpCtx::new(),
             hooks: Hooks {
                 plugin: plugin.to_owned(),
+                online,
                 reach: reach.clone(),
             },
             reach,

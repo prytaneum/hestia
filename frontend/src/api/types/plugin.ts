@@ -16,6 +16,6 @@ export type { PluginQuestionClosed } from "./generated/PluginQuestionClosed";
 export type { PluginSecretParams } from "./generated/PluginSecretParams";
 export type { PluginState } from "./generated/PluginState";
 export type { PluginTarget } from "./generated/PluginTarget";
-export type { ProgramPin } from "./generated/ProgramPin";
+export type { Program } from "./generated/Program";
 export type { ScopeKind } from "./generated/ScopeKind";
 export type { Tier } from "./generated/Tier";

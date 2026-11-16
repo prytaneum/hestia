@@ -42,7 +42,7 @@ impl Lifecycle for Reach {
             "an undeclared invocation of a granted program",
         )?;
         refused(
-            ipc::request("/run/not-granted.sock", &[]),
+            ipc::connect("/run/not-granted.sock"),
             "ipc:connect",
             "an endpoint outside the grant",
         )

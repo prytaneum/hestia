@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::builtin::{Builtin, Busy};
 use crate::error::PluginError;
-use crate::grant::Table;
-use crate::install::Store;
+use crate::grant::{Reserved, Table};
+use crate::install::{sandbox_root, Store};
 use crate::runtime::Sandbox;
 use common::schema::{self, Document};
 use guests::Guest;
@@ -99,11 +99,13 @@ pub struct Plugins {
     sandbox: Option<Arc<Sandbox>>,
     table: Table,
     store: Store,
+    reserved: Arc<Reserved>,
 }
 
 impl Plugins {
     /// Orders `builtins` by their requirements and enables each one the user
-    /// has not disabled. The registry keeps its state in `data_home`.
+    /// has not disabled. The registry keeps its state in `data_home`, and
+    /// refuses programs under its `sandbox/` directory.
     ///
     /// WASM plugins load through `sandbox` once [`Plugins::restore`] runs;
     /// without one they are listed and never run. `table` says what their
@@ -153,7 +155,21 @@ impl Plugins {
             sandbox,
             table,
             store: Store::new(data_home),
+            reserved: Arc::new(Reserved {
+                directories: vec![sandbox_root(data_home)],
+                ..Reserved::default()
+            }),
         })
+    }
+
+    /// Adds what no plugin may be granted because it is Hestia's own: its
+    /// binaries and its daemon's endpoints. The plugins' sandbox directories are reserved
+    /// already; the rest of the data home, such as its Java runtimes, can be granted.
+    pub fn reserving(mut self, programs: Vec<PathBuf>, endpoints: Vec<String>) -> Self {
+        let reserved = Arc::make_mut(&mut self.reserved);
+        reserved.programs = programs;
+        reserved.endpoints = endpoints;
+        self
     }
 
     /// Every package's interfaces and permissions: the kernel's and those of

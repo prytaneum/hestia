@@ -11,9 +11,21 @@ world base {
     import messages;
     import progress;
     import notify;
+}
+
+/// What a plugin imports to reach outside itself, each import asking for a
+/// permission with a scope. Apart from `base` so that a plugin built from a
+/// world that keeps every import (`jco`) is not asked to be granted these.
+world reach {
     import download;
     import programs;
     import ipc;
+}
+
+/// Every import there is; the SDK and the host generate their bindings from it.
+world everything {
+    include base;
+    include reach;
 }
 
 /// One world per export; the SDK's feature of the same name enables it.
@@ -29,7 +41,7 @@ world settings-changed-plugin {
 
 /// The host's view: every import and every export, each export found on its own.
 world host {
-    include base;
+    include everything;
     export lifecycle;
     export settings-changed;
 }

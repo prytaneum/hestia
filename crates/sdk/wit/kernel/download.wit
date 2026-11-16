@@ -5,8 +5,10 @@ package hestia:kernel@0.1.0;
 interface download {
     use types.{plugin-error};
 
-    /// Saves `url` to `path` under `/data`, returning the bytes written. A
-    /// file is written whole or not at all. With no `sha256` (64 hex digits)
-    /// the host must be one the plugin declared as serving unhashed files.
+    /// Saves `url` to `path` under `/data`, returning the bytes written. `path`
+    /// is relative, with no `..`, and does not start with `/data/`; missing
+    /// directories are created, and a link inside `/data` that leaves it is
+    /// refused. A file is written whole or not at all. With no `sha256` (64 hex
+    /// digits) the host must be one the plugin declared as serving unhashed files.
     fetch: func(url: string, path: string, sha256: option<string>) -> result<u64, plugin-error>;
 }

@@ -55,7 +55,7 @@ impl Plugins {
     /// Derives the grant of the package in `dir` without compiling or running
     /// any of it.
     pub async fn inspect(&self, dir: &Path) -> Result<Inspection, PluginError> {
-        self.inspection(&read(dir).await?)
+        self.inspection(&read(dir).await?).await
     }
 
     /// Installs the package in `dir` if it still derives `approved`, then starts
@@ -63,7 +63,7 @@ impl Plugins {
     pub async fn install(&self, dir: &Path, approved: &str) -> Result<PluginInfo, PluginError> {
         let package = read(dir).await?;
         let _changing = self.changes.lock().await;
-        let inspection = self.inspection(&package)?;
+        let inspection = self.inspection(&package).await?;
         let id = inspection.id;
         if inspection.approval_digest != approved {
             return Err(PluginError::Changed(id));
@@ -196,10 +196,18 @@ impl Plugins {
         self.sandbox.as_ref().ok_or(PluginError::NoSandbox)
     }
 
-    fn inspection(&self, package: &Package) -> Result<Inspection, PluginError> {
+    /// The grant of `package` with its programs pinned, read off the async
+    /// executor.
+    async fn inspection(&self, package: &Package) -> Result<Inspection, PluginError> {
         let manifest = &package.manifest;
-        let grant =
+        let mut grant =
             grant::derive(&self.table, manifest, &package.shape).map_err(PackageError::from)?;
+        let reserved = self.reserved.clone();
+        let grant =
+            tokio::task::spawn_blocking(move || grant::pin(&mut grant, &reserved).map(|()| grant))
+                .await
+                .map_err(|error| PluginError::io(IoOp::Read, error))?
+                .map_err(PackageError::from)?;
         Ok(Inspection {
             id: manifest.id.clone(),
             name: manifest.name.trim().to_owned(),
@@ -237,7 +245,7 @@ impl Plugins {
         if package.manifest.id != id {
             return Err(PackageError::Renamed(package.manifest.id).into());
         }
-        let inspection = self.inspection(&package)?;
+        let inspection = self.inspection(&package).await?;
         if self.store.approved(id).as_deref() != Some(inspection.approval_digest.as_str()) {
             return Err(PluginError::Changed(id.to_owned()));
         }
@@ -265,7 +273,7 @@ impl Plugins {
             .await
             .map_err(PackageError::from)?;
         let loaded = sandbox
-            .link_granted(&opened, &denials, grant)
+            .link(&opened, &denials, grant)
             .map_err(PackageError::from)?;
         Ok(Guest {
             id: manifest.id,

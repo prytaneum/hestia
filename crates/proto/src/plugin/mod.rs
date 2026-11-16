@@ -6,7 +6,7 @@ mod surface;
 
 pub use grant::{
     Grant, GrantedPermission, Inspection, PermissionScope, PluginInspect, PluginInstall,
-    PluginInstallParams, PluginPackage, ProgramPin, ScopeKind, Tier,
+    PluginInstallParams, PluginPackage, Program, ScopeKind, Tier,
 };
 pub use registry::{
     PluginDisable, PluginEnable, PluginInfo, PluginKind, PluginList, PluginRemove,

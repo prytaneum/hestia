@@ -120,6 +120,18 @@ fn a_url_is_vetted_before_any_request() {
             "{url}"
         );
     }
+    assert_eq!(
+        policy
+            .request(Method::GET, "https://cdn.example.com/a", Limits::REQUEST)
+            .err(),
+        Some(Refusal::Unhashed("cdn.example.com".into())),
+    );
+    assert!(
+        policy
+            .granted_request(Method::GET, "https://cdn.example.com/a", Limits::REQUEST)
+            .is_ok(),
+        "a granted host is enough when the caller has nothing to checksum"
+    );
     let open = Policy::new(Hosts::open_unhashed());
     let loopback = Url::parse("http://127.0.0.1:8080/a").unwrap();
     assert_eq!(

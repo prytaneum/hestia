@@ -98,7 +98,9 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
     let opened = sandbox.open("consumer", component.clone()).await.unwrap();
 
     let granted = denials(plugins.table(), &shape, &["probe:read"]);
-    let loaded = sandbox.link(&opened, &granted).unwrap();
+    let loaded = sandbox
+        .link(&opened, &granted, &Default::default())
+        .unwrap();
     let filled = sandbox.fill(&loaded, Chain::default(), "hi").await.unwrap();
     assert_eq!(filled.as_deref(), Some("hi/2/HI/2"));
     let seen = |channel| Recorded {
@@ -119,7 +121,9 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
     );
 
     let withheld = denials(plugins.table(), &shape, &[]);
-    let loaded = sandbox.link(&opened, &withheld).unwrap();
+    let loaded = sandbox
+        .link(&opened, &withheld, &Default::default())
+        .unwrap();
     match sandbox.fill(&loaded, Chain::default(), "hi").await {
         Err(SandboxError::Guest(GuestError::Denied(permission))) => {
             assert_eq!(permission, "probe:read")

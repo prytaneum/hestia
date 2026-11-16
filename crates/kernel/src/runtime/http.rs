@@ -12,10 +12,12 @@ use crate::vetting::{was_refused, Limits, Refusal};
 type Sent = Box<dyn Future<Output = Result<(), Error>> + Send>;
 
 /// How `wasi:http` requests leave: through the plugin's own policy, the same
-/// one core requests pass. The guest follows redirects itself, so every hop is a
-/// new request that the policy sees.
+/// one core requests pass, and not at all while offline. A granted host is
+/// enough; only a download has a body to checksum. The guest follows redirects
+/// itself, so every hop is a new request that the policy sees.
 pub(super) struct Hooks {
     pub plugin: String,
+    pub online: bool,
     pub reach: Arc<Reach>,
 }
 
@@ -30,8 +32,12 @@ impl WasiHttpHooks for Hooks {
         _options: Option<RequestOptions>,
         _fut: Sent,
     ) -> Box<dyn Future<Output = Result<(http::Response<WasiBody>, Sent), Error>> + Send> {
-        let (plugin, reach) = (self.plugin.clone(), self.reach.clone());
+        let (plugin, reach, online) = (self.plugin.clone(), self.reach.clone(), self.online);
         Box::new(async move {
+            if !online {
+                tracing::info!(plugin, "plugin request refused while offline");
+                return Err(Error::ConnectionRefused);
+            }
             let response = send(&plugin, &reach, request).await?;
             Ok((response, Box::new(async { Ok(()) }) as Sent))
         })
@@ -48,7 +54,7 @@ async fn send(
     let url = parts.uri.to_string();
     let builder = reach
         .policy
-        .request(parts.method, &url, limits)
+        .granted_request(parts.method, &url, limits)
         .map_err(|refusal| {
             tracing::warn!(plugin, %refusal, "plugin request refused");
             match refusal {

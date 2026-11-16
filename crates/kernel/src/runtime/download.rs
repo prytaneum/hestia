@@ -1,5 +1,7 @@
 use std::path::{Component, Path, PathBuf};
 
+use cap_std::ambient_authority;
+use cap_std::fs::{Dir, OpenOptions};
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
@@ -15,33 +17,79 @@ fn denied() -> PluginError {
     PluginError::Denied(PERMISSION.to_owned())
 }
 
-/// `path` as a place under `data`: relative, no `..`, and its directory, once
-/// links are resolved, still inside `data`.
-fn destination(data: &Path, path: &str) -> Result<PathBuf, PluginError> {
-    let invalid = || PluginError::Invalid("path".into());
-    let relative = Path::new(path);
-    let plain = relative
+/// `path` as a place under `/data`: relative, no `..`. Links the plugin plants
+/// inside `/data` are never followed out of it: every step runs through a
+/// [`Dir`] handle on `/data`, which refuses a link that leaves it.
+fn relative(path: &str) -> Result<PathBuf, PluginError> {
+    let plain = Path::new(path)
         .components()
         .all(|part| matches!(part, Component::Normal(_)));
-    if path.is_empty() || path.len() > PATH_BYTES || !plain {
-        return Err(invalid());
+    match path.is_empty() || path.len() > PATH_BYTES || !plain {
+        true => Err(PluginError::Invalid("path".into())),
+        false => Ok(PathBuf::from(path)),
     }
-    let target = data.join(relative);
-    let (Some(parent), Some(name)) = (target.parent(), target.file_name()) else {
-        return Err(invalid());
-    };
-    std::fs::create_dir_all(parent).map_err(|error| PluginError::Failed(error.to_string()))?;
-    let parent = parent
-        .canonicalize()
-        .map_err(|error| PluginError::Failed(error.to_string()))?;
-    let root = data
-        .canonicalize()
-        .map_err(|error| PluginError::Failed(error.to_string()))?;
-    if !parent.starts_with(&root) {
-        tracing::warn!(path, "download destination leaves the plugin's data");
-        return Err(invalid());
+}
+
+/// The staged file of a download. Unless it is committed, dropping it unlinks
+/// the staging file, however the download ended.
+pub(super) struct Staged {
+    dir: Dir,
+    part: PathBuf,
+    target: PathBuf,
+    committed: bool,
+}
+
+impl Staged {
+    /// Creates the parent directories of `target` and a fresh staging file
+    /// beside it, all inside `data`. Blocking.
+    pub(super) fn create(
+        data: &Path,
+        target: PathBuf,
+    ) -> Result<(Self, std::fs::File), PluginError> {
+        let failed = |error: std::io::Error| match error.kind() {
+            std::io::ErrorKind::PermissionDenied => {
+                tracing::warn!(?target, "download destination leaves the plugin's data");
+                PluginError::Invalid("path".into())
+            }
+            _ => PluginError::Failed(error.to_string()),
+        };
+        let dir = Dir::open_ambient_dir(data, ambient_authority()).map_err(failed)?;
+        if let Some(parent) = target.parent().filter(|p| !p.as_os_str().is_empty()) {
+            dir.create_dir_all(parent).map_err(failed)?;
+        }
+        let part = common::atomic::staged(&target);
+        match dir.remove_file(&part) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                return Err(failed(error))
+            }
+            _ => {}
+        }
+        let file = dir
+            .open_with(&part, OpenOptions::new().write(true).create_new(true))
+            .map_err(failed)?;
+        let staged = Staged {
+            dir,
+            part,
+            target,
+            committed: false,
+        };
+        Ok((staged, file.into_std()))
     }
-    Ok(parent.join(name))
+
+    /// Renames the staging file into place. Blocking.
+    pub(super) fn commit(mut self) -> std::io::Result<()> {
+        self.dir.rename(&self.part, &self.dir, &self.target)?;
+        self.committed = true;
+        Ok(())
+    }
+}
+
+impl Drop for Staged {
+    fn drop(&mut self) {
+        if !self.committed {
+            let _ = self.dir.remove_file(&self.part);
+        }
+    }
 }
 
 fn checksum(text: &str) -> Result<String, PluginError> {
@@ -68,18 +116,22 @@ impl download::Host for State {
         path: String,
         sha256: Option<String>,
     ) -> Result<u64, PluginError> {
+        if !self.online {
+            tracing::info!(
+                plugin = self.plugin,
+                "plugin download refused while offline"
+            );
+            return Err(PluginError::Offline);
+        }
         let wanted = sha256.as_deref().map(checksum).transpose()?;
+        let target = relative(&path)?;
         let data = self
             .shared
             .services
             .data_dir(&self.plugin)
             .ok_or(PluginError::Unsupported)?;
-        let target = destination(&data, &path)?;
         let plugin = self.plugin.as_str();
-        let limits = Limits {
-            time: None,
-            ..Limits::DOWNLOAD
-        };
+        let limits = Limits::DOWNLOAD;
         let response = self
             .reach
             .policy
@@ -99,7 +151,7 @@ impl download::Host for State {
         if !response.status().is_success() {
             return Err(PluginError::Upstream(format!("HTTP {}", response.status())));
         }
-        let written = write(response, &target, limits, wanted.as_deref()).await;
+        let written = write(response, data, target, limits, wanted.as_deref()).await;
         if let Err(error) = &written {
             tracing::warn!(plugin, ?error, "plugin download failed");
         } else {
@@ -111,10 +163,10 @@ impl download::Host for State {
 
 /// Streams the body to `<target>.part` and renames it into place once the size
 /// and checksum hold, so a refused or failed body leaves nothing at `target`.
-/// The staged file is created fresh, never through a link the plugin planted.
 async fn write(
     mut response: reqwest::Response,
-    target: &Path,
+    data: PathBuf,
+    target: PathBuf,
     limits: Limits,
     wanted: Option<&str>,
 ) -> Result<u64, PluginError> {
@@ -125,51 +177,33 @@ async fn write(
     {
         return Err(refused(Refusal::TooLarge(limits.bytes)));
     }
-    let part = common::atomic::staged(target);
-    match std::fs::remove_file(&part) {
-        Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(failed(error)),
-        _ => {}
-    }
-    let mut file = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&part)
+    let (staged, file) = tokio::task::spawn_blocking(move || Staged::create(&data, target))
         .await
-        .map_err(failed)?;
-    let outcome = async {
-        let mut hash = Sha256::new();
-        let mut size = 0u64;
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|error| PluginError::Upstream(error.without_url().to_string()))?
-        {
-            size += chunk.len() as u64;
-            if size > limits.bytes {
-                return Err(refused(Refusal::TooLarge(limits.bytes)));
-            }
-            hash.update(&chunk);
-            file.write_all(&chunk).await.map_err(failed)?;
+        .map_err(|error| PluginError::Failed(error.to_string()))??;
+    let mut file = tokio::fs::File::from_std(file);
+    let mut hash = Sha256::new();
+    let mut size = 0u64;
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| PluginError::Upstream(error.without_url().to_string()))?
+    {
+        size += chunk.len() as u64;
+        if size > limits.bytes {
+            return Err(refused(Refusal::TooLarge(limits.bytes)));
         }
-        file.flush().await.map_err(failed)?;
-        let digest: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
-        match wanted {
-            Some(wanted) if wanted != digest => {
-                Err(PluginError::Failed("checksum mismatch".into()))
-            }
-            _ => Ok(size),
-        }
+        hash.update(&chunk);
+        file.write_all(&chunk).await.map_err(failed)?;
     }
-    .await;
+    file.flush().await.map_err(failed)?;
     drop(file);
-    match outcome {
-        Ok(size) => tokio::fs::rename(&part, target)
-            .await
-            .map(|()| size)
-            .map_err(failed),
-        Err(error) => {
-            let _ = tokio::fs::remove_file(&part).await;
-            Err(error)
-        }
+    let digest: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    if wanted.is_some_and(|wanted| wanted != digest) {
+        return Err(PluginError::Failed("checksum mismatch".into()));
     }
+    tokio::task::spawn_blocking(move || staged.commit())
+        .await
+        .map_err(|error| PluginError::Failed(error.to_string()))?
+        .map_err(failed)?;
+    Ok(size)
 }

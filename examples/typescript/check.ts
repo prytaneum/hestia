@@ -4,7 +4,7 @@ const wit = Bun.spawnSync(["bun", "x", "--bun", "jco", "wit", "dist/plugin.wasm"
 const lines = wit.split("\n").map((line) => line.trim());
 
 deepStrictEqual(
-    lines.filter((line) => line.startsWith("import ") && /wasi:(http|sockets)/.test(line)),
+    lines.filter((line) => line.startsWith("import ") && /wasi:(http|sockets)|hestia:kernel\/(download|programs|ipc)/.test(line)),
     [],
 );
 deepStrictEqual(

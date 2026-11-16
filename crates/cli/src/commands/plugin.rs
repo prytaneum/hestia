@@ -2,7 +2,7 @@
 
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
-use proto::plugin::{Inspection, PluginState, Tier};
+use proto::plugin::{Inspection, PermissionScope, PluginState, Tier};
 
 use crate::ui::{self, View};
 
@@ -44,6 +44,39 @@ fn state_name(state: PluginState) -> &'static str {
     }
 }
 
+/// `token`, in double quotes when it holds whitespace or a quote, so that the
+/// prompt tells one argument from two and a path from its arguments.
+fn quoted(token: &str) -> String {
+    match token.contains(|c: char| c.is_whitespace() || c == '"') {
+        true => format!("\"{}\"", token.replace('"', "\\\"")),
+        false => token.to_owned(),
+    }
+}
+
+/// Everything a scope lets through, so that approving it is informed: a host
+/// that may serve unchecked files says so, a program shows its arguments.
+fn scope_text(scope: &PermissionScope) -> String {
+    let hosts = scope.values.iter().map(|value| {
+        match scope
+            .unhashed
+            .iter()
+            .any(|host| host.eq_ignore_ascii_case(value))
+        {
+            true => format!("{value} (no checksum)"),
+            false => value.clone(),
+        }
+    });
+    let programs = scope.programs.iter().map(|program| {
+        [program.path.as_str()]
+            .into_iter()
+            .chain(program.args.iter().map(String::as_str))
+            .map(quoted)
+            .collect::<Vec<_>>()
+            .join(" ")
+    });
+    hosts.chain(programs).collect::<Vec<_>>().join(", ")
+}
+
 fn show_grant(inspection: &Inspection) -> Result<()> {
     ui::show(View::detail([
         ("Plugin", format!("{} ({})", inspection.name, inspection.id)),
@@ -61,7 +94,7 @@ fn show_grant(inspection: &Inspection) -> Result<()> {
                     Tier::Sandboxed => "sandboxed",
                     Tier::Unrestricted => "UNRESTRICTED",
                 };
-                let scope = p.scope.as_ref().map(|s| s.values.join(", "));
+                let scope = p.scope.as_ref().map(scope_text);
                 vec![
                     p.permission.clone(),
                     tier.into(),
@@ -158,4 +191,44 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proto::plugin::Program;
+
+    #[test]
+    fn the_scope_shows_unchecked_hosts_and_program_arguments() {
+        let hosts = PermissionScope {
+            values: vec!["api.example".into(), "files.example".into()],
+            unhashed: vec!["files.example".into()],
+            ..Default::default()
+        };
+        assert_eq!(
+            scope_text(&hosts),
+            "api.example, files.example (no checksum)"
+        );
+        let programs = PermissionScope {
+            programs: vec![Program {
+                path: "/usr/bin/tool".into(),
+                args: vec!["--all".into(), "-x".into()],
+                sha256: String::new(),
+            }],
+            ..Default::default()
+        };
+        assert_eq!(scope_text(&programs), "/usr/bin/tool --all -x");
+        let spaced = PermissionScope {
+            programs: vec![Program {
+                path: r"C:\Program Files\x".into(),
+                args: vec!["--flag".into(), "a b".into(), r#"say "hi""#.into()],
+                sha256: String::new(),
+            }],
+            ..Default::default()
+        };
+        assert_eq!(
+            scope_text(&spaced),
+            r#""C:\Program Files\x" --flag "a b" "say \"hi\"""#
+        );
+    }
 }

@@ -3,6 +3,7 @@ package hestia:kernel@0.1.0;
 /// Permission `process:spawn`, unrestricted. Runs a program the user approved
 /// with an invocation the plugin declared: no shell, an empty environment, and
 /// `/data` as the working directory. The file must still be the one approved.
+/// The program and anything it started end when it exits or the call stops.
 interface programs {
     use types.{plugin-error};
 

@@ -7,6 +7,7 @@ const NAME_MAX: usize = 64;
 const VERSION_MAX: usize = 32;
 const SCOPE_VALUES_MAX: usize = 64;
 const SCOPE_VALUE_MAX: usize = 255;
+const PROGRAM_ARGS_MAX: usize = 32;
 
 /// `plugin.toml`: what the component cannot say about itself. Permissions and
 /// contributions are read from the component, never declared here.
@@ -29,16 +30,58 @@ pub struct Scopes {
     pub unhashed: Vec<String>,
     pub paths: Vec<String>,
     pub endpoints: Vec<String>,
-    pub programs: Vec<String>,
+    pub programs: Vec<ProgramEntry>,
+}
+
+/// The operating systems a program entry can be limited to, named as
+/// `std::env::consts::OS` names them.
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Os {
+    Linux,
+    Windows,
+    Macos,
+}
+
+impl Os {
+    pub fn is_current(self) -> bool {
+        std::env::consts::OS
+            == match self {
+                Os::Linux => "linux",
+                Os::Windows => "windows",
+                Os::Macos => "macos",
+            }
+    }
+}
+
+/// One invocation a plugin may run: a program and its exact arguments, for one
+/// operating system or, with no `os`, for all of them.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ProgramEntry {
+    pub path: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    pub os: Option<Os>,
 }
 
 impl Scopes {
+    /// The plain values of a scope; `programs` are structured and read from
+    /// [`Scopes::programs`].
     pub fn values(&self, kind: ScopeKind) -> &[String] {
         match kind {
             ScopeKind::Hosts => &self.hosts,
             ScopeKind::Paths => &self.paths,
             ScopeKind::Endpoints => &self.endpoints,
-            ScopeKind::Programs => &self.programs,
+            ScopeKind::Programs => &[],
+        }
+    }
+
+    /// How many entries the manifest lists for `kind`, for any platform.
+    pub fn listed(&self, kind: ScopeKind) -> usize {
+        match kind {
+            ScopeKind::Programs => self.programs.len(),
+            _ => self.values(kind).len(),
         }
     }
 
@@ -50,7 +93,23 @@ impl Scopes {
             ScopeKind::Programs,
         ]
         .into_iter()
-        .filter(|kind| !self.values(*kind).is_empty())
+        .filter(|kind| self.listed(*kind) > 0)
+    }
+
+    fn within_bounds(&self) -> bool {
+        let plain = |values: &[String]| {
+            values.len() <= SCOPE_VALUES_MAX && values.iter().all(|v| is_plain(v, SCOPE_VALUE_MAX))
+        };
+        let program = |entry: &ProgramEntry| {
+            is_plain(&entry.path, SCOPE_VALUE_MAX)
+                && entry.args.len() <= PROGRAM_ARGS_MAX
+                && entry.args.iter().all(|arg| is_plain(arg, SCOPE_VALUE_MAX))
+        };
+        [&self.hosts, &self.unhashed, &self.paths, &self.endpoints]
+            .into_iter()
+            .all(|values| plain(values))
+            && self.programs.len() <= SCOPE_VALUES_MAX
+            && self.programs.iter().all(program)
     }
 }
 
@@ -62,7 +121,7 @@ pub enum ManifestError {
     Id(String),
     #[error("plugin name must be 1-{NAME_MAX} characters with no control or direction characters")]
     Name,
-    #[error("the scope of '{0}' must list at most {SCOPE_VALUES_MAX} values of 1-{SCOPE_VALUE_MAX} characters, with no control or direction characters")]
+    #[error("the scope of '{0}' must list at most {SCOPE_VALUES_MAX} values of 1-{SCOPE_VALUE_MAX} characters (a program at most {PROGRAM_ARGS_MAX} arguments), with no control or direction characters")]
     Scope(String),
     #[error("plugin version '{0}' must be 1-{VERSION_MAX} letters, digits or '.+-'")]
     Version(String),
@@ -77,16 +136,11 @@ impl Manifest {
         if !is_plain(manifest.name.trim(), NAME_MAX) {
             return Err(ManifestError::Name);
         }
-        if let Some((permission, _)) = manifest.permissions.iter().find(|(_, scopes)| {
-            scopes
-                .kinds()
-                .map(|kind| scopes.values(kind))
-                .chain(std::iter::once(scopes.unhashed.as_slice()))
-                .any(|values| {
-                    values.len() > SCOPE_VALUES_MAX
-                        || !values.iter().all(|v| is_plain(v, SCOPE_VALUE_MAX))
-                })
-        }) {
+        if let Some((permission, _)) = manifest
+            .permissions
+            .iter()
+            .find(|(_, scopes)| !scopes.within_bounds())
+        {
             return Err(ManifestError::Scope(permission.clone()));
         }
         let version = &manifest.version;

@@ -6,7 +6,7 @@
 pub mod base {
     wit_bindgen::generate!({
         path: "wit/kernel",
-        world: "base",
+        world: "everything",
     });
 }
 
@@ -35,9 +35,6 @@ pub mod lifecycle {
             "hestia:kernel/messages@0.1.0": crate::base::hestia::kernel::messages,
             "hestia:kernel/progress@0.1.0": crate::base::hestia::kernel::progress,
             "hestia:kernel/notify@0.1.0": crate::base::hestia::kernel::notify,
-            "hestia:kernel/download@0.1.0": crate::base::hestia::kernel::download,
-            "hestia:kernel/programs@0.1.0": crate::base::hestia::kernel::programs,
-            "hestia:kernel/ipc@0.1.0": crate::base::hestia::kernel::ipc,
         },
         pub_export_macro: true,
         export_macro_name: "export_lifecycle",
@@ -65,9 +62,6 @@ pub mod settings_changed {
             "hestia:kernel/messages@0.1.0": crate::base::hestia::kernel::messages,
             "hestia:kernel/progress@0.1.0": crate::base::hestia::kernel::progress,
             "hestia:kernel/notify@0.1.0": crate::base::hestia::kernel::notify,
-            "hestia:kernel/download@0.1.0": crate::base::hestia::kernel::download,
-            "hestia:kernel/programs@0.1.0": crate::base::hestia::kernel::programs,
-            "hestia:kernel/ipc@0.1.0": crate::base::hestia::kernel::ipc,
         },
         pub_export_macro: true,
         export_macro_name: "export_settings_changed",

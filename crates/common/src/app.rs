@@ -38,6 +38,11 @@ pub const TRAY_BIN: &[&str] = &["Hestia Tray.exe", "hestia-tray.exe"];
 pub const TRAY_BIN: &[&str] = &["hestia-tray"];
 
 #[cfg(windows)]
+pub const CLI_BIN: &[&str] = &["hestia.exe"];
+#[cfg(not(windows))]
+pub const CLI_BIN: &[&str] = &["hestia"];
+
+#[cfg(windows)]
 pub const DAEMON_BIN: &[&str] = &["hestiad.exe"];
 #[cfg(not(windows))]
 pub const DAEMON_BIN: &[&str] = &["hestiad"];

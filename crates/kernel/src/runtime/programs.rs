@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::process::Stdio;
 
 use tokio::io::{AsyncRead, AsyncReadExt};
@@ -7,7 +6,8 @@ use tokio::process::Command;
 use super::bindings::hestia::kernel::programs::{self, Output};
 use super::bindings::hestia::kernel::types::PluginError;
 use super::host::State;
-use crate::grant::program::digest;
+use super::tree::{isolate, Tree};
+use crate::grant::digest;
 
 const PERMISSION: &str = "process:spawn";
 const OUTPUT_BYTES: u64 = 1024 * 1024;
@@ -29,21 +29,20 @@ async fn kept(mut stream: impl AsyncRead + Unpin) -> Vec<u8> {
 impl programs::Host for State {
     async fn run(&mut self, program: String, args: Vec<String>) -> Result<Output, PluginError> {
         let plugin = self.plugin.as_str();
-        let declared = self
+        let granted = self
             .reach
             .programs
             .iter()
-            .any(|invocation| invocation.program == program && invocation.args == args);
-        let pin = self.reach.pins.iter().find(|pin| pin.path == program);
-        let (true, Some(pin)) = (declared, pin) else {
+            .find(|granted| granted.path == program && granted.args == args);
+        let Some(granted) = granted else {
             tracing::warn!(plugin, program, "undeclared program invocation refused");
             return Err(denied());
         };
-        let file = program.clone();
-        let current = tokio::task::spawn_blocking(move || digest(Path::new(&file)))
+        let (file, pinned) = (program.clone(), granted.sha256.clone());
+        let current = tokio::task::spawn_blocking(move || digest(file.as_ref()))
             .await
             .map_err(|error| PluginError::Failed(error.to_string()))?;
-        if current.as_deref().ok() != Some(pin.sha256.as_str()) {
+        if current.as_deref().ok() != Some(pinned.as_str()) {
             tracing::warn!(
                 plugin,
                 program,
@@ -51,31 +50,35 @@ impl programs::Host for State {
             );
             return Err(denied());
         }
+        let data = self
+            .shared
+            .services
+            .data_dir(plugin)
+            .filter(|dir| dir.is_dir())
+            .ok_or_else(|| PluginError::Failed("the plugin has no data directory".into()))?;
         let mut command = Command::new(&program);
         command
             .args(&args)
+            .current_dir(data)
             .env_clear()
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
-        if let Some(data) = self
-            .shared
-            .services
-            .data_dir(plugin)
-            .filter(|dir| dir.is_dir())
-        {
-            command.current_dir(data);
-        }
-        #[cfg(windows)]
-        command.creation_flags(0x0800_0000);
+        isolate(&mut command);
         let mut child = command
             .spawn()
             .map_err(|error| PluginError::Failed(error.to_string()))?;
+        let tree = Tree::of(&child).map_err(|error| PluginError::Failed(error.to_string()))?;
         let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
             return Err(PluginError::Failed("no output pipes".into()));
         };
-        let (stdout, stderr, status) = tokio::join!(kept(stdout), kept(stderr), child.wait());
+        let finished = async {
+            let status = child.wait().await;
+            tree.kill();
+            status
+        };
+        let (stdout, stderr, status) = tokio::join!(kept(stdout), kept(stderr), finished);
         let status = status.map_err(|error| PluginError::Failed(error.to_string()))?;
         tracing::info!(plugin, program, status = ?status.code(), "plugin program ran");
         Ok(Output {

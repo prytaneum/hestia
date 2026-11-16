@@ -130,8 +130,29 @@ impl Policy {
         url: &str,
         limits: Limits,
     ) -> Result<RequestBuilder, Refusal> {
+        self.vetted_request(method, url, limits, true)
+    }
+
+    /// [`Policy::request`] for a caller whose hosts are all granted by the
+    /// user, such as a plugin: the host must be one of them, and nothing more.
+    pub fn granted_request(
+        &self,
+        method: Method,
+        url: &str,
+        limits: Limits,
+    ) -> Result<RequestBuilder, Refusal> {
+        self.vetted_request(method, url, limits, false)
+    }
+
+    fn vetted_request(
+        &self,
+        method: Method,
+        url: &str,
+        limits: Limits,
+        unhashed: bool,
+    ) -> Result<RequestBuilder, Refusal> {
         let url = Url::parse(url).map_err(|_| Refusal::BadUrl)?;
-        self.vet(&url, true)?;
+        self.vet(&url, unhashed)?;
         Ok(self.builder(method, url, limits))
     }
 

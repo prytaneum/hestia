@@ -88,6 +88,11 @@ pub(crate) struct Store {
     root: PathBuf,
 }
 
+/// `<data_home>/sandbox`, which holds one directory per plugin: its `/data`.
+pub fn sandbox_root(data_home: &Path) -> PathBuf {
+    data_home.join("sandbox")
+}
+
 impl Store {
     pub fn new(data_home: &Path) -> Self {
         Store {

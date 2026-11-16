@@ -40,12 +40,14 @@ impl std::fmt::Display for ScopeKind {
     }
 }
 
-/// A program the user approved, by the digest of the file at that path.
+/// A program the user approved: the file at `path`, as its digest was at
+/// approval, and the exact arguments it may run with.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(default, rename_all = "camelCase")]
-pub struct ProgramPin {
+pub struct Program {
     pub path: String,
+    pub args: Vec<String>,
     pub sha256: String,
 }
 
@@ -57,8 +59,8 @@ pub struct PermissionScope {
     pub values: Vec<String>,
     /// For `hosts`: those that may serve a body nothing verifies.
     pub unhashed: Vec<String>,
-    /// For `programs`: the file each invocation runs, as it was at approval.
-    pub pins: Vec<ProgramPin>,
+    /// For `programs`: each invocation approved for this platform.
+    pub programs: Vec<Program>,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]

@@ -20,7 +20,7 @@ struct Files(PathBuf);
 
 impl Services for Files {
     fn data_dir(&self, plugin: &str) -> Option<PathBuf> {
-        Some(self.0.join("plugin-data").join(plugin))
+        Some(kernel::sandbox_root(&self.0).join(plugin))
     }
 
     fn state_dir(&self, plugin: &str) -> Option<PathBuf> {
@@ -304,8 +304,8 @@ async fn an_ungranted_interface_answers_denied_naming_its_permission() {
     let denied = denials(&Table::kernel(), &shape, &[]);
     assert_eq!(denied.values().collect::<Vec<_>>(), ["secrets"]);
     let opened = sandbox.open("grant-denied", tour).await.unwrap();
-    let loaded = sandbox.link(&opened, &denied).unwrap();
-    let data = home.path().join("plugin-data/grant-denied");
+    let loaded = sandbox.link(&opened, &denied, &Default::default()).unwrap();
+    let data = kernel::sandbox_root(home.path()).join("grant-denied");
     std::fs::create_dir_all(&data).unwrap();
     std::fs::write(data.join("mode"), "secret").unwrap();
     match sandbox.init(&loaded).await {
@@ -320,8 +320,28 @@ async fn an_ungranted_interface_answers_denied_naming_its_permission() {
     let denied = denials(&gated(), &shape, &["log:sink"]);
     let opened = sandbox.open("grant-undeniable", hello).await.unwrap();
     assert!(
-        matches!(sandbox.link(&opened, &denied), Err(SandboxError::Load(_))),
+        matches!(
+            sandbox.link(&opened, &denied, &Default::default()),
+            Err(SandboxError::Load(_))
+        ),
         "a function with no error to answer cannot be denied, only refused"
+    );
+
+    let reach = wasm(service_guest("reach"));
+    let shape = Shape::read(&reach).unwrap();
+    let denied = denials(
+        &Table::kernel(),
+        &shape,
+        &["network:connect", "process:spawn"],
+    );
+    assert_eq!(denied.values().collect::<Vec<_>>(), ["ipc:connect"]);
+    let opened = sandbox.open("grant-resource", reach).await.unwrap();
+    assert!(
+        matches!(
+            sandbox.link(&opened, &denied, &Default::default()),
+            Err(SandboxError::Load(_))
+        ),
+        "an interface that holds a resource cannot be denied, only refused"
     );
 }
 
@@ -440,7 +460,7 @@ async fn a_secret_is_stored_only_for_a_plugin_that_asks_for_it() {
     ] {
         let pkg = home.path().join(id);
         package(&pkg, id, component, "");
-        let data = home.path().join("plugin-data").join(id);
+        let data = kernel::sandbox_root(home.path()).join(id);
         std::fs::create_dir_all(&data).unwrap();
         std::fs::write(data.join("mode"), "free").unwrap();
         let inspection = registry.inspect(&pkg).await.unwrap();
@@ -488,17 +508,18 @@ async fn a_plugin_that_reaches_its_trap_limit_is_disabled_for_good() {
 #[tokio::test]
 async fn a_plugin_reaches_only_what_it_was_granted_and_a_moved_program_loses_its_approval() {
     let home = tempfile::tempdir().unwrap();
-    let tool = home
+    let apart = tempfile::tempdir().unwrap();
+    let tool = apart
         .path()
         .join(if cfg!(windows) { "tool.exe" } else { "tool" });
     std::fs::write(&tool, b"v1").unwrap();
-    let data = home.path().join("plugin-data/grant-reach");
+    let data = kernel::sandbox_root(home.path()).join("grant-reach");
     std::fs::create_dir_all(&data).unwrap();
     std::fs::write(data.join("tool"), tool.to_str().unwrap()).unwrap();
     let extra = format!(
         "[permissions.\"network:connect\"]\nhosts = [\"files.example\"]\n\
-         [permissions.\"process:spawn\"]\nprograms = ['{} --list']\n\
-         [permissions.\"ipc:connect\"]\nendpoints = ['/run/granted.sock']\n",
+         [permissions.\"process:spawn\"]\nprograms = [{{ path = '{}', args = ['--list'] }}]\n\
+         [permissions.\"ipc:connect\"]\nendpoints = ['/run/granted.sock', '\\\\.\\pipe\\granted']\n",
         tool.display()
     );
     let pkg = home.path().join("pkg");
@@ -521,6 +542,7 @@ async fn a_plugin_reaches_only_what_it_was_granted_and_a_moved_program_loses_its
             ("process:spawn", Tier::Unrestricted),
         ]
     );
+    assert!(inspection.grant.requires.is_empty());
     let installed = registry
         .install(&pkg, &inspection.approval_digest)
         .await
@@ -547,4 +569,45 @@ async fn a_plugin_reaches_only_what_it_was_granted_and_a_moved_program_loses_its
         moved.inspect(&pkg).await.unwrap().approval_digest,
         inspection.approval_digest
     );
+
+    let own = build().reserving(vec![tool.clone()], Vec::new());
+    assert!(
+        matches!(own.inspect(&pkg).await, Err(PluginError::Package(_))),
+        "Hestia's own binary is never granted"
+    );
+}
+
+/// A component whose only import is `wasi:http/outgoing-handler@0.2.6`.
+fn http_component() -> Vec<u8> {
+    let name = b"wasi:http/outgoing-handler@0.2.6";
+    let mut bytes = vec![0, 0x61, 0x73, 0x6d, 0x0d, 0, 1, 0, 7, 3, 1, 0x42, 0];
+    bytes.extend([10, name.len() as u8 + 5, 1, 0, name.len() as u8]);
+    bytes.extend(name);
+    bytes.extend([5, 0]);
+    bytes
+}
+
+#[tokio::test]
+async fn a_wasi_http_plugin_installs_without_requiring_a_package() {
+    let home = tempfile::tempdir().unwrap();
+    let pkg = home.path().join("pkg");
+    manifest(
+        &pkg,
+        "grant-http",
+        "[permissions.\"network:connect\"]\nhosts = [\"api.example\"]\n",
+    );
+    std::fs::write(pkg.join("plugin.wasm"), http_component()).unwrap();
+    let registry = plugins(home.path(), Table::kernel(), Vec::new());
+    let inspection = registry.inspect(&pkg).await.unwrap();
+    assert!(inspection.grant.requires.is_empty());
+    let installed = registry
+        .install(&pkg, &inspection.approval_digest)
+        .await
+        .unwrap();
+    assert_eq!(installed.state, PluginState::Enabled);
+    assert!(installed.requires.is_empty());
+
+    let restarted = plugins(home.path(), Table::kernel(), Vec::new());
+    restarted.restore().await;
+    assert_eq!(state(&restarted, "grant-http"), Some(PluginState::Enabled));
 }

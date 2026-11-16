@@ -200,10 +200,24 @@ impl Runtime {
                 None
             }
         };
+        let own_programs = [
+            common::app::CLI_BIN,
+            common::app::DAEMON_BIN,
+            common::app::DESKTOP_BIN,
+            common::app::TRAY_BIN,
+        ]
+        .into_iter()
+        .filter_map(common::paths::sibling_binary)
+        .chain(std::env::current_exe().ok())
+        .collect();
+        let own_endpoints = vec![ipc::endpoint::default_endpoint()
+            .to_string_lossy()
+            .into_owned()];
         let plugins = Plugins::new(home, engine::builtins(), sandbox.clone(), Table::kernel())
             .expect(
                 "engine::builtins() must list unique ids whose requirements exist and do not cycle",
-            );
+            )
+            .reserving(own_programs, own_endpoints);
         let engine = Arc::new(engine);
         // One registry for every cancellable job, keyed by job id — what
         // `job.cancel` looks a running job up in, whichever manager owns it.

@@ -26,6 +26,7 @@ mod shape;
 mod shared;
 mod stub;
 mod ticker;
+mod tree;
 
 #[cfg(test)]
 mod tests;
@@ -182,17 +183,11 @@ impl Sandbox {
         })
     }
 
-    /// [`Sandbox::link_granted`] with a grant that reaches no host, program or
-    /// endpoint.
-    pub fn link(&self, opened: &Opened, denials: &Denials) -> Result<Loaded, SandboxError> {
-        self.link_granted(opened, denials, &Grant::default())
-    }
-
     /// Links `opened`, each denied import to a stub that answers `denied`; a
     /// denied `wasi:` import cannot be answered and fails the load. An export
     /// that is present but malformed fails the load. Calls reach only the
     /// hosts, programs and endpoints `grant` lists.
-    pub fn link_granted(
+    pub fn link(
         &self,
         opened: &Opened,
         denials: &Denials,
@@ -237,7 +232,11 @@ impl Sandbox {
 
     /// `open` and `link` with nothing denied.
     pub async fn load(&self, plugin: &str, wasm: Vec<u8>) -> Result<Loaded, SandboxError> {
-        self.link(&self.open(plugin, wasm).await?, &Denials::new())
+        self.link(
+            &self.open(plugin, wasm).await?,
+            &Denials::new(),
+            &Grant::default(),
+        )
     }
 
     /// Drops the plugin's compiled cache entry.

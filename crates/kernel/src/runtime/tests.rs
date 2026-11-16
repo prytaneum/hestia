@@ -3,19 +3,22 @@ use std::sync::Arc;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use wasmtime::component::Resource;
 use wasmtime_wasi_http::{Error as HttpError, WasiBody, WasiHttpHooks};
 
+use super::bindings::hestia::kernel::ipc::HostConnection;
 use super::bindings::hestia::kernel::types::PluginError;
 use super::bindings::hestia::kernel::{download, ipc, programs};
+use super::download::Staged;
 use super::host::{Call, State};
 use super::http::Hooks;
 use super::limits::MemoryCap;
 use super::reach::Reach;
 use super::shared::Shared;
-use super::{Services, Shape};
-use crate::grant::{derive, Table};
-use crate::manifest::Manifest;
+use super::Services;
+use crate::grant::digest;
 use crate::vetting::{Hosts, Policy};
+use proto::plugin::Program;
 
 struct Data(PathBuf);
 
@@ -26,9 +29,13 @@ impl Services for Data {
 }
 
 fn state(data: &Path, reach: Reach) -> State {
+    state_online(data, reach, true)
+}
+
+fn state_online(data: &Path, reach: Reach, online: bool) -> State {
     State::new(
         "tester",
-        true,
+        online,
         MemoryCap::new(1 << 20),
         Shared::new(Arc::new(Data(data.to_owned()))),
         Call::default(),
@@ -139,15 +146,70 @@ async fn a_download_goes_only_to_granted_hosts_and_is_written_whole_or_not_at_al
 #[cfg(unix)]
 #[tokio::test]
 async fn a_download_never_follows_a_link_out_of_the_plugins_data() {
-    let data = tempfile::tempdir().unwrap();
-    let outside = tempfile::tempdir().unwrap();
-    std::os::unix::fs::symlink(outside.path(), data.path().join("out")).unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let (data, outside) = (root.path().join("data"), root.path().join("outside"));
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
     let port = serve().await;
-    let mut plugin = state(data.path(), reaching(&["files.example"], false));
+    let mut plugin = state(&data, reaching(&["files.example"], false));
     let url = format!("http://127.0.0.1:{port}/f");
-    let result = fetch(&mut plugin, &url, "out/f", Some(PAYLOAD_SHA256)).await;
-    assert!(matches!(result, Err(PluginError::Invalid(_))), "{result:?}");
-    assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
+    for link in [outside.as_path(), Path::new("../outside")] {
+        let _ = std::fs::remove_file(data.join("out"));
+        std::os::unix::fs::symlink(link, data.join("out")).unwrap();
+        let result = fetch(&mut plugin, &url, "out/new/f", Some(PAYLOAD_SHA256)).await;
+        assert!(matches!(result, Err(PluginError::Invalid(_))), "{result:?}");
+        assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 0, "{link:?}");
+    }
+
+    let (staged, file) = Staged::create(&data, "held/f".into()).unwrap();
+    drop(file);
+    std::fs::rename(data.join("held"), data.join("aside")).unwrap();
+    std::os::unix::fs::symlink("../outside", data.join("held")).unwrap();
+    std::fs::write(outside.join("f.part"), b"theirs").unwrap();
+    assert!(staged.commit().is_err());
+    assert!(
+        !outside.join("f").exists(),
+        "a directory swapped for a link after the file was staged is not followed"
+    );
+    assert_eq!(std::fs::read(outside.join("f.part")).unwrap(), b"theirs");
+}
+
+#[tokio::test]
+async fn a_download_that_is_dropped_leaves_no_staging_file() {
+    let data = tempfile::tempdir().unwrap();
+    let (staged, file) = Staged::create(data.path(), "a/f".into()).unwrap();
+    drop(file);
+    assert!(data.path().join("a/f.part").exists());
+    drop(staged);
+    assert!(!data.path().join("a/f.part").exists());
+}
+
+#[tokio::test]
+async fn nothing_leaves_the_machine_while_offline() {
+    let data = tempfile::tempdir().unwrap();
+    let port = serve().await;
+    let mut plugin = state_online(data.path(), reaching(&["files.example"], false), false);
+    let result = fetch(
+        &mut plugin,
+        &format!("http://127.0.0.1:{port}/f"),
+        "f",
+        None,
+    )
+    .await;
+    assert!(matches!(result, Err(PluginError::Offline)), "{result:?}");
+    let reach = Arc::new(reaching(&["files.example"], false));
+    let mut hooks = Hooks {
+        plugin: "tester".into(),
+        online: false,
+        reach,
+    };
+    let local = format!("http://127.0.0.1:{port}/f");
+    let sent = hooks.send_request(request(&local), None, Box::new(async { Ok(()) }));
+    let result = Box::into_pin(sent).await.map(|_| ());
+    assert!(
+        matches!(result, Err(HttpError::ConnectionRefused)),
+        "{result:?}"
+    );
 }
 
 fn request(url: &str) -> http::Request<WasiBody> {
@@ -164,6 +226,7 @@ fn request(url: &str) -> http::Request<WasiBody> {
 async fn send(reach: &Arc<Reach>, url: &str) -> Result<http::StatusCode, HttpError> {
     let mut hooks = Hooks {
         plugin: "tester".into(),
+        online: true,
         reach: reach.clone(),
     };
     let sent = hooks.send_request(request(url), None, Box::new(async { Ok(()) }));
@@ -173,9 +236,10 @@ async fn send(reach: &Arc<Reach>, url: &str) -> Result<http::StatusCode, HttpErr
 }
 
 #[tokio::test]
-async fn wasi_http_goes_through_the_plugins_policy_and_leaves_redirects_to_the_guest() {
+async fn wasi_http_reaches_any_granted_host_through_the_plugins_policy_and_leaves_redirects_to_the_guest(
+) {
     let port = serve().await;
-    let reach = Arc::new(reaching(&["files.example"], true));
+    let reach = Arc::new(reaching(&["files.example"], false));
 
     for url in [
         "https://evil.example/f",
@@ -200,18 +264,38 @@ async fn wasi_http_goes_through_the_plugins_policy_and_leaves_redirects_to_the_g
     assert!(matches!(result, Err(HttpError::HttpRequestDenied)));
 }
 
-fn invocations(program: &Path, args: &str) -> Reach {
-    let manifest = Manifest::parse(&format!(
-        "id = \"t\"\nname = \"t\"\nversion = \"1\"\n\
-         [permissions.\"process:spawn\"]\nprograms = ['{} {args}']\n",
-        program.display()
-    ))
-    .unwrap();
-    let shape = Shape {
-        imports: vec!["hestia:kernel/programs@0.1.0".into()],
-        exports: Vec::new(),
-    };
-    Reach::of(&derive(&Table::kernel(), &manifest, &shape).unwrap())
+#[cfg(unix)]
+const SCRIPT: &str = "#!/bin/sh\necho \"$1\"\n( while :; do :; done ) &\n";
+#[cfg(unix)]
+const SCRIPT_ARGS: &[&str] = &["--list"];
+#[cfg(windows)]
+const SCRIPT_ARGS: &[&str] = &[];
+
+fn tool(dir: &Path) -> PathBuf {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let tool = dir.join("tool");
+        std::fs::write(&tool, SCRIPT).unwrap();
+        std::fs::set_permissions(&tool, std::fs::Permissions::from_mode(0o755)).unwrap();
+        tool
+    }
+    #[cfg(windows)]
+    {
+        let _ = dir;
+        PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join(r"System32\whoami.exe")
+    }
+}
+
+fn granted(program: &Path, sha256: String) -> Reach {
+    Reach {
+        programs: vec![Program {
+            path: program.to_str().unwrap().to_owned(),
+            args: SCRIPT_ARGS.iter().map(|a| a.to_string()).collect(),
+            sha256,
+        }],
+        ..Reach::default()
+    }
 }
 
 async fn run(
@@ -226,35 +310,37 @@ async fn run(
 #[tokio::test]
 async fn a_program_runs_only_as_declared_and_only_while_it_is_the_one_approved() {
     let dir = tempfile::tempdir().unwrap();
-    let tool = dir
-        .path()
-        .join(if cfg!(windows) { "tool.exe" } else { "tool" });
-    std::fs::copy(std::env::current_exe().unwrap(), &tool).unwrap();
+    let tool = tool(dir.path());
     let path = tool.to_str().unwrap().to_owned();
-    let mut plugin = state(dir.path(), invocations(&tool, "--list"));
+    let pinned = digest(&tool).unwrap();
 
-    assert_eq!(
-        run(&mut plugin, &path, &["--list"]).await.unwrap().status,
-        0
-    );
+    let mut plugin = state(dir.path(), granted(&tool, pinned));
+    let ran = tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        run(&mut plugin, &path, SCRIPT_ARGS),
+    )
+    .await
+    .expect("a process the program left behind must not hold the call")
+    .unwrap();
+    assert_eq!(ran.status, 0);
+    #[cfg(unix)]
+    assert_eq!(ran.stdout, b"--list\n");
 
-    denied(
-        run(&mut plugin, &path, &["--list", "--extra"]).await,
-        "process:spawn",
-    );
+    denied(run(&mut plugin, &path, &["--extra"]).await, "process:spawn");
     denied(run(&mut plugin, &path, &[]).await, "process:spawn");
     denied(
         run(&mut plugin, "/bin/sh", &["-c", "id"]).await,
         "process:spawn",
     );
 
-    let mut file = std::fs::OpenOptions::new()
-        .append(true)
-        .open(&tool)
-        .unwrap();
-    std::io::Write::write_all(&mut file, b"\0").unwrap();
-    drop(file);
-    denied(run(&mut plugin, &path, &["--list"]).await, "process:spawn");
+    let mut moved = state(dir.path(), granted(&tool, "0".repeat(64)));
+    denied(run(&mut moved, &path, SCRIPT_ARGS).await, "process:spawn");
+
+    let gone = dir.path().join("gone");
+    let mut homeless = state(&gone, granted(&tool, digest(&tool).unwrap()));
+    std::fs::remove_dir_all(&gone).unwrap();
+    let result = run(&mut homeless, &path, SCRIPT_ARGS).await;
+    assert!(matches!(result, Err(PluginError::Failed(_))), "{result:?}");
 }
 
 #[tokio::test]
@@ -274,22 +360,44 @@ async fn a_local_endpoint_is_reached_only_when_the_grant_lists_it() {
         format!("{listed}/../peer.sock"),
         String::new(),
     ] {
-        denied(
-            ipc::Host::request(&mut plugin, other, Vec::new()).await,
-            "ipc:connect",
-        );
+        denied(ipc::Host::connect(&mut plugin, other).await, "ipc:connect");
     }
     #[cfg(unix)]
     {
         let listener = tokio::net::UnixListener::bind(&endpoint).unwrap();
         tokio::spawn(async move {
             let (mut stream, _) = listener.accept().await.unwrap();
-            let mut asked = Vec::new();
-            stream.read_to_end(&mut asked).await.unwrap();
-            let answer = [b"re:".as_slice(), &asked].concat();
-            stream.write_all(&answer).await.unwrap();
+            let mut asked = [0u8; 4];
+            stream.read_exact(&mut asked).await.unwrap();
+            stream
+                .write_all(&[b"re:".as_slice(), &asked].concat())
+                .await
+                .unwrap();
         });
-        let answer = ipc::Host::request(&mut plugin, listed, b"ping".to_vec()).await;
-        assert_eq!(answer.unwrap(), b"re:ping");
+        let connection = ipc::Host::connect(&mut plugin, listed).await.unwrap();
+        let again = Resource::new_borrow(connection.rep());
+        let invalid = plugin.read(again, 0).await;
+        assert!(
+            matches!(invalid, Err(PluginError::Invalid(_))),
+            "{invalid:?}"
+        );
+        plugin
+            .write(Resource::new_borrow(connection.rep()), b"ping".to_vec())
+            .await
+            .unwrap();
+        let mut answer = Vec::new();
+        loop {
+            let read = plugin
+                .read(Resource::new_borrow(connection.rep()), 64)
+                .await
+                .unwrap();
+            if read.is_empty() {
+                break;
+            }
+            answer.extend(read);
+        }
+        assert_eq!(answer, b"re:ping", "an empty read is the peer closing");
+        HostConnection::drop(&mut plugin, connection).unwrap();
+        assert_eq!(plugin.connections, 0);
     }
 }
