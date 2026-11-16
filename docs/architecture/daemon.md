@@ -26,10 +26,6 @@ flowchart LR
   connection gets an id and an outbound mpsc channel drained by a writer task, so a streaming channel such as
   `events.subscribe` is an ordinary handler that pushes onto it. The loop runs under `tokio::select!` against
   `daemon.stop` and an OS signal.
-- **Listening is not ready.** The daemon accepts at once while a startup task installs staged and bundled plugins and
-  loads every enabled one. `daemon.ready` answers when that has settled. `Client::start` (so `hestia daemon
-  start|restart` and the desktop's start) waits on it, bounded at 30 s; past that it answers `pluginsSettled: false`
-  and the slow plugin keeps loading. A call that needs no plugin never waits, and safe mode settles at once.
 - Once listening it spawns the tray, best-effort and detached; skipped on a headless session or with `HESTIA_NO_TRAY=1`.
 
 ## runtime/
@@ -91,9 +87,11 @@ step. The scheduler takes the same claim before a scheduled task or backup.
 |----------------|--------------|----------------------------------------------------------------------------------------------------------|
 | `scheduler.rs` | every minute | runs each running server's due scheduled tasks (restart, console command, backup)                        |
 | `metrics.rs`   | every 2 s    | samples CPU and memory of supervised processes, CPU normalised by logical cores                          |
+| `network.rs`   | ticking      | confirms a stale reachability state and pushes every transition to subscribers                           |
+| `ready.rs`     | per start    | pings a started server's game port and publishes `server.ready` when it answers                          |
+| `updates.rs`   | on demand    | checks installed content for updates at startup, on reconnect, at launch and when an entry opens         |
 
-`event_hub.rs` fans events out to subscribed connections, filtered by id, and unsubscribes on disconnect. The plugin
-runtime's loops (event delivery, schedules, connections) are described in [Plugins](plugins.md).
+`event_hub.rs` fans events out to subscribed connections, filtered by id, and unsubscribes on disconnect.
 
 ## services/
 
@@ -104,7 +102,7 @@ entry and refuse whatever holds it.
 
 | Registrar                | Channels                                                                                          |
 |--------------------------|---------------------------------------------------------------------------------------------------|
-| `lifecycle`              | `health.ping`, `app.info`, `daemon.status`, `daemon.ready`, `daemon.stop`, `events.subscribe`, `job.list`, `job.cancel` |
+| `lifecycle`              | `health.ping`, `app.info`, `daemon.status`, `daemon.stop`, `events.subscribe`, `job.list`, `job.cancel` |
 | `config`, `cache`, `java`, `update` | `config.*`, `cache.*`, `java.*`, `update.check`, `update.download`                     |
 | `accounts`, `skins`      | `account.*`, `skin.*`, `cape.*`                                                                   |
 | `process`                | `process.start\|stop\|list\|status\|logs`                                                         |
@@ -112,7 +110,8 @@ entry and refuse whatever holds it.
 | `server`, `files`, `tasks`, `backup` | `server.*` (create, update, start, command, properties, worlds), `server.files.*`, `server.task.*`, `server.backup.*` |
 | `instance`               | `instance.*` (create, update, launch, worlds, servers, recent)                                    |
 | `content`, `modpack`, `sync` | `content.*`, `modpack.*`, `sync.*`                                                            |
-| plugin registrars        | the plugin, provider and event channels ([Plugins](plugins.md))                                   |
+| `transfer`, `screenshot` | `instance.export*`, `instance.import*`, `screenshot.*`                                                      |
+| `net`, `host`, `image`   | `net.status`, `host.info`, `image.fetch`                                                          |
 
 - **A verb both sides share is one channel aimed by a target.** Params carry `EntryTarget { kind, entry }`, resolved by
   `guards::entry_for`, so a handler holds no per-side branch. `server.modpack.install` and `instance.modpack.install`

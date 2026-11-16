@@ -21,6 +21,4 @@ export const commands: Handlers = {
 
   /** Null on an ordinary start — a browser is never handed a `.hestia` file. */
   pending_archive: () => null,
-
-  pending_repository: () => null,
 };

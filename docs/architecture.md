@@ -33,7 +33,7 @@ flowchart LR
 | Front-end | Binary           | Stack                 | Purpose                                                    |
 |-----------|------------------|-----------------------|------------------------------------------------------------|
 | CLI       | `hestia`         | clap + ratatui        | scripting and terminal use                                 |
-| Desktop   | `hestia-desktop` | Tauri v2 + React/Vite | library, entries, content browse, skins, plugin pages      |
+| Desktop   | `hestia-desktop` | Tauri v2 + React/Vite | library, entries, skins, the settings of each entry        |
 | Tray      | `hestia-tray`    | tray-icon + tao       | status and quick actions beside every serving daemon       |
 
 ## The crate graph
@@ -43,7 +43,6 @@ One cargo workspace under `crates/*`. An arrow is a dependency; a missing arrow 
 ```mermaid
 flowchart TD
     client --> proto & ipc & common
-    sdk --> proto
     ipc --> common
     engine --> proto & common
     cli --> client & common & proto
@@ -63,7 +62,6 @@ flowchart TD
 | `cli`     | `hestia`                                                                                          |
 | `desktop` | Tauri shell; the UI is the root `frontend/`                                                       |
 | `tray`    | `hestia-tray`                                                                                     |
-| `sdk`     | the plugin SDK and its WIT package, which depend only on `proto`                                  |
 
 ## A request, end to end
 
@@ -100,11 +98,8 @@ What is yours sits at the top level. What the launcher can regenerate sits under
 ├── skins/               the skin library
 ├── shared/              the shared settings store (sync)
 ├── java/                installed Java runtimes
-├── plugins/<id>/        package/, data/, plugin.json
 ├── meta/                regenerable game files
-│   ├── versions/ libraries/ assets/ natives/
-│   ├── flavors/<plugin>/ a plugin flavor's build area
-│   └── plugins/         compiled plugin components
+│   └── versions/ libraries/ assets/ natives/
 ├── cache/               content-addressed download cache
 ├── processes/           supervisor records and captured logs
 ├── tmp/                 downloads in flight; emptied at start
@@ -161,17 +156,16 @@ that directory. Release builds use `panic = "abort"` and `strip = true`, so rele
 | [Servers and instances](architecture/entries.md) | entry stores, provisioning, backups, sync, worlds, Bedrock                    |
 | [Content and modpacks](architecture/content.md)  | the source seam, the managed-dir install model, datapacks, modpacks, update checks |
 | [Import and export](architecture/transfer.md) | Hestia's archive, pack-format detection                                          |
-| [Plugins](architecture/plugins.md)           | the WASM sandbox, permissions, host calls, hooks, providers, trust, the SDK       |
 | [Front-ends](architecture/frontends.md)      | CLI grammar and presentation, the desktop bridge and query layer, the tray        |
 
 ## Project status
 
-`v1.0.0-beta.3`. Every capability works end to end, from wire contract to at least one front-end: instances and servers
-(Java and Bedrock) with an RCON or stdin console, backups, in-place version changes, content and modpack management,
-import and export, shared instance settings, Microsoft sign-in, skins, plugins, self-update and offline operation. Core
-carries vanilla and Hestia's own archive; every other flavor, content source, pack format and Java distribution is an
-[official plugin](plugins/official.md) bundled with the installers. There is no known gap down to the oldest launchable
-versions.
+`v1.0.0-beta.3`. Every capability works end to end, from wire contract to at least one front-end: vanilla instances
+and servers (Java and Bedrock) with an RCON or stdin console, backups, in-place version changes, local content and
+modpack files, import and export, shared instance settings, Microsoft sign-in, skins, self-update and offline operation.
+Core carries vanilla, Adoptium and Hestia's own archive. The provider seams (flavors, content sources, pack formats,
+Java distributions) are in place and empty; other loaders, content sources and pack formats return with the new plugin
+system. There is no known gap down to the oldest launchable versions.
 
 ## Conventions that hold everywhere
 
@@ -205,20 +199,18 @@ Rust (edition 2021) under `rustfmt`, `clippy -D warnings` and `cargo-deny`.
 | Game data         | fastnbt (`level.dat`)                                                  |
 | CLI               | clap, ratatui                                                          |
 | Desktop           | Tauri v2, React/Vite built with Bun, three.js for skin previews        |
-| Plugins           | wasmtime (component model, WASI 0.2, `wasi:http`, pooling allocator)   |
 | Tray              | tray-icon, tao                                                         |
 
 ## Testing
 
 | Where                                  | What it pins                                                                              |
 |----------------------------------------|-------------------------------------------------------------------------------------------|
-| `crates/proto/tests/`                  | envelope and contract encodings; permission classification; the plugin API snapshot; manifests |
-| `crates/engine/tests/`                 | persistence, the sign-in state machine, process-tree termination, provisioning, content, pack and Java flows against fixture plugins, plugin load and sandbox limits |
-| `crates/engine/src/**`                 | unit tests beside the code: archive detection, launch plans, schema stamping, sync reconciliation, plugin runtime limits, signatures |
-| `crates/engine/tests/official.rs`      | the live official index verifies against the compiled keys (ignored; a scheduled CI job runs it) |
+| `crates/proto/tests/`                  | envelope and contract encodings, wire casing and omission rules, golden fixtures |
+| `crates/engine/tests/`                 | persistence, the sign-in state machine, process-tree termination, provisioning, content, pack and Java flows against native test providers |
+| `crates/engine/src/**`                 | unit tests beside the code: archive detection, launch plans, schema stamping, sync reconciliation, download vetting, program pins, signatures |
 | `crates/client/tests/`                 | the SDK against a scripted daemon: marshalling, typed failures, timeouts, version mismatch, every way a job settles |
 | `crates/daemon/tests/e2e.rs`           | a client-to-daemon round trip over a real socket                                          |
-| `crates/*/tests/fixture/plugins/`      | the plugins the tests build into components                                               |
+| `crates/engine/tests/fixture/`         | the native flavor, content source and pack format the flow tests drive                    |
 | `frontend/tests/`                      | the message catalogue and a few pure conversions                                          |
 
 ```bash

@@ -7,7 +7,7 @@
 
 <p align="center">
   <b>A Minecraft launcher for people who also live in a terminal.</b><br>
-  Play instances, host servers, and manage mods — from a window or a shell.
+  Play instances and host servers — from a window or a shell.
 </p>
 
 <p align="center">
@@ -21,9 +21,8 @@
   <img src="assets/screenshots/library.png" alt="The Hestia library: instances you play and servers you host" width="820">
 </p>
 
-Hestia keeps your instances and your servers in one place. Sign in once, create a modded instance, install mods from
-Modrinth or CurseForge, host a server your friends can join, and move any of it between game versions without rebuilding
-it.
+Hestia keeps your instances and your servers in one place. Sign in once, create an instance, host a server your friends
+can join, and move any of it between game versions without rebuilding it.
 
 Underneath, a small resident daemon owns everything — so your server keeps running when you close the window, and the
 desktop app and the CLI are just two views of the same state.
@@ -37,35 +36,15 @@ command, and walk away — it keeps running.
   <img src="assets/demo/cli-server.gif" alt="Creating a vanilla server, starting it, and driving its console from the CLI" width="820">
 </p>
 
-Content works the same way. Mods, shaders, resource packs and data packs install from Modrinth or CurseForge with their
-dependencies resolved.
-
-<p align="center">
-  <img src="assets/demo/cli-content.gif" alt="Installing Sodium, Iris and a shader pack into an instance from the CLI" width="820">
-</p>
-
 The grammar is entry-first — name the thing, then say what to do to it:
 
 ```bash
 hestia server smp config set memory 4G     # applies from the next start
 hestia server smp backup create            # archive the world + config
-hestia instance modded mod add sodium      # install a mod, deps resolved
+hestia instance vanilla launch             # play it
 ```
 
 ## And the app is not a wrapper
-
-**Find it.** Mods, plugins, resource packs, shaders, data packs and whole modpacks from Modrinth or CurseForge — or
-paste a project link and it resolves.
-
-<p align="center">
-  <img src="assets/screenshots/browse.png" alt="Browsing mods, packs and shaders" width="820">
-</p>
-
-**Keep it.** Everything installed lands in one pool you can update, pin, enable and remove in place.
-
-<p align="center">
-  <img src="assets/screenshots/content.png" alt="An instance's installed content" width="820">
-</p>
 
 **Host it.** A server is fully provisioned at create — jar, Java runtime, EULA, its own port — with live resource
 charts, backups on demand or on a schedule, and a console over RCON.
@@ -83,33 +62,20 @@ to your account.
 
 ## What it supports
 
-| Area          | What works                                                                      |
-|:--------------|:--------------------------------------------------------------------------------|
-| **Instances** | Vanilla · Fabric · NeoForge *(Fabric and NeoForge: official plugins)*           |
-| **Servers**   | Vanilla · Bedrock (Vanilla BDS) · Fabric · NeoForge · Paper · Folia · Spigot · CraftBukkit *(all but the two Vanillas: official plugins)* |
-| **Content**   | Modrinth · CurseForge *(official plugins)* · a page URL · a local file · Bedrock behaviour and resource packs from a file or link |
-| **Import**    | Hestia archives · `.mcworld` (Bedrock servers) · `.mrpack` · Prism / MultiMC · CurseForge packs *(the last three: official plugins)* |
-| **Export**    | Hestia archives · `.mrpack` *(`.mrpack`: an official plugin)*                   |
-| **Java**      | Eclipse Temurin from Adoptium *(official plugin)*                               |
-| **Plugins**   | WASM components: commands · pages · themes · hooks · providers                  |
+| Area          | What works                                                  |
+|:--------------|:------------------------------------------------------------|
+| **Instances** | Vanilla                                                     |
+| **Servers**   | Vanilla · Bedrock (Vanilla BDS)                             |
+| **Import**    | Hestia archives · `.mcworld` (Bedrock servers)              |
+| **Export**    | Hestia archives                                             |
+| **Java**      | Eclipse Temurin from Adoptium                               |
 
-Vanilla and Hestia's own archive are the only things built into the launcher; the rest comes from the
-[official plugins](docs/plugins/official.md), which the installers bundle and keep up to date. NeoForge builds its game
-jar locally from the installer, and Spigot/CraftBukkit compile on your machine with SpigotMC's BuildTools (needs `git`)
-— so a first create on those takes a few minutes. CurseForge needs an API key: the official plugin ships with one, and
-`hestia plugin config curseforge api-key` sets your own. Without the official plugins Hestia runs vanilla only and has no content
-source or Java download.
+Mod loaders, other server software, content sources (Modrinth, CurseForge) and other pack formats come back with the
+new plugin system; until then Hestia plays and hosts vanilla only.
 
 A few more things it does: several concurrent sessions of one instance, starting straight into a world or onto a server,
 in-place version changes both ways (downgrades warn, and a server is backed up first), game settings and multiplayer
-lists shared across instances, a system tray, and self-update. More official plugins show what you are playing on
-Discord, add a server's player lists (online, whitelist, operators, bans), give a server a public playit.gg address
-with no port forwarding, and show the address your Tailscale tailnet joins it on.
-
-Plugins extend the launcher itself: sandboxed WASM components that add commands, pages and themes, adjust a launch,
-and supply content sources, flavors, pack formats and Java distributions, with only the permissions you approve at
-install. Writing one is covered in [docs/plugins/](docs/plugins/README.md); the ones Hestia ships are listed in
-[docs/plugins/official.md](docs/plugins/official.md).
+lists shared across instances, a system tray, and self-update.
 
 Old versions are covered too: a pre-1.19 client's LWJGL natives are unpacked from their classifier jars, and an asset
 index that predates the hashed store is mirrored to the named tree those clients read.
@@ -181,7 +147,6 @@ Your data lives in `~/.hestia` (`%APPDATA%\Hestia` on Windows), overridable with
 | Page                                         | What's in it                                                                       |
 |----------------------------------------------|------------------------------------------------------------------------------------|
 | [docs/cli.md](docs/cli.md)                   | every `hestia` command                                                             |
-| [docs/plugins/](docs/plugins/README.md)      | writing, packaging and publishing a plugin                                         |
 | [docs/architecture.md](docs/architecture.md) | how it's put together, a page per subsystem                                        |
 | [docs/contributing.md](docs/contributing.md) | conventions and copy-and-adapt recipes                                             |
 | [docs/packaging.md](docs/packaging.md)       | installers and release artifacts                                                   |
@@ -193,8 +158,7 @@ is usually one line in each of five places.
 
 [GPL-3.0-only](LICENSE) © 2026 toraaoo — published by [prytaneum](https://github.com/prytaneum)
 
-The exception is what a plugin compiles against: `crates/proto`, the plugin SDK (`crates/sdk`) and its WIT package are
-`MIT OR Apache-2.0`, so a plugin may use any license.
+The exception is `crates/proto`, which is `MIT OR Apache-2.0`.
 
 The desktop skin preview and its thumbnail renderer are ported from
 [Modrinth's launcher](https://github.com/modrinth/code) (GPL-3.0-only, © Rinth, Inc.) — the reason Hestia is GPL rather

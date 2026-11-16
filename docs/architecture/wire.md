@@ -34,8 +34,6 @@ pub trait Contract {
 | `Job`                        | a start contract that also declares its `Progress` and `Done` payloads                                    |
 | `TIMEOUT`                    | how long a caller waits; slow handlers override it once, and the client and the desktop bridge both apply it |
 | `CHANGES: Option<Scope>`     | the state a mutating call changes; the registrar publishes `changed { scope }` after success              |
-| `PLUGIN: Option<Permission>` | the permission a plugin needs to call it; `None` is closed                                                |
-| `AMBIENT`                    | a harmless fact any plugin may read with no permission                                                    |
 | `Empty`                      | the `{}` payload                                                                                          |
 
 Shared vocabularies that are not domains of their own:

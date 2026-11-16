@@ -38,15 +38,13 @@ hestia account logout <name|uuid>
 
 ## Java runtimes
 
-Runtimes are downloaded from the Java provider named by the `java.provider` setting (default `adoptium`) or `--provider`.
-No provider is built in: a plugin contributes one under `java:provide` (the official `adoptium` plugin offers Eclipse
-Temurin). Without one, `java install` and any create or launch that needs a runtime not yet on disk fail saying a Java
-distribution plugin is needed.
+Runtimes are downloaded from the Java provider named by the `java.provider` setting (default `adoptium`, Eclipse
+Temurin) or `--provider`.
 
 ```bash
 hestia java releases             # release lines the provider ships
 hestia java install 21           # resolve, download, verify, extract, register
-hestia java install 21 --provider acme.zulu   # resolve from another provider
+hestia java install 21 --provider <id>        # resolve from another provider
 hestia java list                 # installed runtimes
 hestia java uninstall 21
 ```
@@ -63,8 +61,7 @@ hestia server create             # the fullscreen wizard — edition (java or
                                  #   → name → settings (skippable) → confirm
                                  #   (EULA); Esc steps back. Arguments prefill
                                  #   it, so `server create --edition bedrock`
-                                 #   opens at the provider step and `server
-                                 #   create fabric` at the edition step; it
+                                 #   opens at the provider step; it
                                  #   opens whenever flavor, version, name or
                                  #   the EULA is missing and stdin and stderr
                                  #   are terminals. Settings follow the chosen
@@ -72,8 +69,8 @@ hestia server create             # the fullscreen wizard — edition (java or
 hestia server create [--edition java|bedrock] vanilla 1.21.1 --eula -n smp
                                  #   --edition defaults to java; fully
                                  #   specified, so no
-                                 #   wizard and scriptable (-l pins a
-                                 #   loader, -p pins the game port, --memory 4G
+                                 #   wizard and scriptable (-p pins the game
+                                 #   port, --memory 4G
                                  #   sets -Xms/-Xmx; --motd, --max-players,
                                  #   --difficulty, --gamemode, --seed cover the
                                  #   common properties, --prop KEY=VALUE the rest)
@@ -84,11 +81,6 @@ hestia server flavors            # the available flavors per edition, what each
                                  #   takes, and a line on what it is — all from
                                  #   the daemon
 ```
-
-A provider (flavor, content source, pack format, Java distribution) is `<plugin>.<id>` (`fabric.fabric`). Anywhere one
-is named, the bare `fabric` works too: core's own, else the official plugin's, else the only one with that name; two
-plugins sharing a name make it ambiguous and the error lists the full ids. Listings show the bare name while it is
-unambiguous.
 
 Everything that acts on one server is entry-first — `hestia server <name> <action>`:
 
@@ -121,13 +113,13 @@ hestia server smp task backup 6h --keep 7  # archive the running server on a
 hestia server smp files ls [dir] # the game directory as a tree; paths are
                                  #   relative to it and never leave it
 hestia server smp files cat server.properties
-hestia server smp files edit plugins/Essentials/config.yml  # $VISUAL/$EDITOR,
+hestia server smp files edit server.properties  # $VISUAL/$EDITOR,
                                  #   saved back if it changed
 hestia server smp files write ops.json < ops.json  # create or replace from
                                  #   stdin (text, up to 2 MiB)
 hestia server smp files mkdir|mv|cp|rm …  # rm takes several paths; mv and cp
                                  #   never replace what is already there
-hestia server smp files upload ./plugin.jar --to plugins  # copy local files
+hestia server smp files upload ./pack.zip --to uploads  # copy local files
                                  #   or directories in, replacing same names
 hestia server smp files zip world -o world.zip  # archive files or directories
 hestia server smp files unzip world.zip --to restored  # .zip or .tar.gz;
@@ -156,8 +148,6 @@ hestia server smp restart        # stop, then start again
 hestia server smp rename cozy    # rename (stopped): rewrites the display name;
                                  #   the id, directory, ports and data stay put
 hestia server smp remove         # delete the server (its jar, world and all)
-hestia server smp mod add <slug> # a modloader server takes mods
-hestia server smp plugin add <slug>     # a plugin-platform server takes plugins
 hestia server smp datapack add <slug>   # datapacks install into the server's world
 hestia server smp datapack add --file ./pack.zip   # any kind imports a local file
 hestia server bds world list     # a server's worlds (the one it runs is marked *)
@@ -168,22 +158,18 @@ hestia server bds behaviorpack add ./x.mcpack   # alias: bp; a .mcpack/.mcaddon
 hestia server bds resourcepack add ./x.mcpack
 ```
 
-What a server takes depends on its flavor: `vanilla` takes datapacks only, and a flavor a plugin provides (a modloader,
-a plugin platform) adds the mods or plugins its loader consumes — `server flavors` prints the set per flavor rather than
-leaving you to remember it. Asking for the wrong kind is refused naming what that server does take.
+What a server takes depends on its flavor: `vanilla` takes datapacks only — `server flavors` prints the set per flavor.
+Asking for the wrong kind is refused naming what that server does take.
 
-Only `vanilla` is built in; the other distributions come from plugins (the official ones offer `fabric`, `neoforge`,
-`paper`, `folia`, `spigot` and `bukkit`). A flavor with several builds per game version uses the build number as its
-*loader version*: `--loader-version <build>` pins one, and omitted, create takes the flavor's newest. A flavor may
-recommend JVM flags, used unless the entry or `defaults.jvm-args` sets its own; `server <name> info` reports the
-effective flags and where they came from.
+Only `vanilla` ships, for both editions; other flavors (modloaders, plugin platforms) return with the new plugin system.
+A flavor may recommend JVM flags, used unless the entry or `defaults.jvm-args` sets its own; `server <name> info`
+reports the effective flags and where they came from.
 
 `bedrock` is Mojang's Bedrock Dedicated Server, for phones, consoles and Windows players. Create one with
 `hestia server create --edition bedrock vanilla <version>`; its flavor id is `vanilla`, the same as Java's, told apart by the edition. `server flavors` and
 `server list` carry an EDITION column, and the wizard asks for the edition before the provider. A Bedrock server
 runs natively, so its wizard has no memory field and `status` shows a `ports` row (game port over TCP, a second over UDP) and no `java` row. It takes
-`behaviorpacks` and `resourcepacks` from a local `.mcpack`/`.mcaddon` file or a direct https link (the Modrinth and
-CurseForge plugins serve Java only, so adding from them fails per item). What it refuses, and why:
+`behaviorpacks` and `resourcepacks` from a local `.mcpack`/`.mcaddon` file or a direct https link. What it refuses, and why:
 
 - `config set memory|jvm-args` — there is no JVM to size.
 - `world import` — the server must be stopped, and the file a `.mcworld`.
@@ -247,26 +233,22 @@ hestia instance modded export -o ~/cozy.hestia   # or name the file yourself
 hestia instance modded export --exclude data/saves   # leave a path out (repeatable)
 ```
 
-Hestia's own archive is the one format built in; a pack plugin adds more (`--format` takes an id, extension or name the
-daemon offers, and an unknown one lists them):
+Hestia's own archive is the one format (`--format` takes an id, extension or name the daemon offers, and an unknown one
+lists them):
 
 | `--format` | Carries | Use it for |
 |---|---|---|
-| `hestia` (default) | settings, configs, worlds and local-only files; mods and packs from a content source are left out and downloaded on import | keeping a copy, or moving it to another machine, whichever OS it came from |
-| a plugin's | whatever that format can express | sharing with someone on another launcher |
+| `hestia` (default) | settings, configs, worlds and local-only files; content from a content source is left out and downloaded on import | keeping a copy, or moving it to another machine, whichever OS it came from |
 
 Import takes a file and works out the rest:
 
 ```bash
 hestia instance import ~/cozy.hestia             # a hestia archive
-hestia instance import ~/Downloads/pack.zip      # a pack in a format a plugin adds
 hestia instance import ~/cozy.hestia -n "Copy"   # name it something else
 ```
 
 The format is detected from what is **inside** the file, not its extension — they are all zips, and people rename them.
-The command prints what it found before it starts. With no pack plugin installed, an archive that is not hestia's is
-refused as unrecognised. An archive pinning a loader hestia has no flavor for is refused by name rather than silently
-installed as vanilla.
+The command prints what it found before it starts. An archive that is not hestia's is refused as unrecognised. An archive pinning a loader hestia has no flavor for is refused by name rather than silently installed as vanilla.
 
 An export needs the instance **stopped**, and refuses while a content or modpack job is touching it. Paths are resolved
 against your shell's working directory, then sent as absolute — the daemon is a separate process and does not share it.
@@ -378,7 +360,8 @@ open the same world). Servers stay single — a world has one writer, so `--sess
 
 ### Content on an instance
 
-Mods, resource packs, shaders, and datapacks install per entry, from a content source plugin or a local file. Every kind
+Mods, resource packs, shaders, and datapacks install per entry, from a content source or a local file. No content source ships yet (they return with the new plugin system), so only
+`--file` installs today. Every kind
 takes a project slug/id, a source page URL, or a local `--file` — or, with no item on a terminal, opens the **fullscreen install session**: a boxed search bar over
 live results with a detail pane, space checks any number of items,
 `v` pins a version, Enter reviews the batch, and one confirm installs them all as a single job (failures report per
@@ -389,16 +372,15 @@ hestia instance modded mod add   # fullscreen search → select → review → i
 hestia instance modded mod add sodium      # install a mod (resolves required
                                  #   deps; --version pins one; the file is
                                  #   mirrored into the game dir at launch)
-hestia instance modded mod add https://modrinth.com/mod/lithium  # a page URL
-hestia instance modded mod add jei -S curseforge     # from another source (a
-                                 #   page URL names its own, so -S is for slugs)
+hestia instance modded mod add <page-url>  # a source's page URL
+hestia instance modded mod add <slug> -S <source>   # from a named source
 hestia instance modded mod add --file ./my-mod.jar   # import a local file; one
                                  #   a source recognises is tracked
 hestia instance modded mod update my-mod.jar --file ./my-mod-1.1.jar   # a
                                  #   local item takes a new build; enabled,
                                  #   disabled and its worlds carry over
 hestia instance modded mod set-version sodium 0.6.0   # re-pin to a version
-hestia instance modded mod set-version sodium 0.6.0 -S curseforge
+hestia instance modded mod set-version sodium 0.6.0 -S <source>
                                  # ...taken from another source that carries
                                  #   the installed file
 hestia instance modded mod list  # installed mods (+ any untracked jars in the
@@ -459,10 +441,9 @@ hestia logs modded -f            # follow its captured output fullscreen (the
 
 ## Content discovery
 
-Sources are plugins — Modrinth and CurseForge are official plugins — and with none installed there is nothing to
-browse; installs are per-entry (above). Every browse verb takes `-S/--source` and defaults to the first source that can
-serve — CurseForge needs an API key, set with `hestia plugin config curseforge api-key` (prompted for, without echo). `hestia sources` lists
-every source with the kinds it catalogues and whether it is ready or needs a setting.
+Browsing needs a content source; none ships yet, so these verbs report that no source is available. Every browse verb
+takes `-S/--source` and defaults to the first source that can serve. `hestia sources` lists every source with the kinds
+it catalogues and whether it is ready or needs a setting.
 
 ```bash
 hestia mod search                # bare, on a terminal: the fullscreen browser
@@ -473,28 +454,26 @@ hestia search sodium             # with a query: prints results (alias for
 hestia mod search sodium -l fabric -g 1.21.1   # filter by loader / version
 hestia modpack search "create"   # browse other kinds: modpack, resourcepack,
 hestia resourcepack search faithful            #   shader, datapack, server-plugin
-hestia server-plugin search luckperms   # server plugins (paper/folia/bukkit/spigot)
+hestia server-plugin search luckperms   # Minecraft server plugins
 hestia mod info sodium           # a project's details (downloads, sides, …)
 hestia mod versions sodium -l fabric -g 1.21.1  # downloadable versions
-hestia mod search jei -S curseforge             # search another source
+hestia mod search jei -S <source>               # search another source
 hestia sources                   # the sources that can serve, and what each has
 ```
 
 ## Modpacks
 
 A pack pins its own loader and game version, so installing one *builds* the entry it wants. The one argument takes any
-of the three ways to name a pack — an existing path is a pack file (read by a pack plugin), a scheme is a URL, anything
+of the three ways to name a pack — an existing path is a pack file, a scheme is a URL, anything
 else is a project on the source (`-S`); omit it on a terminal and a searchable picker opens over live search results.
-A pack whose manifest names its mods by id (CurseForge's) installs from a file only with the source that can resolve
-those ids installed.
 
 ```bash
 hestia modpack install fabulously-optimized     # → a new instance
 hestia modpack install                          # pick one interactively
 hestia modpack install fabulously-optimized --name cozy
 hestia modpack install ./pack.zip               # a local pack file
-hestia modpack install https://modrinth.com/modpack/…/version/6.2.1
-hestia modpack install all-the-mods-10 -S curseforge   # from another source
+hestia modpack install https://example.com/pack/version/6.2.1
+hestia modpack install <pack> -S <source>       # from a named source
 hestia modpack install <pack> --server --eula   # → a new server instead
 hestia modpack install <pack> --into cozy       # into an existing entry
 hestia instance create --modpack <pack>         # the same thing, noun-first
@@ -641,8 +620,6 @@ hestia config set instance.multi-session true # allow an instance to run several
 hestia config set content.auto-update true    # apply content updates on launch,
                                               #   and to a stopped server when found
 hestia config set network.offline true        # stop reaching the network at all
-hestia config set plugins.auto-update false   # stop applying official plugin updates unattended
-hestia config set developer true              # show the plugin authoring tools (see Launcher plugins)
 ```
 
 `network.offline` pins the launcher offline. Nothing is attempted while it is set, so anything that needs upstream
@@ -651,11 +628,6 @@ already fetched are still answered from their cached copy, so creating an instan
 keeps working. `hestia daemon status` reports the current state on its `network` line — `online`, `checking`,
 `offline — upstream is unreachable`, or `offline (pinned by network.offline)`. The unpinned states are observed from the
 requests the daemon actually makes, so the line never disagrees with what a command is about to do.
-
-`plugins.auto-update` (default on) lets the daemon apply an update to an official plugin by itself after each scheduled
-check (every six hours), when the update asks for nothing beyond what is already granted. It is skipped while the
-network is offline, and logged at info. Third-party plugins, and official updates that widen the grant, only appear in
-`hestia plugin outdated` until you update them.
 
 The data directory is resolved as: `--home` → `$HESTIA_HOME` → a persisted pointer (`config set home`) → the platform
 default (`~/.hestia`, or
@@ -678,7 +650,7 @@ hestia config set modpack.overrides-exclusions "config/**"
 
 The three list keys take comma- or newline-separated entries with `#` comments, matched case-insensitively against any
 part of a file's path — so a
-`MODRINTH_EXCLUDE_FILES` value from docker-mc-server pastes in unchanged.
+docker-mc-server exclude list pastes in unchanged.
 `overrides-exclusions` takes ant-style patterns (`?` one character, `*` a run within one path segment, `**` a run across
 segments). Anything held back is reported on the install result, naming each file.
 
@@ -693,11 +665,7 @@ hestia daemon restart            # restart it (workloads survive)
 hestia daemon stop               # asks about running workloads (piped: --all/--keep)
 hestia daemon stop --all         # stop supervised processes too
 hestia daemon stop --keep        # leave them running (script-safe)
-hestia daemon restart --safe-mode  # restart without third-party plugins
 ```
-
-Safe mode (`--safe-mode` on `daemon start`/`restart`, or `HESTIA_SAFE_MODE=1` for `hestiad`) applies to one run only.
-Installed plugins stay listed, disabled with the reason, and `hestia daemon status` says the daemon is in safe mode.
 
 Underneath the entry verbs sits the supervisor's own view — every workload the daemon is running, across servers and
 instances, keyed the way the supervisor keys them. Reach for it when the entry-scoped verbs cannot answer: a server's
@@ -715,194 +683,6 @@ guess: "stop the launcher" says nothing about the server, so it prompts on a ter
 naming both flags — a script has to state which it meant. With nothing running there is nothing to ask and it stops
 immediately. The tray's **Quit** and the desktop's stop button always mean
 `--keep`: neither can ask, and neither should end a running server on your behalf.
-
-## Launcher plugins
-
-`hestia plugin` manages plugins that extend Hestia itself; server plugins are `hestia server-plugin` and
-`hestia server <name> plugin`. Writing one is covered in [plugins/](plugins/README.md).
-
-```bash
-hestia plugin list               # alias ls; id, name, version, state, source (obsolete ones say so; official ones are marked)
-hestia plugin add <path>         # a .hplugin or a folder; shows the permissions, confirms; -y approves exactly those
-hestia plugin add <https-url>    # a link to a .hplugin (https only, 64 MiB max), then the same prompt
-hestia plugin add <id>           # from an added repository: its newest build for this Hestia
-hestia plugin add <label>/<id>   # the same, from the repository with that label
-hestia plugin add <index-url>    # a repository's link: offers to add it, then to pick plugins from it
-hestia plugin info <id>          # manifest, state, permissions, signer, repository, last error, call counters
-hestia plugin config <id>        # the settings the plugin declares; a secret shows only as set or not set
-hestia plugin config <id> <key>  # one setting; a secret without a value is prompted for, without echo
-hestia plugin config <id> <key> <value>   # set it, checked against the declared kind; --unset restores the default
-hestia plugin enable <id>        # load it
-hestia plugin disable <id>       # unload it; it stays installed
-hestia plugin remove <id>        # alias rm; deletes its data, so it confirms first; -y skips the prompt
-```
-
-Any other https link is read as a repository index; only one ending in `.hplugin` is a package. An id offered under
-more than one key asks which (`<label>/<id>` names it); without a terminal the error lists the choices.
-
-### Plugin repositories
-
-A repository is trusted by the minisign key it declares, not by its address. Adding one shows what it is, with the key id, and asks
-before trusting it.
-
-```bash
-hestia plugin repo add <owner/repo|github.com/owner/repo|https-plugins-json-url>   # owner/repo reads its `repo` branch; shows name, label, website, key id, plugin count; asks; -y trusts the key shown
-hestia plugin repo list          # alias ls; label, name, key id, plugin count, website
-hestia plugin repo refresh [ref] # fetch again; an unreachable one keeps its cached index and warns
-hestia plugin repo remove <ref>  # alias rm; label, name or index URL; confirms, -y skips; its plugins keep running, as obsolete; the official repository is refused
-hestia plugin browse [query] [--repo <ref>]   # every plugin of every repository, with store label, key id and status
-hestia plugin outdated [--unsigned]            # installed plugins with a newer build; --unsigned also re-downloads unsigned link installs
-hestia plugin update <id|--all> [-y]           # move to the newest build; one that asks for more permissions shows them and asks first, -y approves exactly those; a build that fails to load is rolled back
-```
-
-A refresh refuses an index signed by another key, declaring another key, older than the one kept or past its expiry;
-for a named repository that is an error, for all of them a warning, and the cached index stays. An expired index also
-stops new installs from it until a fresh one is fetched. An installed plugin the index revokes is disabled, with the
-reason as its error. `browse` works offline from the
-last good copies.
-
-Developer mode (`hestia config set developer true`, default off) gates the authoring tools. Off, the verbs below
-(`new`, `pack`, `dev`, `check`, `keygen`, `publish`) are hidden from help and refuse with `developer mode is off; enable it
-with: hestia config set developer true`; the daemon also refuses a dev install and the `plugin.log` stream on its own.
-On, `hestia plugin info` adds the grant digest, the component cache directory and the last error's cause chain. The CLI
-reads the setting from the daemon only for `plugin` and help invocations; a daemon that is down reads as off.
-`HESTIA_DEVELOPER=1` turns the CLI side on without a daemon (the daemon's own refusal still applies). Turning the mode
-off disables every plugin run from a folder, with the reason as its last error. Completions still list the hidden
-verbs; running one is still refused.
-
-Writing one needs no daemon. A plugin lives in a repository: a cargo workspace (`members = ["plugins/*"]`) with one
-`plugins/<id>/` folder per plugin, holding `plugin.toml`, `Cargo.toml`, `src/` and optionally `assets/` and `themes/`.
-
-```bash
-hestia plugin new <id>           # outside a repository: creates ./<id>/ with the workspace and plugins/<id>/;
-                                 #   inside one: adds only plugins/<id>/
-hestia plugin pack [id…]         # from anywhere in the repository: build and write dist/<id>-<version>.hplugin
-hestia plugin check [id…] [--dir <dir>]   # the repository shape, every manifest, then a type-check of the crates
-hestia plugin test [id…]         # run the plugins' own tests natively, against the SDK's mock host
-                                 # validate the repository against the one shape; every plugin's result is listed
-hestia plugin publish --out <dir> --sign <secret key> [--repository <https-url>]
-                                 # build the versions with no package in <dir>/packages yet, then write and sign
-                                 #   <dir>/plugins.json (<dir> is a checkout of the `repo` branch; no network)
-hestia plugin keygen [--out <dir>] [--unencrypted]
-                                 # write hestia.key and hestia.pub (to --out, default the current directory) and set
-                                 #   `key` in [workspace.metadata.hestia]; never overwrites a key; --unencrypted for a CI secret
-hestia plugin pack --sign <secret key>   # also write <package>.minisig (the key must match the repository's declared one)
-                                 # pack and publish refuse a component built against another WIT (`cargo update -p hestia-sdk`)
-hestia plugin dev [dir] [-y] [--once]
-                                 # run plugins/<id>/ in place, rebuild when its sources change, stream its log
-                                 #   (developer mode only); --once builds and installs it, then returns instead of watching
-hestia plugin dev|check|test|pack|publish --sdk <dir>
-                                 # build against a local checkout of the hestia-sdk crate (crates/sdk); $HESTIA_SDK is
-                                 #   the fallback, the flag wins; no file of the plugin is edited
-```
-
-`--sdk` hands cargo a `patch` on its command line (`--config 'patch.<source>.hestia-sdk.path="<dir>"'`, for the
-`crates-io` or git source the plugins' `Cargo.toml` names) so an unreleased or changing SDK needs no hand-written
-`[patch]`. The folder must hold the `hestia-sdk` crate's `Cargo.toml`; `Cargo.lock` is put back as it was after each
-cargo run. `dev` watches `src/`, `Cargo.toml`, `plugin.toml`, `assets/` and `themes/` (polled every half second),
-rebuilds once a burst of edits has been quiet for half a second, and reports the build's errors in place; a failed
-build leaves the previous one running and the watch going.
-
-`check`, `pack` and `publish` work per plugin. `check` lists each plugin as `ok` or with every problem found (a manifest
-reports all of its mistakes, not the first) and exits non-zero when any selected plugin failed; naming ids narrows it. When every manifest passes it type-checks
-the plugins' crates for `wasm32-wasip2` (`cargo check`), so a code error is found without a full build.
-`pack` and `publish` still need the repository as a whole to follow the shape, but then process every valid plugin and
-report the invalid ones at the end, failing the run. An invalid plugin gets no new build in the index; its previously
-published builds stay listed. A named id that is not under `plugins/` is an error.
-
-The shape, the index format and the release flow are in [plugins/repository.md](plugins/repository.md) and
-[plugins/publishing.md](plugins/publishing.md). `check`
-needs `[workspace.metadata.hestia]` (`name`, `label`, `website`, `key`, a valid minisign public key) and a theme-only plugin listed in `exclude`;
-`pack` and `publish` run it first. `publish` never rebuilds a published version: a package in `<out>/packages/` whose
-sha256 no longer matches `plugins.json` is refused. It lists every package there as a build with its sha256, reads
-`revoked.toml`, sets `version` to the signing time (never below the previous one) and `expires` 30 days on, and takes
-`commit` from git and `repository` from `--repository` or the `origin` remote. `--sign` is required and must be the
-repository's declared key.
-
-`pack` runs `cargo build --release --target wasm32-wasip2` (needs `rustup target add wasm32-wasip2`), writes the `api`
-requirement into the packaged `plugin.toml` from the `hestia-sdk` version cargo resolved (never type it yourself), and
-bundles `plugin.toml`, the component, `assets/` and `themes/`. A theme-only plugin (no `Cargo.toml`, no `wasm`) skips
-cargo and carries no `api`; list its folder under the workspace's `exclude`, since `plugins/*` would otherwise expect a
-crate there. The scaffold depends on `hestia-sdk` from the `develop` branch of the Hestia repository until the SDK is
-released.
-
-`dev` skips the pack-reinstall loop. From a plugin folder (or with `dir`) it builds the component, stages
-`dist/dev/<id>/` (the same files `pack` would zip), installs that folder in dev mode and shows the permissions to
-approve once. The daemon reads the folder in place and polls its manifest, component and themes once a second; when one
-changes it reloads the plugin (calls already running finish on the old component) and the command prints the new
-state. Rebuild with `cargo build --release --target wasm32-wasip2` and `dev` re-stages the new component. The plugin's
-`log` lines and stdout/stderr stream to the terminal until Ctrl-C; the plugin stays installed as source `dev`
-(marked so in `plugin list` and the desktop Plugins page) until `hestia plugin remove <id>`. A manifest that now asks
-for more than you approved leaves the plugin at `needs approval`; run `dev` again to approve it. A folder with no
-`Cargo.toml` is treated as an already unpacked package and installed as it is. A dev folder inside the data home's
-`plugins/` directory is refused. Only dev plugins publish `plugin.log`, a topic no plugin can receive.
-
-### Plugin commands
-
-An installed, enabled plugin can contribute commands. A top-level one reads `hestia <plugin> <command>`; one that acts
-on an entry reads like the built-in verbs, `hestia server <name> <command>` or `hestia instance <name> <command>`, and
-the daemon resolves `<name>` for the plugin.
-
-```bash
-hestia hello                     # list the plugin's commands (title, description)
-hestia hello greet --name world  # run one; --name <value>, --flag for a bool, --count 3 for a number
-hestia hello greet --help        # the declared arguments and their help
-hestia hello greet --json        # print the output as JSON (see Machine-readable output)
-hestia server smp lists add steve alex       # a server-scoped command `lists add` taking bare words
-```
-
-A command id may be several words (`lists add`; the longest match wins), and a command that declares a `words` argument
-takes the bare words after it. Only declared arguments are accepted (`--name value` or `--name=value`); a missing required one or an unknown one is
-refused, naming what it expected. A progress-reporting command shows its message inline like the built-in jobs. The
-output renders as a key/value block for an object, a table for a list of objects, a line for a string, and indented JSON
-otherwise. If two plugins contribute the same scoped command, you are asked which to run (without a terminal it errors,
-listing them). Built-in verbs always win: a plugin id that is a top-level command, and a scoped command id that is a
-built-in verb of that scope, are refused at install.
-
-A command whose output is a plugin UI tree (rather than plain JSON) renders like a page, minus the actions.
-
-### Commands from official plugins
-
-The `players` plugin ([official plugins](plugins/official.md)) is the one official plugin that adds commands. Core has
-no whitelist, operator or ban verbs. With it enabled, a server answers:
-
-```bash
-hestia server smp players list           # who is online, and the whitelist, operator and ban lists (alias: ls)
-hestia server smp players allow steve alex      # add to the whitelist
-hestia server smp players disallow steve        # remove from the whitelist
-hestia server smp players op steve              # make operators
-hestia server smp players deop steve            # take operator status away
-hestia server smp players ban steve             # ban
-hestia server smp players pardon steve          # lift a ban
-hestia server smp players kick steve            # disconnect online players
-```
-
-Every other official plugin contributes a provider (a source, flavor, pack format or Java distribution) or reacts to
-events, so it adds no verb of its own: its providers show up in `hestia sources`, `server flavors`, `instance import`
-and `java install`, and its settings in `hestia plugin config <id>`.
-
-### Plugin pages
-
-`hestia <plugin> <page>` draws a page the plugin contributes, when `<page>` is one of its page ids and no command has
-that name. Headings and text print as lines, tables and lists as tables, details as a key/value block, notices as notes
-(warnings for the warning and error tones), markdown as text, an image as its alt text and progress as a bar.
-
-```bash
-hestia dashboard overview                          # a terminal: draw the page, then pick an action; it loops
-hestia dashboard overview | cat                    # no terminal: draw once and stop
-hestia dashboard overview --action refresh         # run one action by its id, print the result
-hestia dashboard settings --action save --set theme=dark --set size=3
-hestia notes list --entry smp                      # a page that sits on a server or instance needs --entry
-```
-
-On a terminal, buttons, list-item buttons, table rows (when the table has a row action) and form submits form one
-action menu. A form asks field by field: a line for text and number, a menu for select, toggle and entry (which lists
-servers or instances by kind). The plugin's answer applies in turn: a new tree redraws, a toast prints as a note, and
-a navigation opens that page when it is the same plugin's, otherwise prints where it points and stops.
-
-`--action <id>` is one-shot and needs no terminal: it picks the first action of that id on the page. For a form, give
-each field with `--set name=value` (repeatable); a field left out takes its default, except an entry field, which needs
-the server or instance name or id. A row action sends the first matching row's payload.
 
 ## Updating Hestia
 
@@ -954,7 +734,6 @@ progress). Human messages never mix in; diagnostics stay in `logs/hestia.log`.
 | a line or note              | `{"message": "…"}`                                                                    |
 | several of the above        | an array of each, in the order shown                                                  |
 | nothing                     | `null`                                                                                |
-| a plugin command's output   | that output as the plugin returned it (`hestia <plugin> <command> --json`)            |
 
 Table and block values are typed, not the strings the terminal shows:
 
@@ -971,13 +750,12 @@ Table and block values are typed, not the strings the terminal shows:
 | anything else                     | a string                                                                         |
 
 Where a column's header reads badly as a key (a unit, a marker, an abbreviation), the table names its key: `backup
-list` calls its `AGE` column `created`, and `account list` calls its unnamed marker column `default`. A plugin
-command's output keeps its own types. `warnings` carries what a result reports as degraded, with the tag of its `kind`
+list` calls its `AGE` column `created`, and `account list` calls its unnamed marker column `default`. `warnings` carries what a result reports as degraded, with the tag of its `kind`
 (the same vocabulary as the wire's `WarningInfo`) and the hint for fixing it; a warning a view raises itself has a null
 `kind` and `hint`.
 
 A command that reports the state of one thing is one object with `state` first: `hestia --json daemon status` is
-`{"state": "running", "pid": 4242, "uptime": 93, "network": "online", "home": "…", "log": "…", "safe_mode": false}`,
+`{"state": "running", "pid": 4242, "uptime": 93, "network": "online", "home": "…", "log": "…"}`,
 and a stopped daemon is `{"state": "stopped"}` (still exit code `3`). `network` is `online`, `offline` or `unknown`,
 `null` when the daemon could not say.
 
@@ -985,7 +763,7 @@ A failure prints one object on **stderr**, with the same exit code as without th
 tag (`entry_not_found`, `sign_in_required`, …), `code` its coarse category (`not_found`, `unauthorized`,
 `bad_request`, `forbidden`, `offline`, `handler_error`, …); a refusal made by the CLI itself, such as a missing
 argument, is `local`/`local`. `hint` is the next step a person can take, present only when there is one (a signed-out
-account, developer mode off, a content source waiting on a setting, the daemon not running); without `--json` it is
+account, the daemon not running); without `--json` it is
 printed under the error:
 
 ```json
@@ -1000,9 +778,6 @@ resource monitor) refuse it, and the content browser and the paged table fall ba
 `hestia logs <name> -f --json` is a stream: newline-delimited JSON, one object per line, flushed as it arrives
 (`{"message": "…"}` per line of output). Its history, printed before following starts, uses the same lines. A stream has
 no `data` envelope.
-
-`hestia <plugin> <command> --json` is the same flag: it is accepted after the plugin command's name and not passed on
-to the plugin.
 
 ## Exit codes
 

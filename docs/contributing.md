@@ -67,18 +67,9 @@ Rules:
   `Session::call` and the desktop bridge both apply it; a job's start channel keeps the default.
 - **A call that mutates state another client renders** sets `const CHANGES: Option<Scope> = Some(Scope::…)`; the daemon
   then publishes `changed`, and the desktop maps the scope in `queries/invalidation.ts`.
-- **A contract a plugin may call** sets `const PLUGIN: Option<Permission> = Some(Permission::…)`. One it must never
-  reach goes on `DENIED` in `crates/proto/tests/permission.rs`. One whose whole result is a harmless fact sets
-  `const AMBIENT: bool = true` and goes on that test's `AMBIENT` list. A plugin channel narrower than its permission
-  sets `NARROWED_BY: Option<ScopeKind>` and a `touches(&Params) -> Vec<String>`; the plugin gate checks the entries
-  against the grant, so no handler checks a grant by hand. A new permission is a `Permission::spec` arm plus an entry in
-  `Permission::ALL`; a new scope kind is a `ScopeKind` variant with its rule in `scope.rs`.
 - **A daemon-to-client push** implements `Topic` (the type is its own event payload). A long-running operation is a
   `Job` (see [Add a daemon channel](#add-a-daemon-channel)).
 - **Changing an existing payload** means updating `crates/proto/tests/` (`wire` and `golden` are pinned on purpose).
-  A plugin-reachable contract is also snapshotted: regenerate with
-  `HESTIA_UPDATE_GOLDEN=1 cargo test -p proto --features ts --test plugin_api` and review the diff. A new contract, job
-  or topic goes in that test's `api()` list.
 
 ---
 
@@ -104,6 +95,11 @@ pub fn instances(&self) -> &Instances { &self.instances }
   `engine/flows/<concern>.rs` as an `impl Engine` block.
 - A subsystem with an open set of implementations (a content platform, an archive format) gets a trait plus a registry
   list, so adding one is a module and a line in that list. Express what needs the aggregate as data the flow matches on.
+- The flavor, content, Java and pack seams are open to providers registered at runtime under an owner (see
+  [Minecraft providers](architecture/minecraft.md), [content](architecture/content.md) and
+  [transfer](architecture/transfer.md)). Tests drive them with the native stand-ins in `crates/engine/tests/fixture/`,
+  so a flow runs without the network. Flavors, content sources, pack formats and Java distributions beyond the
+  built-ins return with the new plugin system.
 
 ## Persist something, or change its shape
 
@@ -328,18 +324,14 @@ and a dead key. A key reached dynamically (``m[`error.kind.${kind}`]``) needs it
 
 ## Build & run
 
-The tests build fixture plugins into components, so `cargo test` needs the `wasm32-wasip2` target. Example plugins for
-authors live in [prytaneum/plugin-examples](https://github.com/prytaneum/plugin-examples):
-
 ```bash
-rustup target add wasm32-wasip2
 cargo build
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
 Run these at the root without `-p` (every member but `desktop` is a default member; `-p` re-resolves features and
-compiles a second wasmtime). Narrow a test run by name: `cargo test plugins::`.
+compiles a second copy of the dependency tree). Narrow a test run by name: `cargo test content::`.
 
 `scripts/run.sh` is the one way to run a development build. Every form builds first and uses the same dev daemon:
 
@@ -348,17 +340,12 @@ scripts/run.sh --shell          # a subshell with hestia and hestiad on PATH, da
 scripts/run.sh --desktop        # the desktop app, with frontend hot reload
 scripts/run.sh --daemon         # hestiad in the foreground
 scripts/run.sh server list      # one `hestia` command
-scripts/run.sh --plugins=../hestia-plugins --desktop   # with the plugins of that checkout
 scripts/run.sh --release --desktop   # the optimised app, on its own data
 ```
 
 Debug builds keep data in `target/debug/data` and scope their daemon endpoint to it, so nothing touches an installed
 Hestia; `--release` uses `target/release/data`, and `--home=DIR` picks another. The `hestia` CLI never starts a daemon
 itself (`hestia daemon status|start|stop|restart`).
-
-A run has no plugins unless it asks: `--plugins=DIR` builds every plugin of that checkout of the
-[plugins repository](https://github.com/prytaneum/plugins) against this checkout's SDK, installs each as a dev plugin
-(`hestia plugin dev <dir> --once`) under its signed id, and removes them when the run ends. Builds are cached.
 
 The desktop needs the system webview, [Bun](https://bun.sh/) and `cargo install tauri-cli --version '^2'`. The
 frontend's checks, in CI's order:
@@ -386,8 +373,3 @@ The tracked hooks in [`.husky/`](../.husky) are installed by one `cargo test` (`
 | `pre-push`   | `fmt --check`, `clippy -D warnings`, `test`, and the Bun chain, for whichever side changed (skips `desktop`) |
 
 `--no-verify` bypasses either hook.
-
-## Plugins
-
-Plugin authors write against the SDK; the guide is [plugins/](plugins/README.md). The wire-in points for the plugin API
-are in [architecture/plugins.md](architecture/plugins.md).

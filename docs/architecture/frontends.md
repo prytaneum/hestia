@@ -121,7 +121,7 @@ Everything else in `commands/` is there because only the shell process can do it
 | `crash_report`, `log_write`              | a webview error kills the UI without touching the Rust stack                                  |
 | `open_path`, `open_url` (`opener.rs`)    | the host's default handler must start with the host's environment (AppImage)                  |
 | `hestia-image` scheme (`proxy.rs`)       | an asynchronous URI scheme serving `image.fetch` bytes                                        |
-| `pending_archive`, `pending_repository`  | hand the webview the `.hestia` archive or `hestia://add-repo?url=` link the app was opened with |
+| `pending_archive`                         | hands the webview the `.hestia` archive the app was opened with                               |
 | `ready` (`splash.rs`)                    | the webview reports it has painted, which reveals the window                                  |
 | `start_daemon`, `relaunch_daemon`        | the `Client::start()` spawn path behind the offline overlay and after a restart or home move  |
 
@@ -155,7 +155,7 @@ express it (a read composing two sources, or one accumulating live events).
 - Streaming is hooks too (`useConnection()`, `useDaemonEvent(topic, handler)`, log hooks). Components never touch the
   event bus.
 
-**`features/` and `routes/`**: pages for the library, servers, instances, content browse, skins, plugins and settings,
+**`features/` and `routes/`**: pages for the library, servers, instances, content browse, skins and settings,
 over a shell with an offline overlay, a first-run sign-in prompt and route guards for the account-gated instance
 surface. Every feature has the same shape, and a directory exists only once it has something in it:
 
@@ -176,41 +176,10 @@ features/<name>/
 - Vocabulary two features share lives in `features/shared/`, a leaf that may not import a feature. `shared/entry` is what
   a server and an instance both are; `shared/content` is the content vocabulary. Everything else is one-directional
   (`library` to `instances`, `instances` and `servers` to `content`), so the feature graph is acyclic.
-- **Plugin approval is a native dialog**, never a webview modal. The Plugins page inspects a package, shows its grant
-  through `dialog.ask` with full-access permissions first, and installs against the inspected `grantDigest`. A grant
-  past `MAX_DIALOG_LINES` gets a summary in the dialog and the full list in an in-page review. The daemon says which
-  permissions are full access (`unrestricted`), so the frontend keeps no tier table.
 - **A dropped file goes through one pipeline** (`lib/file-drop`, shaped like `react-dropzone`): `useDropzone` returns
   `getRootProps()` and `isDragActive`. The drop goes to the innermost accepting zone under the pointer. Bootstrap starts
   the one window-wide drag-drop listener (only it carries a real path, and the daemon takes paths, not bytes) and the
   pipeline hit-tests by hand.
-
-### Plugin pages
-
-The desktop draws a plugin's `UiNode` tree with its own components (`features/plugins/`). Three slots, set by the
-manifest's `PageSlot`:
-
-- **`nav`** adds a sidebar item opening `/plugins/$plugin/$page`.
-- **`entry`** adds a tab to a server or instance detail; the page receives the entry id in its `PageContext`.
-- **`settings`** adds a section to the plugin's own page under its declared settings.
-
-`PluginView` fetches the tree (`pluginQueries.render`, keyed by locale and under `keys.plugins`) and `view/render.tsx`
-maps each node type to a component (layout, data, form). An unknown node renders a notice, not a failure. Markdown is
-rendered with `raw={false}`, and images resolve to `hestia-plugin` URLs through `pluginAsset`. An action calls
-`plugin.ui.action` and applies the effects (`render`, `toast`, `navigate`, `refresh`). A page with `topics` or
-`refresh_every` is redrawn on such a topic (at most twice a second) or interval. `remote_image` is a `plugin.image` query
-rendered as a data URL. `usePluginText` loads `plugin.messages` to translate manifest titles and setting labels.
-
-A plugin's `[[contributes.commands]]` appear where they act: server- or instance-scoped ones in that entry's actions
-menu, top-scoped ones on the plugin's page. Arguments open a generated form; each runs as a `plugin.run` job through the
-job store.
-
-### Themes
-
-A theme (`[[contributes.themes]]`, needing `ui:css`) is picked in Settings, Appearance, and stored as the `theme` pref.
-`ThemeHost` appends one stylesheet link to the plugin's `hestia-plugin` URL once a theme is chosen and safe mode has
-answered no. A theme that is removed, disabled or fails to load falls back to the built-in look. `hestia-desktop
---safe-mode` or `HESTIA_SAFE_MODE=1` loads no plugin CSS and shows a notice with a button that clears the pref.
 
 ## Editions in the desktop
 

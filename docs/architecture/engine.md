@@ -6,7 +6,7 @@ The engine is the launcher itself: config, downloads, Java, accounts, game provi
 supervision. It is daemon-internal. It links neither `ipc` nor `client` and knows no socket exists.
 
 Larger domains have their own pages: [Minecraft providers](minecraft.md), [Servers and instances](entries.md),
-[Content and modpacks](content.md), [Plugins](plugins.md).
+[Content and modpacks](content.md).
 
 ## The aggregate root
 
@@ -63,8 +63,6 @@ keys and mistyped values, so the struct is the validation. `normalize()` handles
 - `defaults.jvm-args` and `defaults.memory` fall back into any start or launch whose record leaves the field unset
   (`JavaSettings::or_defaults`).
 - `home` routes to the path pointer and `autostart` to the platform login registration; neither is stored.
-- What a plugin may do with each setting is `proto::config::PLUGIN_ACCESS`. A test fails when a setting has no entry, so
-  a new setting is closed to plugins until someone decides.
 - Keys are kebab-case on the wire while the file stores camelCase.
 
 ## The network
@@ -100,20 +98,15 @@ entries, oldest dropped). A repeat view, or any view while offline, makes no req
   is reused whatever URL asked. It serves per-entry destinations (server jars and libraries, mods, modpack files).
   Files in the shared `meta/` tree and the JDK archive bypass it. Hits are re-hashed on the way out; a damaged blob is
   evicted and refetched. The cache can make things faster, never wrong.
-- **Plugin packages** installed from a URL go through `plugin.inspect`, which checks the link is https and
-  credential-free, downloads it (64 MiB) into `tmp/plugins/` and returns an opaque token. `plugin.install` takes the
-  token back, so the file approved is the file installed. The token is a random in-memory id, never a path, and
-  expires after 15 minutes.
 
 ## Java runtimes
 
 `Java` installs runtimes under `<data_home>/java/<vendor>-<major>/` beside a `runtime.json`. Listing scans the
 directory. A runtime already on disk is used without any provider.
 
-A `JavaProvider` resolves a build and nothing else. None is built in: a plugin contributes one (the official `adoptium`
-plugin). The `java.provider` setting names the default; with none registered an install fails `ProviderUnknown`. The
-host vets the build (https on the plugin's granted hosts, a sha256, a `tar.gz` or `zip` archive, a plain vendor name)
-and runs the pipeline in-process:
+A `JavaProvider` resolves a build and nothing else. Eclipse Temurin from Adoptium is built in and is the default; the
+`java.provider` setting names the provider a bare install uses, and an unknown name fails `ProviderUnknown`. `Java`
+downloads the build, verifies its SHA-256, extracts it and registers it in-process:
 
 ```mermaid
 flowchart LR
@@ -122,8 +115,7 @@ flowchart LR
 
 ## Process supervision
 
-`ProcessSupervisor` owns every process Hestia starts: servers, game sessions, a plugin flavor's build programs, the
-`server.properties` schema run. It is engine state because its directory is engine-owned and because engine flows that
+`ProcessSupervisor` owns every process Hestia starts: servers, game sessions and the `server.properties` schema run. It is engine state because its directory is engine-owned and because engine flows that
 shell out must not spawn bare children.
 
 A supervised process is decoupled from the daemon: its own process group (a job object on Windows), no `kill_on_drop`,
@@ -181,11 +173,15 @@ The install shape picks the artifact and the installer: a package asks the manif
 and accepts nothing else. The `portable` feature short-circuits to unmanaged. The channel (`update.channel`) is the last
 segment of the feed URL (`.../updates/stable`, `.../beta`).
 
-When a release's `plugin_api` is one the installed official plugins cannot run on, `Engine::download_update` first
-stages compatible builds into `updates/plugins/<api>/` (`flows/handover.rs`), or refuses with
-`update_plugins_incompatible` (no build) or `update_plugins_need_approval` (a wider grant) before downloading anything.
-The new daemon installs them at start, before loading a plugin. An unparsable version compares as no answer and every
-caller treats that as a refusal.
+## Provider seams and plugin groundwork
+
+Flavors (`FlavorProvider`), content sources (`ContentProvider`), Java distributions (`JavaProvider`) and pack formats
+(`PackProvider`) are traits held in a runtime-mutable `Roster` (`roster.rs`); only the built-ins are registered: vanilla
+Java and Bedrock, Adoptium, and Hestia's own archive. No content source is built in. `engine/src/plugins/` keeps only
+download vetting (`vouch`: `Policy` and host matching), program pinning (`program.rs`, `invocation.rs`) and the signed
+repository index code (`index.rs`, `catalogue.rs`, `repositories.rs`, `repos.rs`, `official.rs`, `api.rs`). Nothing
+calls it yet. Flavors, content sources, pack formats and Java distributions beyond the built-ins return with the new
+plugin system.
 
 ## Accounts and skins
 

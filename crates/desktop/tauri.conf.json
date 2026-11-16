@@ -49,13 +49,6 @@
       }
     }
   },
-  "plugins": {
-    "deep-link": {
-      "desktop": {
-        "schemes": ["hestia"]
-      }
-    }
-  },
   "bundle": {
     "active": true,
     "targets": "all",

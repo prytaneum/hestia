@@ -4,7 +4,6 @@
 pub mod auth;
 pub mod diagnostics;
 pub mod icons;
-pub mod link;
 pub mod open;
 pub mod opener;
 pub mod prefs;

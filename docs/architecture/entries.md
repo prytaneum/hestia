@@ -82,7 +82,7 @@ schedule and game port across a version change.
 ```mermaid
 flowchart TD
     R["resolve profile"] --> REG["register record<br/>phase: Provisioning"] --> PORT["claim game port"] --> JAVA["ensure Java"]
-    JAVA --> FETCH["download files"] --> INSTALL["install hook<br/>(flavors that build a jar)"]
+    JAVA --> FETCH["download files"] --> INSTALL["install<br/>(flavors that build a jar)"]
     INSTALL --> SCHEMA["derive schema.properties"] --> PROPS["write server.properties"] --> READY["phase: Ready"]
     REG -.->|"failure at any step"| DISCARD["record removed"]
 ```
@@ -248,15 +248,8 @@ at once and refuses one that does not name each entry exactly once (the game kee
 `minecraft.ping` gives one address's status, including the `favicon`. The running game rewrites the file on exit, so an
 edit under a live session is made and reported degraded (`ServerListInUse`).
 
-## Players
-
-Player lists are the official `players` plugin's, not core's. It reads files through `server.files.read` and changes
-them with console commands, so a change needs the server running. It reads `ServerInfo.edition` to decide what exists:
-Java has whitelist, operators and bans; Bedrock has allowlist and operators only (no ban command, and `op` needs the
-player online).
-
 ## Known limits of Bedrock servers
 
 - The Windows stdin relay builds behind `#[cfg(windows)]` but has not been run on Windows; the unix FIFO is tested.
-- Only vanilla BDS ships; other Bedrock server software waits on plugins.
+- Only vanilla BDS ships.
 - No ban list, and `op` needs the player online.

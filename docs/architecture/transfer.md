@@ -6,14 +6,14 @@ An instance moves in and out of the launcher as **one file**. This is what insta
 is infrastructure recoverable in place, archived on a schedule under its entry root, while an instance is something you
 play, share and carry, so its archive is one portable file you write on purpose.
 
-Core reads and writes one format, Hestia's own archive. Every other format is a plugin's `pack` provider; the
-[official plugins](../plugins/official.md) supply `.mrpack`, Prism and MultiMC, and CurseForge. Without a pack plugin, a
-foreign archive is refused as unrecognised.
+Core reads and writes one format, Hestia's own archive. Any other format is a registered `PackProvider`
+(`Engine::register_pack`); none ships, so a foreign archive is refused as unrecognised. Pack formats such as `.mrpack`,
+Prism and CurseForge return with the new plugin system.
 
 | Format                  | Marker                    | In  | Out | What it is                                                                          |
 |-------------------------|---------------------------|:---:|:---:|-------------------------------------------------------------------------------------|
 | **hestia**              | `hestia.instance.json`    | yes | yes | the entry directory minus content a source can serve again, plus the instance record |
-| **a plugin's pack**     | what the plugin declares  | yes | yes | any format a `pack` provider reads and writes                                       |
+| **a registered pack**   | what the provider declares | yes | yes | any format a `PackProvider` reads and writes                                        |
 
 ## Detection
 
@@ -21,8 +21,8 @@ foreign archive is refused as unrecognised.
 decided by the **marker file inside**. The shallowest marker wins, and Hestia's own wins a tie. Depth comes first: a
 manifest an archive ships inside its `config/` is a file it uses, not what it is.
 
-Any archive may carry a `manifest.json`, so a plugin's pack that holds its declared members is also asked `claims` and
-counts only if the guest says yes. A plugin cannot claim Hestia's marker or the id `hestia`.
+Any archive may carry a `manifest.json`, so a registered pack that holds its declared members is also asked `claims` and
+counts only if the provider says yes. No pack can claim Hestia's marker, and ids are namespaced `<owner>.<id>`, so none can take `hestia`.
 
 ## The seam
 
@@ -30,7 +30,7 @@ counts only if the guest says yes. A plugin cannot claim Hestia's marker or the 
 flowchart TD
     FILE([an archive]) --> DETECT{detect by marker}
     DETECT --> HESTIA["hestia: read, land"] --> BP["Blueprint<br/>descriptor + recipe"] --> CREATE[["flow registers the instance"]] --> LAND["Hestia::land<br/>files onto disk"]
-    DETECT --> PACK["a plugin's pack provider"] --> MODPACK[["modpack install creates its own entry"]]
+    DETECT --> PACK["a registered PackProvider"] --> MODPACK[["modpack install creates its own entry"]]
 ```
 
 Hestia's archive is read into a `Blueprint` (a descriptor plus a `Recipe` carrying the identity the archive keeps) and
@@ -71,7 +71,7 @@ cozy.hestia (a zip)
 - **Identity, not host state.** The record's flavor, game version and loader version are authoritative. Its profile was
   resolved for the exporting OS, so the manifest omits it and import resolves it on the importing host (using the
   cached catalogue offline), keeping the record's name, Java settings, sharing, playtime and timestamps. The loader is
-  named by the flavor's bare id (`fabric`), so an archive does not depend on which plugin supplied the flavor. The id
+  named by the flavor's bare id (`fabric`), so an archive does not depend on which owner supplied the flavor. The id
   is not honoured: an import is a new entry, so one archive can be imported twice.
 - **Content is referenced, not carried, when it can be.** An item with a URL and SHA-1 (`install::referenceable`) keeps
   its record and leaves its bytes out. Local or non-distributable files are embedded. Import (`flows/restore.rs`)
@@ -81,23 +81,25 @@ cozy.hestia (a zip)
   never lists content the archive lacks. The picker flags referenced files and counts them as nothing.
 - The marker is not `instance.json`: a marker is a claim about what an archive is and must be specific.
 
-## Pack formats from plugins
+## Pack providers
 
-A plugin contributes a format with `kind = "pack"` and the `pack:provide` permission, answering `proto::provider::pack`:
+`PackProvider` (`transfer/provider.rs`) is the seam for a format other than Hestia's. It registers as `<owner>.<id>`
+through `Engine::register_pack(owner, standing, provider)`; `unregister_packs(owner)` drops an owner's formats.
 
-| Operation | Purpose                                                                                                      |
-|-----------|--------------------------------------------------------------------------------------------------------------|
-| `info`    | name, the members it reads (names or globs), the extension it writes                                         |
-| `claims`  | an optional probe over member names and the text of the declared members                                     |
-| `read`    | member names, declared members' text and known loader keys in; the pack (name, game version, loader, files), the override trees each side takes, optionally a delegated file list and `memory`, `jvmArgs`, `icon` out |
-| `write`   | the instance, game-directory files and content pool (each referenceable item with size and SHA-512) in; manifests to store and instance files to copy out |
+| Method               | Purpose                                                                                                      |
+|----------------------|--------------------------------------------------------------------------------------------------------------|
+| `info`               | name, the members it reads (names or globs), the extension it writes                                         |
+| `root_of`, `claims`  | where its pack starts in an archive holding the declared members, and an optional probe of those members      |
+| `read`               | the pack (name, game version, loader, files), the override trees each side takes, optionally a delegated file list and `memory`, `jvmArgs`, `icon` |
+| `write`              | the instance, game-directory files and content pool (each referenceable item with size and SHA-512) in; manifests to store and instance files to copy out |
+| `policy`             | the `Policy` the files the format names are fetched under                                                    |
 
-`PluginPack` registers as `<plugin>.<id>`. The host owns the archive: it maps the loader key to a flavor, vets every
-file through `Policy::vet_artifact`, checks every path and tree stays inside the entry, refuses the whole answer on one
-bad entry, and does all the writing. A `memory` or `jvmArgs` the settings reject, or an icon that is not a plain archive
-path to an image of at most 10 MiB, is dropped and reported (`PackSettingDropped`, `PackIconDropped`). Guest export
-warnings become `PackExportWarned`. `instance.export.formats` lists every format an export can use, and front-ends build
-their pickers from it.
+The host owns the archive: a provider never touches the filesystem. It maps the loader key to a flavor, checks every
+path and tree stays inside the entry, and does all the writing. A `memory` or `jvmArgs` the settings reject, or an icon
+that is not a plain archive path to an image of at most 10 MiB, is dropped and reported (`PackSettingDropped`,
+`PackIconDropped`). Export warnings become `PackExportWarned`. `instance.export.formats` lists every format an export
+can use, and front-ends build their pickers from it. Tests register the native `fixture::pack::Replay` format
+(`crates/engine/tests/fixture/pack.rs`).
 
 ## An import is a create
 

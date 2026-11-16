@@ -88,65 +88,6 @@ What it adds over stock:
 - **Update-friendly** — running a newer setup over an existing install upgrades in place (no uninstall detour), reusing
   the recorded install directory, install mode, and components; downgrades take the stock uninstall-first path.
 
-## The bundled official plugins
-
-Core features are plugins, so a fresh install with none could not create anything. Every installer therefore carries the
-official plugins, and the daemon installs them on its first start
-([`engine/src/plugins/bundled.rs`](../crates/engine/src/plugins/bundled.rs)).
-
-**The lock.** [`plugins.lock`](../plugins.lock) pins each one, a line of `<id> <version> <sha256>` (the sha256 of
-`<id>-<version>.hplugin`). It is empty until the first official plugin is published, and everything below works with an
-empty lock. [`scripts/plugins.sh`](../scripts/plugins.sh) downloads each package and its `.minisig` from the official
-repository's `repo` branch (`packages/<id>-<version>.hplugin`), refuses one whose sha256 differs from the lock, and lays
-the files into every destination it is given. `HESTIA_PLUGINS_BASE` points it at a mirror or a `file://` tree.
-
-**Where they land.**
-
-| Build                        | Staged by                                               | Found by the daemon at                |
-|------------------------------|---------------------------------------------------------|---------------------------------------|
-| installers (every format)    | `scripts/sidecars.sh` into `crates/desktop/bundled-plugins/`, shipped as the `plugins/` resource (`bundle.resources`) | `<install root>/plugins` (NSIS) or `/usr/lib/Hestia/plugins` (deb, rpm, AppImage) |
-| portable archives            | `scripts/package.sh portable` into the archive's `plugins/` | `<archive>/plugins`                   |
-| a local or debug build       | `scripts/sidecars.sh` into `target/<profile>/plugins/`  | `target/<profile>/plugins`            |
-
-`common::paths::bundled_plugins` resolves it from the layout root, the same way the binaries find each other. CI and the
-portable build empty `bundle.resources` through `TAURI_CONFIG` for the Tauri shell they compile without bundling, like
-`externalBin`.
-
-**What the daemon does at start**, before it loads any plugin:
-
-- A package is trusted only if its `.minisig` verifies against an official key (`common::app::official_plugin_pubkeys`)
-  with the trusted comment for exactly this id, version and file name. One that fails is not installed, is logged at
-  `error` and counted in the `refused` total of the `bundled plugins seeded` line.
-- A verified package that is missing installs with its computed grant pre-approved: there is no prompt at first start,
-  and the user approved the installer that carries it. The record stores `approvedBy: official`. A third-party package
-  never takes this path.
-- An official install older than the bundled one is upgraded; a newer (auto-updated) one is never replaced. An upgrade
-  that would widen the grant is refused and left for the normal update flow to ask about.
-- A plugin the user removed stays removed: `<data home>/plugins/bundled.json` records every bundled id seen installed,
-  and an id listed there with no install is not seeded again. A plugin added to a later bundle is new, so it installs.
-
-**Staged builds** take the same path. An app update that changes the plugin API leaves the official builds for the new API
-in `<data home>/updates/plugins/<api>/`, and the daemon that exposes that API seeds from there before it loads anything,
-then removes the directory. A fresh
-installer needs none of that: it carries plugins built for its own API, so the coordination is satisfied by construction.
-
-**Bumping the lock.** Publish the plugin to `prytaneum/plugins`, then put its new version and the sha256 of
-`packages/<id>-<version>.hplugin` on the `repo` branch in `plugins.lock` (`sha256sum`), in the commit that changes the
-launcher's side. Run `scripts/plugins.sh target/debug/plugins` to check the line resolves.
-
-## The `hestia://` link
-
-The desktop app handles `hestia://add-repo?url=<https index URL>` (see
-[Add from a link](plugins/repository.md#add-from-a-link)). The scheme is declared once, in `tauri.conf.json` under
-`plugins.deep-link.desktop.schemes`, and the bundler turns it into each installer's registration: the NSIS template
-writes the `URL Protocol` registry keys (`deep_link_protocols`, kept in the forked template), and `deb`/`rpm` add
-`x-scheme-handler/hestia` to the `.desktop` entry's `MimeType`. A second launch carrying a link is forwarded to the
-running window by `tauri-plugin-single-instance` (its `deep-link` feature).
-
-Registration is **installers only**: the app never calls the plugin's `register()` at runtime, so the AppImage and the
-portable archives do not claim the scheme and links do nothing there. Links fire only from an installed build; test one
-with `xdg-open 'hestia://add-repo?url=…'`.
-
 ## Auto-updates
 
 The **daemon** owns self-update — `engine/src/update/`, reached over `update.check`,
@@ -170,7 +111,6 @@ which the API answers wrapped in its `{success, message, data}` envelope:
 {
   "version": "0.1.0",
   "notes": "…",
-  "plugin_api": "1.0.0",
   "platforms": {
     "windows-x86_64": {
       "url": "…-setup.exe",
@@ -193,13 +133,6 @@ which the API answers wrapped in its `{success, message, data}` envelope:
   }
 }
 ```
-
-`plugin_api` is the plugin API (`API_VERSION` in `crates/proto/src/plugin.rs`) the release's daemon exposes. The
-`manifest` job reads it from that file, so it cannot drift from the code, and fails the release if it cannot. When it
-differs from what installed official plugins can run on, `update.download` stages compatible builds of them in the data
-home before it fetches the installer, and the new daemon installs them at its first start; with none to be had, the
-update is refused. A manifest without
-the field asks for no coordination.
 
 A platform's top-level entry is its default artifact — the NSIS setup, the AppImage. `formats` carries the rest, and is
 additive: a build that predates a format never asks for it and reads the same manifest a newer one does.
@@ -349,10 +282,6 @@ which breaks EGL init against a newer host Mesa — a blank window. Tauri expose
 [`scripts/package.sh`](../scripts/package.sh) drops it from the `.AppDir` the bundler leaves behind and repacks the
 image around the original's runtime.
 
-**The CurseForge key is not part of a build.** Core has no CurseForge source and no `content.curseforge-key`. The
-official CurseForge plugin ships a key as a setting default packed into its package, supplied by the plugins repository's
-publish workflow.
-
 ## CI
 
 - [`ci.yml`](../.github/workflows/ci.yml) — four jobs. `check` runs `fmt` + `clippy` + `test` on Linux and Windows,
@@ -363,10 +292,6 @@ publish workflow.
   `externalBin` files and `resources` to exist, but only the bundler reads them, so the job empties both through `TAURI_CONFIG`
   instead of compiling sidecars it never ships. `deny` runs `cargo-deny`. The workflow also declares
   `workflow_call`, so the release can reuse it verbatim.
-- [`official-index.yml`](../.github/workflows/official-index.yml) — on a branch push and weekly: fetches the official
-  plugins repository's `plugins.json`, verifies it with the keys compiled into this build and fails when it expires
-  within 10 days (a 404 is a notice until that repository is published). Kept out of `ci.yml` so a stale plugins
-  index never blocks a launcher release.
 - [`release.yml`](../.github/workflows/release.yml) — on a `v*` tag: `preflight`, then `gate` and `package` side by
   side, then `manifest`.
   `preflight` refuses the release before anything is compiled if the tag, `Cargo.toml` and `tauri.conf.json` disagree on

@@ -19,9 +19,12 @@ only.
 | java    | `vanilla` | yes    | yes    | Mojang's own, built in                                   |
 | bedrock | `vanilla` | yes    |        | Bedrock Dedicated Server, built in; native, no Java      |
 
-Every other flavor is a Java flavor from a plugin: the official `fabric`, `neoforge`, `paper` (Paper and Folia) and
-`spigot` (Spigot and CraftBukkit) plugins, registered as `<plugin>.<id>` (`fabric.fabric`). The registry is
-runtime-mutable (`register(owner, standing, provider)`, `unregister(owner)`); built-ins are permanent.
+The registry is runtime-mutable: `register(owner, standing, provider)` adds a provider whose id reads `<owner>.<id>`,
+`unregister(owner)` drops an owner's providers, and the built-ins are permanent. A bare name resolves through the
+roster (`roster.rs`, shared with the content, Java and pack registries): the built-in of that name first, then by
+standing (official, developer, community), then the only provider of that id; an unknown or ambiguous name is a typed
+error listing the full ids. No other flavor ships; flavors beyond the two vanillas return with the new plugin system.
+Tests register the native stand-in `fixture::Flavor` (`crates/engine/tests/fixture/`) through the same call.
 
 A provider names itself in one `FlavorInfo`:
 
@@ -30,7 +33,8 @@ A provider names itself in one `FlavorInfo`:
 | `id`, `name`, `summary` | what a picker renders                                                                          |
 | `sides`              | server, client or both                                                                            |
 | `loads`              | the content kind its loader consumes (mods, plugins, none)                                        |
-| `loader`, `compatible` | the name a content platform and pack formats use for it; absent means the flavor id             |
+| `loader`, `compatible` | the name a content platform uses for it; absent means the flavor id                             |
+| `interchange`        | how each pack format (by id) names this flavor's loader                                           |
 | `requires`           | prerequisites on this machine (such as `git`), resolved as missing when the catalogue is built    |
 
 From `loads` plus what the side reads for itself, the entry's accepted content set is composed, so content flows never
@@ -40,27 +44,13 @@ change when a flavor is added. A front-end keeps no flavor table.
 picker is built from the answer alone. What differs between editions is in the engine's `edition/` module (see
 [engine](engine.md#editions)), not in the providers.
 
-### Plugin flavors
-
-A plugin adds a `flavor` provider (`proto::provider::flavor`, called through `provider.invoke`), wrapped in
-`PluginFlavorProvider` and registered when the plugin is enabled. It needs the unrestricted `flavor:provide`
-permission, and the guest only describes: the host vets every profile before acting on it.
-
-- Each artifact carries a sha1 and sits on one of the plugin's network hosts; paths stay relative; the Java major must
-  be one the launcher knows; the jar is a download or named as built. One refusal fails the whole resolve.
-- **Layered over vanilla.** `resolve-client` and `resolve-server` answer either a full profile or only what is added
-  (libraries, main class, arguments) over the vanilla profile, which the host merges.
-- **Building.** A flavor that cannot download what it runs (NeoForge's patched jar, Spigot) names it as built in its
-  profile and implements `build`. `build` returns a `BuildPlan { fetch, steps, outputs }`; the host runs it in an area
-  of its own, `meta/flavors/<plugin>/`, under the process supervisor, and places the outputs. An output may be a
-  directory (`destination`: `entry` or `libraries`), and a server may launch from an args file. The install hook is
-  idempotent on the built jar's presence, and each step is a cancellation checkpoint.
-- The profile types live in `proto::profile`, so the SDK can build them. See [Plugins](plugins.md).
-
-Two helpers are shared with plugins. `minecraft/maven.rs` parses `group:artifact:version[:classifier][@ext]` into the
+Two helpers serve flavors. `minecraft/maven.rs` parses `group:artifact:version[:classifier][@ext]` into the
 repository path, filename and URL. `minecraft/rules.rs` evaluates Mojang `rules` (the last applicable rule decides; a
 rule naming `features` is skipped; `os.name` and `os.arch` are matched to the host; `os.version` is not evaluated).
 Libraries and arguments are filtered at resolve time, so a persisted profile is for the machine that resolved it.
+
+A provider may also override `download_policy(url)` (the policy a profile's artifact is fetched under, `None` for one
+the launcher names) and `install`, the hook that builds what a profile cannot name.
 
 ## Profiles
 
@@ -79,7 +69,7 @@ flowchart LR
     REQ["flavor + version<br/>+ loader version?"] --> RES["resolve()"]
     META["minecraft/meta/<br/>mojang, bedrock"] --> RES
     RES --> PROF["Server / InstanceProfile"]
-    PROF --> INST["install hook<br/>(only if built)"] --> MAT
+    PROF --> INST["install<br/>(only if built)"] --> MAT
     PROF --> MAT["materialize"] --> PLAN["LaunchPlan<br/>program, args, cwd"]
 ```
 

@@ -10,7 +10,7 @@ Three layers, kept separate:
 
 ```mermaid
 flowchart TD
-    SRC["sources (content/)<br/>search, project, versions, resolve<br/>plugin-provided"] --> INST["install (content/install.rs)<br/>managed dir + content.json + data/ mirror"]
+    SRC["sources (content/)<br/>search, project, versions, resolve<br/>registered providers"] --> INST["install (content/install.rs)<br/>managed dir + content.json + data/ mirror"]
     PACK["modpacks (content/pack, modpack)<br/>the opened archive, which files a pack owns"] --> INST
 ```
 
@@ -18,23 +18,20 @@ flowchart TD
 
 `ContentProvider` is the trait: paginated search, project detail, version resolution filtered by loader and game
 version, modpack resolution, URL recognition, the kinds and editions it serves, and whether it can serve now. Core ships
-none: `modrinth` and `curseforge` are official plugins, and a fresh Hestia has an empty source list. The registry is
-runtime-mutable (`register(owner, standing, provider)`, `unregister(owner)`); an id reads `<owner>.<id>`, and a bare
-name is resolved by the roster.
+none, so a fresh Hestia has an empty source list; content sources (Modrinth, CurseForge) return with the new plugin
+system. The registry is runtime-mutable (`register(owner, standing, provider)`, `unregister(owner)`); an id reads
+`<owner>.<id>`, and a bare name is resolved by the roster (`roster.rs`). Tests register the native stand-in
+`fixture::Source` (`crates/engine/tests/fixture/`).
 
 - **No source.** Every content channel still answers: `content.sources` is empty, and a search or install that names
   none fails `NoContentSource` (an unregistered id fails `ContentSourceUnknown`).
-- **A plugin source** declares `contributes.providers = [{ kind = "content", id }]`, answers `proto::provider::content`
-  through `provider.invoke`, and must hold `content:read`, `network:connect` and a network host. `PluginContentProvider`
-  stamps its own id on results, calls the guest under a 30 s deadline, maps a guest failure to `PluginCallFailed`, and
-  drops any version file whose URL is not https on a granted host. The guest describes files; the engine downloads them.
 - **Missing source.** Content installed from a source that is gone keeps its record and still loads; `content.list`
   names it in `unavailableSources` and front-ends mark it.
 - **Normalized types.** Every response is mapped into `proto::content` at this boundary.
 - **Editions and kinds.** `ContentProvider::editions()` defaults to Java and rides on `content.sources`; a call naming
   the wrong edition is refused (`ContentSourceEdition`). A source skips kinds it does not catalogue, and one with no
   datapack type says `datapacks_as_mods`.
-- **Availability.** `available()` lets a source be listed while waiting on a plugin setting (`requiresSetting`);
+- **Availability.** `available()` lets a source be listed while waiting on a setting (`requiresSetting`);
   `content.*` then refuses it with `ContentSourceUnavailable` carrying the same setting, so a front-end can link to it.
 - **Per-item source.** A `ContentAddItem` may name its own source, so a mixed selection need not be split.
 - **A blocked file fails its item only.** An author who opts out of third-party distribution leaves no download URL;
@@ -181,10 +178,10 @@ A pack installs into a new or existing entry from a project, a page URL or a loc
 it. The zip is read by the reader import and export share (`transfer/archive.rs`), which validates every path before
 the first write.
 
-- **Formats are plugins.** Core reads no pack format. Each format is a plugin `pack` provider that hands the install
-  flow the archive and the trees to extract. A pack that names files by id delegates its manifest to the owning source
+- **Formats are pack providers.** Core reads no pack format. Each format is a registered
+  [`PackProvider`](transfer.md#pack-providers) that hands the install flow the archive and the trees to extract. A pack that names files by id delegates its manifest to the owning source
   (`resolve_manifest`), so it installs when that source can serve and is refused `ContentSourceUnavailable` otherwise.
-  Files are fetched under the policy of whoever vetted them.
+  Files are fetched under the provider's `Policy`.
 - **Download.** A pack from a source is fetched like any file into a unique file under `tmp/`, read, and removed at
   once. A zip without a pack manifest is `NotAModpack`; an artifact with no URL is `ContentDownloadBlocked`.
 
