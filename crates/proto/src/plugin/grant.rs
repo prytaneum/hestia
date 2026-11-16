@@ -86,16 +86,32 @@ pub struct Grant {
     pub requires: Vec<String>,
 }
 
-/// A package read before anything of it runs.
+/// Who vouches for a package from a repository: the repository that listed it
+/// and the author whose key signed it.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct SignerInfo {
+    pub repository: String,
+    /// SHA-256 of the author's public key, in hex.
+    pub fingerprint: String,
+    /// Whether the author's key is one of Hestia's own.
+    pub official: bool,
+}
+
+/// A package read before anything of it runs.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct Inspection {
     pub id: String,
     pub name: String,
     pub version: String,
     pub grant: Grant,
-    /// Covers the package and the grant; `plugin.install` carries it back.
+    /// Absent for a package read from a directory, which nothing signs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signer: Option<SignerInfo>,
+    /// Covers the package, the grant and the signer; `plugin.install` carries it back.
     pub approval_digest: String,
 }
 

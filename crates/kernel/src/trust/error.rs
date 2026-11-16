@@ -19,8 +19,16 @@ pub enum TrustError {
     Replay { got: u64, seen: u64 },
     #[error("{0} does not match the digest the signed index lists")]
     Digest(String),
-    #[error("the pinned key of '{0}' is not the one that signed the installed version")]
-    Signer(String),
+    #[error("the index lifetime is longer than {0} days")]
+    Lifetime(u64),
+    #[error("the key of repository '{0}' is not the one that vouched for the installed version")]
+    RepositoryKey(String),
+    #[error("the author key of '{0}' is not the one that signed the installed version")]
+    AuthorKey(String),
+    #[error("the package signature does not verify under the author's key the index lists")]
+    PackageSignature,
+    #[error("the package archive is refused: {0}")]
+    Archive(String),
     #[error("version {version} of '{plugin}' is revoked{reason}")]
     Revoked {
         plugin: String,

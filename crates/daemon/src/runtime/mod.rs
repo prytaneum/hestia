@@ -9,6 +9,7 @@ mod event_hub;
 mod managers;
 mod metrics;
 mod network;
+mod plugins;
 mod ready;
 pub mod router;
 mod scheduler;
@@ -40,6 +41,7 @@ pub use event_hub::EventHub;
 pub use managers::{BackupJob, ContentJob, ExportOrder, JobEntry, Jobs, LaunchOrder, ModpackJob};
 pub use metrics::spawn_metrics_sampler;
 pub use network::spawn_network_watcher;
+pub use plugins::watch_plugin_repositories;
 pub use ready::spawn_ready_watcher;
 pub use router::{error_response, require_account, Channels, Router};
 pub use scheduler::spawn_task_scheduler;
@@ -217,7 +219,8 @@ impl Runtime {
             .expect(
                 "engine::builtins() must list unique ids whose requirements exist and do not cycle",
             )
-            .reserving(own_programs, own_endpoints);
+            .reserving(own_programs, own_endpoints)
+            .with_developer(engine.config().settings().plugins.developer);
         let engine = Arc::new(engine);
         // One registry for every cancellable job, keyed by job id — what
         // `job.cancel` looks a running job up in, whichever manager owns it.

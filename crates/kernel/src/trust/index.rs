@@ -4,7 +4,12 @@ use semver::Version;
 use serde::Deserialize;
 
 use super::error::TrustError;
+use super::hplugin::ARCHIVE_MAX;
 use super::signature::Signer;
+
+/// The longest an index may live, counted from when it is fetched. A stolen
+/// repository key cannot publish an index that outlasts the key's rotation.
+pub const LIFETIME_DAYS: u64 = 30;
 
 /// A repository's catalogue, signed as a whole. The trusted comment of its
 /// signature repeats the subject, `hestia-index <repository> <sequence>
@@ -22,26 +27,30 @@ pub struct Index {
     #[serde(default)]
     pub hosts: Vec<String>,
     #[serde(default)]
-    pub plugins: Vec<Release>,
+    pub plugins: Vec<Listing>,
     #[serde(default)]
     pub revoked: Vec<Revocation>,
 }
 
+/// A plugin of the repository: the key its author signs releases with, and the
+/// releases. The key is the author's own; the repository only names it.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct Listing {
+    pub id: String,
+    pub author: String,
+    pub releases: Vec<Release>,
+}
+
+/// One `.hplugin` of a plugin and the SHA-256 and size the signed index vouches
+/// for.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Release {
-    pub id: String,
     pub version: String,
-    pub manifest: Artifact,
-    pub component: Artifact,
-}
-
-/// A file of a package and the SHA-256 the signed index vouches for.
-#[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields)]
-pub struct Artifact {
     pub url: String,
     pub sha256: String,
+    pub size: u64,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -57,9 +66,38 @@ fn semver(version: &str) -> Option<Version> {
     Version::parse(version).ok()
 }
 
+fn well_formed(index: &Index) -> Result<(), String> {
+    let mut ids = HashSet::new();
+    for listing in &index.plugins {
+        if !crate::id::is_valid(&listing.id) || !ids.insert(&listing.id) {
+            return Err(format!("'{}' is not a valid plugin", listing.id));
+        }
+        if Signer::parse(&listing.author).is_err() {
+            return Err(format!("the author key of '{}' is not valid", listing.id));
+        }
+        let mut versions = HashSet::new();
+        for release in &listing.releases {
+            let hex = release.sha256.len() == 64
+                && release.sha256.bytes().all(|byte| byte.is_ascii_hexdigit());
+            let fine = semver(&release.version).is_some()
+                && versions.insert(&release.version)
+                && hex
+                && (1..=ARCHIVE_MAX).contains(&release.size);
+            if !fine {
+                return Err(format!(
+                    "'{}' {} is not a valid release",
+                    listing.id, release.version
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 impl Index {
     /// The index `body` signed by `signer` as `signature`, for `repository`, no
-    /// older than `floor` and not expired at `now`.
+    /// older than `floor`, not expired at `now` and not living past
+    /// [`LIFETIME_DAYS`].
     pub fn verify(
         body: &[u8],
         signature: &str,
@@ -87,18 +125,10 @@ impl Index {
         if index.expires <= now {
             return Err(TrustError::Expired);
         }
-        let mut listed = HashSet::new();
-        for release in &index.plugins {
-            let fine = crate::id::is_valid(&release.id)
-                && semver(&release.version).is_some()
-                && listed.insert((&release.id, &release.version));
-            if !fine {
-                return Err(TrustError::Malformed(format!(
-                    "'{}' {} is not a valid release",
-                    release.id, release.version
-                )));
-            }
+        if index.expires - now > LIFETIME_DAYS * 24 * 3600 {
+            return Err(TrustError::Lifetime(LIFETIME_DAYS));
         }
+        well_formed(&index).map_err(TrustError::Malformed)?;
         Ok(index)
     }
 
@@ -108,18 +138,30 @@ impl Index {
             .find(|revoked| revoked.id == id && revoked.version == version)
     }
 
-    pub fn release(&self, id: &str, version: &str) -> Option<&Release> {
-        self.plugins
+    pub fn listing(&self, id: &str) -> Option<&Listing> {
+        self.plugins.iter().find(|listing| listing.id == id)
+    }
+
+    /// The release of `id` at `version` unless the index revokes it.
+    pub fn release(&self, id: &str, version: &str) -> Option<(&Listing, &Release)> {
+        let listing = self.listing(id)?;
+        listing
+            .releases
             .iter()
-            .find(|release| release.id == id && release.version == version)
+            .find(|release| release.version == version)
+            .filter(|_| self.revocation(id, version).is_none())
+            .map(|release| (listing, release))
     }
 
     /// The newest release of `id` that is not revoked.
-    pub fn latest(&self, id: &str) -> Option<&Release> {
-        self.plugins
+    pub fn latest(&self, id: &str) -> Option<(&Listing, &Release)> {
+        let listing = self.listing(id)?;
+        listing
+            .releases
             .iter()
-            .filter(|release| release.id == id && self.revocation(id, &release.version).is_none())
+            .filter(|release| self.revocation(id, &release.version).is_none())
             .max_by_key(|release| semver(&release.version))
+            .map(|release| (listing, release))
     }
 }
 

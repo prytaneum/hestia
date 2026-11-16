@@ -1,6 +1,7 @@
 //! Installed packages on disk: `<data_home>/plugins/<id>/` holds `plugin.toml`,
 //! `plugin.wasm` and the record of what the user approved and where it came from.
 
+use std::collections::BTreeSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -12,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{PackageError, PluginError};
 use crate::manifest::Manifest;
 use crate::runtime::Shape;
+use crate::trust::{same_key, Repository};
 
 const MANIFEST: &str = "plugin.toml";
 const COMPONENT: &str = "plugin.wasm";
@@ -80,8 +82,9 @@ fn read_bounded(path: &Path, max: u64) -> Result<Vec<u8>, PackageError> {
     Ok(bytes)
 }
 
-/// Where an installed package came from. A repository install is held to the
-/// key that signed it for every update.
+/// Where an installed package came from. A repository install keeps the key of
+/// the repository that vouched for it, and the key of the author who signed
+/// it, which every update must be signed by too.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum Source {
@@ -89,11 +92,29 @@ pub(crate) enum Source {
     Dev,
     Repository {
         repository: String,
-        signer: String,
+        repository_key: String,
+        author: String,
     },
 }
 
 impl Source {
+    /// The repository and author key an approval covers; none for a dev install.
+    pub fn signer(&self) -> Option<(&str, &str)> {
+        match self {
+            Source::Dev => None,
+            Source::Repository {
+                repository, author, ..
+            } => Some((repository, author)),
+        }
+    }
+
+    /// Whether `repository`, as it is pinned now, is the one that vouched for
+    /// this install: the same id under the same key.
+    pub fn vouched_by(&self, repository: &Repository) -> bool {
+        matches!(self, Source::Repository { repository: id, repository_key, .. }
+            if *id == repository.id && same_key(repository_key, &repository.key))
+    }
+
     pub fn public(&self) -> PluginSource {
         match self {
             Source::Dev => PluginSource::Dev,
@@ -139,42 +160,44 @@ impl Store {
     }
 
     /// The installed ids. Staging left by an install that never finished is
-    /// deleted on the way.
+    /// deleted on the way, and an update that never finished is undone: its
+    /// `.previous` returns, whether or not the new version was moved in.
     pub fn ids(&self) -> Vec<String> {
-        let mut ids = Vec::new();
-        for entry in std::fs::read_dir(&self.root)
+        let names: Vec<String> = std::fs::read_dir(&self.root)
             .into_iter()
             .flatten()
             .flatten()
-        {
-            let Ok(name) = entry.file_name().into_string() else {
-                continue;
-            };
-            if !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
-                continue;
-            }
+            .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .collect();
+        let mut ids = BTreeSet::new();
+        for name in names {
             if name.ends_with(STAGING) {
-                if let Err(error) = std::fs::remove_dir_all(entry.path()) {
+                if let Err(error) = std::fs::remove_dir_all(self.root.join(&name)) {
                     tracing::warn!(dir = name, %error, "cannot reclaim plugin staging");
                 }
-                continue;
-            }
-            if let Some(id) = name.strip_suffix(PREVIOUS) {
+            } else if let Some(id) = name.strip_suffix(PREVIOUS) {
+                if !crate::id::is_valid(id) {
+                    tracing::warn!(dir = name, "ignoring a directory that is no plugin's");
+                    continue;
+                }
                 tracing::warn!(
                     plugin = id,
                     "an update never finished; restoring the version it replaced"
                 );
-                if let Err(error) = self.rollback(id) {
-                    tracing::warn!(plugin = id, %error, "cannot restore the previous version");
+                match self.rollback(id) {
+                    Ok(()) => {
+                        ids.insert(id.to_owned());
+                    }
+                    Err(error) => {
+                        tracing::warn!(plugin = id, %error, "cannot restore the previous version");
+                    }
                 }
-                continue;
-            }
-            if crate::id::is_valid(&name) {
-                ids.push(name);
+            } else if crate::id::is_valid(&name) {
+                ids.insert(name);
             }
         }
-        ids.sort();
-        ids
+        ids.into_iter().collect()
     }
 
     pub fn record(&self, id: &str) -> Option<Approval> {
@@ -203,8 +226,23 @@ impl Store {
         })
     }
 
+    /// Deletes what a [`Store::swap`] set aside. Its name changes first, in one
+    /// rename, to one a start-up scan deletes rather than restores: a crash
+    /// halfway through the delete must not bring back a partial old version.
     pub fn commit(&self, id: &str) {
-        let _ = std::fs::remove_dir_all(self.root.join(format!("{id}{PREVIOUS}")));
+        let previous = self.root.join(format!("{id}{PREVIOUS}"));
+        if !previous.exists() {
+            return;
+        }
+        let doomed = self.root.join(format!("{id}{STAGING}"));
+        let _ = std::fs::remove_dir_all(&doomed);
+        if let Err(error) = std::fs::rename(&previous, &doomed) {
+            tracing::error!(plugin = id, %error, "cannot discard the previous version");
+            return;
+        }
+        if let Err(error) = std::fs::remove_dir_all(&doomed) {
+            tracing::warn!(plugin = id, %error, "cannot delete the previous version");
+        }
     }
 
     /// Brings back the version a [`Store::swap`] set aside.
@@ -235,7 +273,10 @@ impl Store {
         Ok(staging)
     }
 
+    /// Deletes the plugin and any version an update set aside, which would
+    /// otherwise return at the next start.
     pub fn remove(&self, id: &str) -> Result<(), PluginError> {
+        self.commit(id);
         match std::fs::remove_dir_all(self.dir(id)) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
                 Err(PluginError::io(IoOp::Remove, error))

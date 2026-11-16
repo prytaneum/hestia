@@ -228,15 +228,22 @@ fn endpoint_here(entry: &str) -> Result<bool, GrantError> {
 /// Binds an approval to the package and what it reaches: the id, the exact
 /// manifest and component bytes, each permission with its scope (hosts,
 /// unhashed hosts, endpoints, and each program with its arguments and digest),
-/// and the packages it requires. Hestia's own prompt text and tiers are left
+/// the packages it requires, and for a repository's package the repository and
+/// the author key that vouch for it. Hestia's own prompt text and tiers are left
 /// out, so rewording them never invalidates an approval.
-pub fn approval_digest(id: &str, manifest: &[u8], wasm: &[u8], grant: &Grant) -> String {
+pub fn approval_digest(
+    id: &str,
+    manifest: &[u8],
+    wasm: &[u8],
+    grant: &Grant,
+    signer: Option<(&str, &str)>,
+) -> String {
     let mut hash = Sha256::new();
     let mut field = |bytes: &[u8]| {
         hash.update((bytes.len() as u64).to_le_bytes());
         hash.update(bytes);
     };
-    field(b"hestia-approval-v4");
+    field(b"hestia-approval-v5");
     field(id.as_bytes());
     field(&Sha256::digest(manifest));
     field(&Sha256::digest(wasm));
@@ -278,6 +285,9 @@ pub fn approval_digest(id: &str, manifest: &[u8], wasm: &[u8], grant: &Grant) ->
     for package in requires {
         field(package.as_bytes());
     }
+    let (repository, author) = signer.unwrap_or_default();
+    field(repository.as_bytes());
+    field(author.as_bytes());
     hash.finalize()
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -286,7 +296,8 @@ pub fn approval_digest(id: &str, manifest: &[u8], wasm: &[u8], grant: &Grant) ->
 
 /// Whether `new` asks for anything `old` did not: a permission, a scope entry
 /// (a host, an endpoint, a host served without checksum, or a program whose
-/// path, arguments or digest pin differ) or a required package. Dropping or narrowing never widens.
+/// path, arguments or digest pin differ), a required package or an export.
+/// Dropping or narrowing never widens.
 pub fn widens(old: &Grant, new: &Grant) -> bool {
     let asked = |grant: &'_ Grant, permission: &str| {
         grant
@@ -299,7 +310,12 @@ pub fn widens(old: &Grant, new: &Grant) -> bool {
         .requires
         .iter()
         .any(|package| !old.requires.contains(package));
+    let more_exports = new
+        .contributes
+        .iter()
+        .any(|export| !old.contributes.contains(export));
     more_packages
+        || more_exports
         || new
             .permissions
             .iter()
@@ -506,7 +522,7 @@ mod tests {
             [here]
         );
 
-        let digest = |grant: &Grant| approval_digest("t", b"m", b"w", grant);
+        let digest = |grant: &Grant| approval_digest("t", b"m", b"w", grant, None);
         let mut pinned = spawning.clone();
         pinned.permissions[0].scope.as_mut().unwrap().programs[0].sha256 = "1".repeat(64);
         type Change = fn(&mut PermissionScope);
@@ -621,75 +637,96 @@ mod tests {
     fn anything_the_user_would_approve_again_widens_a_grant() {
         use proto::plugin::{GrantedPermission, PermissionScope, Program};
 
-        let program = |args: &[&str], sha256: &str| Program {
-            path: "/usr/bin/tool".into(),
+        let program = |path: &str, args: &[&str], sha256: &str| Program {
+            path: path.into(),
             args: args.iter().map(|arg| arg.to_string()).collect(),
             sha256: sha256.into(),
         };
-        let grant = |kind, values: &[&str], unhashed: &[&str], programs: Vec<Program>| Grant {
-            permissions: vec![GrantedPermission {
-                permission: "p".into(),
+        let permission =
+            |name: &str, kind, values: &[&str], programs: Vec<Program>| GrantedPermission {
+                permission: name.into(),
                 scope: Some(PermissionScope {
                     kind,
                     values: values.iter().map(|value| value.to_string()).collect(),
-                    unhashed: unhashed.iter().map(|host| host.to_string()).collect(),
                     programs,
+                    ..PermissionScope::default()
                 }),
                 ..GrantedPermission::default()
-            }],
-            ..Grant::default()
+            };
+        let before = Grant {
+            permissions: vec![
+                permission("net", ScopeKind::Hosts, &["a.example"], Vec::new()),
+                permission(
+                    "run",
+                    ScopeKind::Programs,
+                    &[],
+                    vec![program("/bin/t", &[], "aa")],
+                ),
+                permission("ipc", ScopeKind::Endpoints, &["/run/a.sock"], Vec::new()),
+            ],
+            contributes: vec!["hestia:servers/flavor".into()],
+            requires: vec!["hestia:servers".into()],
         };
-        let before = grant(
-            ScopeKind::Hosts,
-            &["a.example"],
-            &[],
-            vec![program(&[], "aa")],
-        );
-        let widened = [
-            (
-                grant(
-                    ScopeKind::Hosts,
-                    &["a.example", "b.example"],
-                    &[],
-                    vec![program(&[], "aa")],
-                ),
-                "a new host or endpoint",
-            ),
-            (
-                grant(
-                    ScopeKind::Hosts,
-                    &["a.example"],
-                    &["a.example"],
-                    vec![program(&[], "aa")],
-                ),
-                "a host that may now serve unchecked files",
-            ),
-            (
-                grant(
-                    ScopeKind::Hosts,
-                    &["a.example"],
-                    &[],
-                    vec![program(&[], "bb")],
-                ),
-                "a program with another digest",
-            ),
-            (
-                grant(
-                    ScopeKind::Hosts,
-                    &["a.example"],
-                    &[],
-                    vec![program(&["-x"], "aa")],
-                ),
-                "a program with other arguments",
-            ),
+        type Change = fn(&mut Grant);
+        let widened: [(&str, Change); 9] = [
+            ("a new permission", |g| {
+                g.permissions.push(permission_named("extra"))
+            }),
+            ("a new required package", |g| {
+                g.requires.push("hestia:content".into())
+            }),
+            ("a new export", |g| {
+                g.contributes.push("hestia:servers/on-stopped".into())
+            }),
+            ("a new host", |g| {
+                g.permissions[0]
+                    .scope
+                    .as_mut()
+                    .unwrap()
+                    .values
+                    .push("b.example".into())
+            }),
+            ("a host that may now serve unchecked files", |g| {
+                g.permissions[0]
+                    .scope
+                    .as_mut()
+                    .unwrap()
+                    .unhashed
+                    .push("a.example".into())
+            }),
+            ("a new endpoint", |g| {
+                g.permissions[2]
+                    .scope
+                    .as_mut()
+                    .unwrap()
+                    .values
+                    .push("/run/b.sock".into())
+            }),
+            ("a program with another digest", |g| {
+                g.permissions[1].scope.as_mut().unwrap().programs[0].sha256 = "bb".into()
+            }),
+            ("a program with other arguments", |g| {
+                g.permissions[1].scope.as_mut().unwrap().programs[0]
+                    .args
+                    .push("-x".into())
+            }),
+            ("a program at another path", |g| {
+                g.permissions[1].scope.as_mut().unwrap().programs[0].path = "/bin/u".into()
+            }),
         ];
-        for (new, case) in widened {
+        for (case, change) in widened {
+            let mut new = before.clone();
+            change(&mut new);
             assert!(widens(&before, &new), "{case}");
         }
         assert!(!widens(&before, &before.clone()));
-        assert!(!widens(
-            &before,
-            &grant(ScopeKind::Hosts, &[], &[], Vec::new())
-        ));
+        assert!(!widens(&before, &Grant::default()), "dropping never widens");
+    }
+
+    fn permission_named(name: &str) -> proto::plugin::GrantedPermission {
+        proto::plugin::GrantedPermission {
+            permission: name.into(),
+            ..Default::default()
+        }
     }
 }

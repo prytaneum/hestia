@@ -1,9 +1,10 @@
-//! Repositories end to end: a signed index served over loopback, install from it,
-//! updates and what widens them, rollback, revocation, and every way an index or
-//! a package is refused. The files are served locally; nothing reaches a network.
+//! Repositories end to end: a signed index served over loopback listing
+//! author-signed `.hplugin` packages, install from it, updates and what widens
+//! them, rollback, revocation, and every way an index or a package is refused.
+//! The files are served locally; nothing reaches a network.
 
 use std::collections::HashMap;
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -14,6 +15,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use zip::write::SimpleFileOptions;
 
 #[allow(dead_code)]
 mod fixture;
@@ -64,7 +66,9 @@ fn plugins(home: &Path) -> Plugins {
     )
     .expect("sandbox")
     .with_services(Arc::new(Files(home.to_owned())));
-    Plugins::new(home, Vec::new(), Some(Arc::new(sandbox)), gated()).unwrap()
+    Plugins::new(home, Vec::new(), Some(Arc::new(sandbox)), gated())
+        .unwrap()
+        .with_loopback()
 }
 
 type Site = Arc<Mutex<HashMap<String, Vec<u8>>>>;
@@ -129,13 +133,77 @@ fn manifest(id: &str, version: &str, hosts: &[&str]) -> String {
     text
 }
 
-/// A repository under one key, publishing signed indexes to a local site.
+/// A plugin author with a signing key of their own.
+struct Author(minisign::KeyPair);
+
+impl Author {
+    fn new() -> Self {
+        Author(minisign::KeyPair::generate_unencrypted_keypair().unwrap())
+    }
+
+    fn key(&self) -> String {
+        self.0.pk.to_base64()
+    }
+
+    fn sign(&self, statement: &str) -> String {
+        sign(&self.0, statement.as_bytes(), "hestia-hplugin")
+    }
+}
+
+fn sign(keys: &minisign::KeyPair, body: &[u8], comment: &str) -> String {
+    minisign::sign(
+        Some(&keys.pk),
+        &keys.sk,
+        Cursor::new(body),
+        Some(comment),
+        None,
+    )
+    .unwrap()
+    .to_string()
+}
+
+/// What an author signs. Written out here, not shared with the kernel, so a
+/// change of the statement fails this test as a change of the wire format.
+fn statement(id: &str, version: &str, manifest: &[u8], wasm: &[u8]) -> String {
+    format!(
+        "hestia-hplugin-v1\n{id}\n{version}\n{}\n{}\n",
+        hex(manifest),
+        hex(wasm)
+    )
+}
+
+type Zip = zip::ZipWriter<Cursor<Vec<u8>>>;
+
+fn zip_of(build: impl FnOnce(&mut Zip)) -> Vec<u8> {
+    let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    build(&mut zip);
+    zip.finish().unwrap().into_inner()
+}
+
+fn entry(zip: &mut Zip, name: &str, bytes: &[u8]) {
+    zip.start_file(name, SimpleFileOptions::default()).unwrap();
+    zip.write_all(bytes).unwrap();
+}
+
+/// A well-formed `.hplugin`: the manifest, the component and the author's
+/// signature over the statement of both.
+fn hplugin(author: &Author, id: &str, version: &str, manifest: &str, wasm: &[u8]) -> Vec<u8> {
+    let signature = author.sign(&statement(id, version, manifest.as_bytes(), wasm));
+    zip_of(|zip| {
+        entry(zip, "plugin.toml", manifest.as_bytes());
+        entry(zip, "plugin.wasm", wasm);
+        entry(zip, "plugin.minisig", signature.as_bytes());
+    })
+}
+
+/// A repository under one key, publishing signed indexes of author-signed
+/// packages to a local site.
 struct Publisher {
     name: String,
     keys: minisign::KeyPair,
     base: String,
     site: Site,
-    releases: Vec<Value>,
+    plugins: Vec<Value>,
     revoked: Vec<Value>,
 }
 
@@ -147,7 +215,7 @@ impl Publisher {
             keys: minisign::KeyPair::generate_unencrypted_keypair().unwrap(),
             base,
             site,
-            releases: Vec::new(),
+            plugins: Vec::new(),
             revoked: Vec::new(),
         }
     }
@@ -164,44 +232,55 @@ impl Publisher {
         self.site.lock().unwrap().insert(path.to_owned(), body);
     }
 
-    fn release(&mut self, id: &str, version: &str, manifest: &str, component: &str) {
-        self.release_with(id, version, manifest, component, None);
-    }
-
-    /// `claimed` replaces the manifest digest the index lists.
-    fn release_with(
+    fn release(
         &mut self,
         id: &str,
+        author: &Author,
         version: &str,
         manifest: &str,
         component: &str,
+    ) {
+        let archive = hplugin(author, id, version, manifest, &wasm(guest(component)));
+        self.list(id, &author.key(), version, archive, None);
+    }
+
+    /// Lists `archive` as `version` of `id` under `author_key`, with the digest
+    /// it really has unless `claimed` says another.
+    fn list(
+        &mut self,
+        id: &str,
+        author_key: &str,
+        version: &str,
+        archive: Vec<u8>,
         claimed: Option<String>,
     ) {
-        let component = wasm(guest(component));
-        self.put(
-            &format!("/{id}-{version}.toml"),
-            manifest.as_bytes().to_vec(),
-        );
-        self.put(&format!("/{id}-{version}.wasm"), component.clone());
-        self.releases
-            .retain(|r| (&r["id"], &r["version"]) != (&json!(id), &json!(version)));
-        self.releases.push(json!({
-            "id": id,
+        self.put(&format!("/{id}-{version}.hplugin"), archive.clone());
+        let release = json!({
             "version": version,
-            "manifest": {
-                "url": format!("{}/{id}-{version}.toml", self.base),
-                "sha256": claimed.unwrap_or_else(|| hex(manifest.as_bytes())),
-            },
-            "component": {
-                "url": format!("{}/{id}-{version}.wasm", self.base),
-                "sha256": hex(&component),
-            },
-        }));
+            "url": format!("{}/{id}-{version}.hplugin", self.base),
+            "sha256": claimed.unwrap_or_else(|| hex(&archive)),
+            "size": archive.len(),
+        });
+        let at = self.plugins.iter().position(|l| l["id"] == json!(id));
+        let listing = match at {
+            Some(at) => &mut self.plugins[at],
+            None => {
+                self.plugins
+                    .push(json!({ "id": id, "author": author_key, "releases": [] }));
+                self.plugins.last_mut().unwrap()
+            }
+        };
+        listing["author"] = json!(author_key);
+        let releases = listing["releases"].as_array_mut().unwrap();
+        releases.retain(|r| r["version"] != json!(version));
+        releases.push(release);
     }
 
     fn drop_release(&mut self, id: &str, version: &str) {
-        self.releases
-            .retain(|r| (&r["id"], &r["version"]) != (&json!(id), &json!(version)));
+        for listing in self.plugins.iter_mut().filter(|l| l["id"] == json!(id)) {
+            let releases = listing["releases"].as_array_mut().unwrap();
+            releases.retain(|r| r["version"] != json!(version));
+        }
     }
 
     fn publish(&self, sequence: u64, expires: u64) {
@@ -225,20 +304,15 @@ impl Publisher {
             "repository": repository,
             "sequence": sequence,
             "expires": expires,
-            "plugins": self.releases,
+            "plugins": self.plugins,
             "revoked": self.revoked,
         })
         .to_string()
         .into_bytes();
-        let signature = minisign::sign(
-            Some(&keys.pk),
-            &keys.sk,
-            Cursor::new(&body),
-            Some(comment),
-            None,
-        )
-        .unwrap();
-        self.put("/index.json.minisig", signature.to_string().into_bytes());
+        self.put(
+            "/index.json.minisig",
+            sign(keys, &body, comment).into_bytes(),
+        );
         self.put("/index.json", body);
     }
 }
@@ -264,13 +338,32 @@ fn installed_version(home: &Path, id: &str) -> String {
         .to_owned()
 }
 
+/// A component whose core module fails validation: it is read as a package
+/// but cannot be compiled, so an update to it fails at the link.
+fn unlinkable() -> Vec<u8> {
+    let module = [
+        &b"\0asm\x01\0\0\0"[..],
+        &[0x01, 0x04, 0x01, 0x60, 0x00, 0x00],
+        &[0x03, 0x02, 0x01, 0x00],
+        &[0x0a, 0x05, 0x01, 0x03, 0x00, 0x6a, 0x0b],
+    ]
+    .concat();
+    [
+        &b"\0asm\x0d\0\x01\0"[..],
+        &[0x01, module.len() as u8],
+        &module,
+    ]
+    .concat()
+}
+
 #[tokio::test]
 async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was_approved() {
     let home = tempfile::tempdir().unwrap();
     let registry = plugins(home.path());
-    let mut repo = Publisher::new("acme").await;
+    let (mut repo, author) = (Publisher::new("acme").await, Author::new());
     repo.release(
         "rel",
+        &author,
         "1.0.0",
         &manifest("rel", "1.0.0", &["a.example"]),
         "hello",
@@ -284,6 +377,9 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
     assert_eq!(added.id, "acme");
 
     let inspection = registry.inspect_release("acme", "rel", None).await.unwrap();
+    let signer = inspection.signer.clone().unwrap();
+    assert_eq!(signer.repository, "acme");
+    assert!(!signer.official, "an author's key is never Hestia's");
     let installed = registry
         .install_release("acme", "rel", None, &inspection.approval_digest)
         .await
@@ -295,6 +391,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
 
     repo.release(
         "rel",
+        &author,
         "1.1.0",
         &manifest("rel", "1.1.0", &["a.example"]),
         "hello",
@@ -311,6 +408,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
     );
     let same = registry.inspect_update("rel").await.unwrap();
     assert!(!same.widened, "the same grant needs no new approval");
+    assert_eq!(same.inspection.signer, Some(signer));
     registry
         .update("rel", &same.inspection.approval_digest)
         .await
@@ -319,6 +417,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
 
     repo.release(
         "rel",
+        &author,
         "1.2.0",
         &manifest("rel", "1.2.0", &["a.example", "b.example"]),
         "hello",
@@ -335,8 +434,31 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
         .await
         .unwrap();
 
-    repo.release("rel", "2.0.0", &manifest("rel", "2.0.0", &[]), "trap");
+    let broken = hplugin(
+        &author,
+        "rel",
+        "2.0.0",
+        &manifest("rel", "2.0.0", &[]),
+        &unlinkable(),
+    );
+    repo.list("rel", &author.key(), "2.0.0", broken, None);
     repo.publish(4, now() + 3600);
+    let unloadable = registry.inspect_update("rel").await.unwrap();
+    assert!(matches!(
+        registry
+            .update("rel", &unloadable.inspection.approval_digest)
+            .await,
+        Err(PluginError::Package(_))
+    ));
+    repo.drop_release("rel", "2.0.0");
+    repo.release(
+        "rel",
+        &author,
+        "2.0.1",
+        &manifest("rel", "2.0.1", &[]),
+        "trap",
+    );
+    repo.publish(5, now() + 3600);
     let narrower = registry.inspect_update("rel").await.unwrap();
     assert!(!narrower.widened);
     assert!(matches!(
@@ -347,23 +469,32 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
     ));
     assert_eq!(
         state(&registry, "rel"),
-        (PluginState::Enabled, "1.2.0".into())
+        (PluginState::Enabled, "1.2.0".into()),
+        "a failed link and a failed start each roll back"
     );
     assert_eq!(installed_version(home.path(), "rel"), "1.2.0");
     assert!(!home.path().join("plugins/rel.previous").exists());
 
-    repo.drop_release("rel", "2.0.0");
+    repo.drop_release("rel", "2.0.1");
     repo.release(
         "rel",
+        &author,
         "1.3.0",
         &manifest("rel", "1.3.0", &["a.example"]),
         "hello",
     );
     repo.revoked
         .push(json!({ "id": "rel", "version": "1.2.0", "reason": "stolen key" }));
-    repo.publish(5, now() + 3600);
+    repo.publish(6, now() + 3600);
     let found = registry.check_updates().await;
     assert_eq!(found.updates[0].available, "1.3.0");
+    assert_eq!(
+        (
+            found.revoked[0].id.as_str(),
+            found.revoked[0].reason.as_str()
+        ),
+        ("rel", "stolen key")
+    );
     assert_eq!(state(&registry, "rel").0, PluginState::Failed);
     assert!(matches!(
         registry.enable("rel").await,
@@ -386,30 +517,86 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
         state(&restarted, "rel"),
         (PluginState::Enabled, "1.3.0".into())
     );
+}
 
-    let (live, previous) = (
-        home.path().join("plugins/rel"),
-        home.path().join("plugins/rel.previous"),
+#[tokio::test]
+async fn an_update_that_never_finished_is_undone_at_start_and_nothing_else_is_touched() {
+    let home = tempfile::tempdir().unwrap();
+    let registry = plugins(home.path());
+    let (mut repo, author) = (Publisher::new("acme").await, Author::new());
+    repo.release(
+        "rel",
+        &author,
+        "1.0.0",
+        &manifest("rel", "1.0.0", &["a.example"]),
+        "hello",
     );
-    std::fs::create_dir_all(&previous).unwrap();
-    for file in ["plugin.toml", "plugin.wasm", "approval.json"] {
-        std::fs::copy(live.join(file), previous.join(file)).unwrap();
-    }
-    std::fs::write(previous.join("marker"), "").unwrap();
+    repo.publish(1, now() + 3600);
+    registry
+        .add_repository("acme", &repo.url(), &repo.key())
+        .await
+        .unwrap();
+    let inspection = registry.inspect_release("acme", "rel", None).await.unwrap();
+    registry
+        .install_release("acme", "rel", None, &inspection.approval_digest)
+        .await
+        .unwrap();
+
+    let plugins_dir = home.path().join("plugins");
+    let (live, previous) = (plugins_dir.join("rel"), plugins_dir.join("rel.previous"));
+    let copy_to_previous = || {
+        std::fs::create_dir_all(&previous).unwrap();
+        for file in ["plugin.toml", "plugin.wasm", "approval.json"] {
+            std::fs::copy(live.join(file), previous.join(file)).unwrap();
+        }
+        std::fs::write(previous.join("marker"), "").unwrap();
+    };
+    std::fs::create_dir_all(plugins_dir.join("rel.staging")).unwrap();
+    std::fs::create_dir_all(plugins_dir.join(".previous")).unwrap();
+    std::fs::write(plugins_dir.join(".previous/keep"), "").unwrap();
+
+    copy_to_previous();
     let crashed = plugins(home.path());
     crashed.restore().await;
     assert!(live.join("marker").exists() && !previous.exists());
     assert_eq!(state(&crashed, "rel").0, PluginState::Enabled);
+    assert!(!plugins_dir.join("rel.staging").exists());
+    assert!(
+        plugins_dir.join(".previous/keep").exists(),
+        "a directory that is no plugin's is left alone"
+    );
+
+    copy_to_previous();
+    std::fs::remove_dir_all(&live).unwrap();
+    let only_previous = plugins(home.path());
+    only_previous.restore().await;
+    assert_eq!(
+        state(&only_previous, "rel"),
+        (PluginState::Enabled, "1.0.0".into()),
+        "a crash that left only the old version still lists it"
+    );
+    assert!(live.join("marker").exists());
+
+    copy_to_previous();
+    only_previous.remove("rel").await.unwrap();
+    assert!(!live.exists() && !previous.exists());
+    let after_removal = plugins(home.path());
+    after_removal.restore().await;
+    assert!(
+        after_removal.list().iter().all(|p| p.id != "rel"),
+        "a removed plugin does not come back from a leftover previous version"
+    );
 }
 
 #[tokio::test]
-async fn an_index_or_package_that_does_not_verify_is_refused() {
+async fn an_index_that_does_not_verify_is_refused() {
     let home = tempfile::tempdir().unwrap();
-    let mut repo = Publisher::new("acme").await;
+    let (mut repo, author) = (Publisher::new("acme").await, Author::new());
     repo.release(
         "rel",
+        &author,
         "1.0.0",
-        &manifest("rel", "1.0.0", &["a.example"]),
+        &manifest("rel", "1.0.0", &[]),
         "hello",
     );
     let other = minisign::KeyPair::generate_unencrypted_keypair().unwrap();
@@ -437,6 +624,11 @@ async fn an_index_or_package_that_does_not_verify_is_refused() {
             matches!(e, TrustError::Expired)
         }),
         (
+            "a life of more than 30 days",
+            Box::new(|p| p.publish(1, now() + 31 * 24 * 3600)),
+            |e| matches!(e, TrustError::Lifetime(_)),
+        ),
+        (
             "tampered after signing",
             Box::new(|p| {
                 p.publish(1, soon);
@@ -461,19 +653,6 @@ async fn an_index_or_package_that_does_not_verify_is_refused() {
     }
 
     repo.publish(5, soon);
-    let key = repo.key();
-    let registry = plugins(home.path())
-        .with_official_keys(&[key.as_str()])
-        .unwrap();
-    assert!(matches!(
-        trust(
-            registry
-                .add_repository("acme", &repo.url(), &repo.key())
-                .await
-        ),
-        TrustError::OfficialKey
-    ));
-
     let registry = plugins(home.path());
     registry
         .add_repository("acme", &repo.url(), &repo.key())
@@ -488,42 +667,322 @@ async fn an_index_or_package_that_does_not_verify_is_refused() {
     );
     repo.publish(5, later);
     assert!(registry.check_updates().await.failed.is_empty());
+    assert!(matches!(
+        registry
+            .add_repository("Bad Id", &repo.url(), &repo.key())
+            .await,
+        Err(PluginError::InvalidId(_))
+    ));
+}
 
-    repo.release_with(
+#[tokio::test]
+async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_it() {
+    let home = tempfile::tempdir().unwrap();
+    let (mut repo, author, stranger) = (Publisher::new("acme").await, Author::new(), Author::new());
+    let (soon, hello) = (now() + 3600, wasm(guest("hello")));
+    let signed = |id: &str, version: &str| {
+        hplugin(&author, id, version, &manifest(id, version, &[]), &hello)
+    };
+
+    repo.list(
         "liar",
+        &author.key(),
         "1.0.0",
-        &manifest("liar", "1.0.0", &[]),
-        "hello",
+        signed("liar", "1.0.0"),
         Some("0".repeat(64)),
     );
-    repo.release("swap", "1.0.0", &manifest("swap", "9.9.9", &[]), "hello");
-    repo.publish(6, later);
-    assert!(matches!(
-        trust(registry.install_release("acme", "liar", None, "x").await),
-        TrustError::Digest(_)
-    ));
-    assert!(matches!(
-        trust(registry.install_release("acme", "swap", None, "x").await),
-        TrustError::Malformed(_)
-    ));
+    repo.list(
+        "stranger",
+        &author.key(),
+        "1.0.0",
+        hplugin(
+            &stranger,
+            "stranger",
+            "1.0.0",
+            &manifest("stranger", "1.0.0", &[]),
+            &hello,
+        ),
+        None,
+    );
+    repo.list(
+        "swap",
+        &author.key(),
+        "1.0.0",
+        signed("swap", "9.9.9"),
+        None,
+    );
+    repo.list(
+        "moved",
+        &author.key(),
+        "2.0.0",
+        signed("moved", "1.0.0"),
+        None,
+    );
+    let tampered = {
+        let toml = manifest("tampered", "1.0.0", &[]);
+        let signature = author.sign(&statement("tampered", "1.0.0", toml.as_bytes(), &hello));
+        zip_of(|zip| {
+            entry(zip, "plugin.toml", toml.as_bytes());
+            entry(zip, "plugin.wasm", &wasm(guest("chatty")));
+            entry(zip, "plugin.minisig", signature.as_bytes());
+        })
+    };
+    repo.list("tampered", &author.key(), "1.0.0", tampered, None);
 
+    let toml = manifest("shape", "1.0.0", &[]);
+    let signature = author.sign(&statement("shape", "1.0.0", toml.as_bytes(), &hello));
+    let well_formed = |zip: &mut Zip| {
+        entry(zip, "plugin.toml", toml.as_bytes());
+        entry(zip, "plugin.wasm", &hello);
+        entry(zip, "plugin.minisig", signature.as_bytes());
+    };
+    let shapes: Vec<(&str, Vec<u8>)> = vec![
+        ("not a zip", b"PK nothing".to_vec()),
+        (
+            "an extra entry",
+            zip_of(|z| {
+                well_formed(z);
+                entry(z, "extra", b"x")
+            }),
+        ),
+        (
+            "a missing signature",
+            zip_of(|z| {
+                entry(z, "plugin.toml", toml.as_bytes());
+                entry(z, "plugin.wasm", &hello);
+                entry(z, "other", b"x")
+            }),
+        ),
+        (
+            "a path with a directory",
+            zip_of(|z| {
+                entry(z, "plugin.toml", toml.as_bytes());
+                entry(z, "plugin.wasm", &hello);
+                entry(z, "dir/plugin.minisig", signature.as_bytes())
+            }),
+        ),
+        (
+            "a path that climbs out",
+            zip_of(|z| {
+                entry(z, "plugin.toml", toml.as_bytes());
+                entry(z, "plugin.wasm", &hello);
+                entry(z, "../plugin.minisig", signature.as_bytes())
+            }),
+        ),
+        (
+            "a backslash path",
+            zip_of(|z| {
+                entry(z, "plugin.toml", toml.as_bytes());
+                entry(z, "plugin.wasm", &hello);
+                entry(z, "a\\plugin.minisig", signature.as_bytes())
+            }),
+        ),
+        (
+            "a directory entry",
+            zip_of(|z| {
+                entry(z, "plugin.toml", toml.as_bytes());
+                entry(z, "plugin.wasm", &hello);
+                z.add_directory("plugin.minisig/", SimpleFileOptions::default())
+                    .unwrap()
+            }),
+        ),
+        (
+            "a symlink",
+            zip_of(|z| {
+                entry(z, "plugin.toml", toml.as_bytes());
+                entry(z, "plugin.wasm", &hello);
+                z.add_symlink(
+                    "plugin.minisig",
+                    "/etc/passwd",
+                    SimpleFileOptions::default(),
+                )
+                .unwrap()
+            }),
+        ),
+        (
+            "a component past its cap",
+            zip_of(|z| {
+                entry(z, "plugin.toml", toml.as_bytes());
+                z.start_file(
+                    "plugin.wasm",
+                    SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Deflated),
+                )
+                .unwrap();
+                z.write_all(&vec![0u8; (64 << 20) + 1]).unwrap();
+                entry(z, "plugin.minisig", signature.as_bytes());
+            }),
+        ),
+    ];
+    for (case, archive) in &shapes {
+        repo.list(
+            &format!("shape-{}", case.len()),
+            &author.key(),
+            "1.0.0",
+            archive.clone(),
+            None,
+        );
+    }
+    repo.publish(1, soon);
+
+    let registry = plugins(home.path());
+    registry
+        .add_repository("acme", &repo.url(), &repo.key())
+        .await
+        .unwrap();
+    let refused = |id: &str| {
+        let registry = &registry;
+        let id = id.to_owned();
+        async move { trust(registry.inspect_release("acme", &id, None).await) }
+    };
+    assert!(matches!(refused("liar").await, TrustError::Digest(_)));
+    assert!(matches!(
+        refused("stranger").await,
+        TrustError::PackageSignature
+    ));
+    assert!(
+        matches!(refused("tampered").await, TrustError::PackageSignature),
+        "a component swapped after signing"
+    );
+    assert!(matches!(
+        refused("swap").await,
+        TrustError::PackageSignature
+    ));
+    assert!(
+        matches!(refused("moved").await, TrustError::PackageSignature),
+        "a signature of one version does not carry to another"
+    );
+    for (case, _) in &shapes {
+        let refusal = refused(&format!("shape-{}", case.len())).await;
+        assert!(
+            matches!(refusal, TrustError::Archive(_)),
+            "{case}: {refusal}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn an_update_keeps_the_repository_and_the_author_that_vouched_for_the_install() {
+    let home = tempfile::tempdir().unwrap();
+    let registry = plugins(home.path());
+    let (mut repo, author, successor) =
+        (Publisher::new("acme").await, Author::new(), Author::new());
+    let soon = now() + 3600;
+    repo.release(
+        "rel",
+        &author,
+        "1.0.0",
+        &manifest("rel", "1.0.0", &["a.example"]),
+        "hello",
+    );
+    repo.publish(1, soon);
+    registry
+        .add_repository("acme", &repo.url(), &repo.key())
+        .await
+        .unwrap();
     let inspection = registry.inspect_release("acme", "rel", None).await.unwrap();
     registry
         .install_release("acme", "rel", None, &inspection.approval_digest)
         .await
         .unwrap();
+
+    repo.release(
+        "rel",
+        &successor,
+        "1.1.0",
+        &manifest("rel", "1.1.0", &["a.example"]),
+        "hello",
+    );
+    repo.publish(2, soon);
+    assert!(
+        matches!(
+            trust(registry.inspect_update("rel").await),
+            TrustError::AuthorKey(_)
+        ),
+        "an index that now names another author does not move the plugin to them"
+    );
+
     registry.remove_repository("acme").await.unwrap();
     let rekeyed = Publisher {
-        releases: repo.releases.clone(),
+        plugins: repo.plugins.clone(),
         ..Publisher::new("acme").await
     };
-    rekeyed.publish(7, later);
+    rekeyed.publish(1, soon);
     registry
         .add_repository("acme", &rekeyed.url(), &rekeyed.key())
         .await
         .unwrap();
     assert!(matches!(
         trust(registry.inspect_update("rel").await),
-        TrustError::Signer(_)
+        TrustError::RepositoryKey(_)
     ));
+    let found = registry.check_updates().await;
+    assert!(
+        found.updates.is_empty() && found.revoked.is_empty(),
+        "a repository under another key neither updates nor revokes what the first installed"
+    );
+}
+
+/// A key naming the same ed25519 key under another minisign key id.
+fn other_key_id(key: &str) -> String {
+    format!("{}AAAA{}", &key[..4], &key[8..])
+}
+
+#[tokio::test]
+async fn a_key_that_stands_for_hestia_is_never_a_repository_key_and_an_index_cannot_make_one() {
+    let home = tempfile::tempdir().unwrap();
+    let (mut repo, hestia, community) =
+        (Publisher::new("acme").await, Author::new(), Author::new());
+    repo.release(
+        "rel",
+        &hestia,
+        "1.0.0",
+        &manifest("rel", "1.0.0", &["a.example"]),
+        "hello",
+    );
+    repo.release(
+        "mine",
+        &community,
+        "1.0.0",
+        &manifest("mine", "1.0.0", &["a.example"]),
+        "hello",
+    );
+    repo.publish(1, now() + 3600);
+    let official = hestia.key();
+    let registry = plugins(home.path())
+        .with_official_keys(&[official.as_str(), repo.key().as_str()])
+        .unwrap();
+    for key in [repo.key(), other_key_id(&repo.key())] {
+        assert!(
+            matches!(
+                trust(registry.add_repository("acme", &repo.url(), &key).await),
+                TrustError::OfficialKey
+            ),
+            "{key}"
+        );
+    }
+
+    let registry = plugins(home.path())
+        .with_official_keys(&[official.as_str()])
+        .unwrap();
+    registry
+        .add_repository("acme", &repo.url(), &repo.key())
+        .await
+        .unwrap();
+    let signer = |id: &'static str| {
+        let registry = &registry;
+        async move {
+            registry
+                .inspect_release("acme", id, None)
+                .await
+                .unwrap()
+                .signer
+                .unwrap()
+        }
+    };
+    assert!(signer("rel").await.official, "Hestia's key signed it");
+    assert!(
+        !signer("mine").await.official,
+        "an index lists keys but never decides which are Hestia's"
+    );
 }

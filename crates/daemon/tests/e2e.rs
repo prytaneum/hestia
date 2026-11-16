@@ -519,3 +519,56 @@ async fn an_instance_target_is_gated_on_an_account_but_a_server_target_is_not() 
         ErrorInfo::EntryNotFound { .. }
     ));
 }
+
+async fn set_developer(client: &Client, on: bool) {
+    client
+        .config()
+        .set("plugins.developer", serde_json::json!(on))
+        .await
+        .expect("config.set");
+}
+
+#[tokio::test]
+async fn a_plugin_installed_from_a_directory_runs_only_while_developer_mode_is_on() {
+    use client::proto::plugin::PluginState;
+
+    let (daemon, client) = spawn_daemon().await;
+    let package = daemon.home.join("pkg");
+    std::fs::create_dir_all(&package).unwrap();
+    std::fs::write(
+        package.join("plugin.toml"),
+        "id = \"dev-demo\"\nname = \"Dev demo\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
+    std::fs::write(package.join("plugin.wasm"), b"\0asm\x0d\0\x01\0").unwrap();
+    let path = package.to_string_lossy().into_owned();
+    let state = || async {
+        let listed = client.plugin().list().await.expect("plugin.list");
+        listed.iter().find(|p| p.id == "dev-demo").map(|p| p.state)
+    };
+
+    let digest = client
+        .plugin()
+        .inspect(&path)
+        .await
+        .unwrap()
+        .approval_digest;
+    let refused = client.plugin().install(&path, &digest).await.unwrap_err();
+    assert_eq!(
+        client::error_info(&refused),
+        ErrorInfo::PluginDeveloperMode,
+        "refused while it is off"
+    );
+
+    set_developer(&client, true).await;
+    let installed = client.plugin().install(&path, &digest).await.unwrap();
+    assert_eq!(installed.state, PluginState::Enabled);
+
+    set_developer(&client, false).await;
+    assert_eq!(state().await, Some(PluginState::Failed));
+    let enable = client.plugin().enable("dev-demo").await.unwrap_err();
+    assert_eq!(client::error_info(&enable), ErrorInfo::PluginDeveloperMode);
+
+    set_developer(&client, true).await;
+    assert_eq!(state().await, Some(PluginState::Enabled));
+}

@@ -41,6 +41,7 @@ psl = { workspace = true }
 cap-std = { workspace = true }
 minisign-verify = { workspace = true }
 semver = { workspace = true }
+zip = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -5,6 +5,6 @@
  */
 export type RepositoryInfo = { id: string, url: string, 
 /**
- * A short name for the pinned key.
+ * SHA-256 of the pinned key, in hex.
  */
 signer: string, };

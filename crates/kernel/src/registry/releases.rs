@@ -1,17 +1,21 @@
 //! Plugins that come from a repository: adding one, installing from it, checking
-//! it for updates and applying what its signed index revokes. Everything it
-//! learns comes from an index that verified under the repository's pinned key.
+//! it for updates and applying what its signed index revokes. The index says
+//! which key each plugin's author signs with and the digest of each release;
+//! the release itself is a `.hplugin` that author signed.
 
+use proto::error::IoOp;
 use proto::plugin::{
-    Inspection, PluginInfo, PluginState, PluginUpdate, PluginUpdatesResult, RepositoryFailure,
-    RepositoryInfo, UpdateInspection,
+    Inspection, PluginInfo, PluginRevoked, PluginState, PluginUpdate, PluginUpdatesResult,
+    RepositoryFailure, RepositoryInfo, UpdateInspection,
 };
 
 use super::{find, Kind, Plugins};
 use crate::error::PluginError;
 use crate::grant;
 use crate::install::{Package, Source};
-use crate::trust::{is_newer, pinned, Fetched, Release, Repository, TrustError};
+use crate::trust::{
+    is_newer, pinned, same_key, Fetched, Hplugin, Listing, Release, Repository, Signer, TrustError,
+};
 
 fn repository_info(repository: &Repository, signer: &str) -> RepositoryInfo {
     RepositoryInfo {
@@ -19,6 +23,16 @@ fn repository_info(repository: &Repository, signer: &str) -> RepositoryInfo {
         url: repository.url.clone(),
         signer: signer.to_owned(),
     }
+}
+
+/// Runs file work off the async executor.
+async fn blocking<T: Send + 'static>(
+    operation: IoOp,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, PluginError> {
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|error| PluginError::io(operation, error))
 }
 
 impl Plugins {
@@ -42,7 +56,7 @@ impl Plugins {
         key: &str,
     ) -> Result<RepositoryInfo, PluginError> {
         if !crate::id::is_valid(id) {
-            return Err(PluginError::UnknownRepository(id.to_owned()));
+            return Err(PluginError::InvalidId(id.to_owned()));
         }
         let signer = pinned(key, &self.official)?;
         let repository = Repository {
@@ -51,7 +65,7 @@ impl Plugins {
             key: signer.key().to_owned(),
             sequence: 0,
         };
-        let fetched = Fetched::index(&repository, &signer).await?;
+        let fetched = Fetched::index(&repository, &signer, self.policy_for).await?;
         let _changing = self.changes.lock().await;
         if self.repositories.get(id).is_some() {
             return Err(PluginError::RepositoryExists(id.to_owned()));
@@ -60,8 +74,9 @@ impl Plugins {
             sequence: fetched.index.sequence,
             ..repository
         };
-        self.repositories
-            .put(repository.clone())
+        let (repositories, added) = (self.repositories.clone(), repository.clone());
+        blocking(IoOp::Write, move || repositories.put(added))
+            .await?
             .map_err(PluginError::Save)?;
         tracing::info!(
             repository = id,
@@ -73,7 +88,11 @@ impl Plugins {
 
     pub async fn remove_repository(&self, id: &str) -> Result<(), PluginError> {
         let _changing = self.changes.lock().await;
-        match self.repositories.remove(id).map_err(PluginError::Save)? {
+        let (repositories, owned) = (self.repositories.clone(), id.to_owned());
+        match blocking(IoOp::Write, move || repositories.remove(&owned))
+            .await?
+            .map_err(PluginError::Save)?
+        {
             true => Ok(()),
             false => Err(PluginError::UnknownRepository(id.to_owned())),
         }
@@ -85,8 +104,8 @@ impl Plugins {
         id: &str,
         version: Option<&str>,
     ) -> Result<Inspection, PluginError> {
-        let (package, _) = self.release(repository, id, version).await?;
-        self.inspection(&package).await
+        let (package, source) = self.release(repository, id, version).await?;
+        self.inspection(&package, &source).await
     }
 
     /// Installs a release of a repository if it still derives `approved`.
@@ -101,13 +120,29 @@ impl Plugins {
         self.install_package(package, approved, source).await
     }
 
-    /// Fetches every repository's index, which disables an installed version it
-    /// revokes, and lists what is newer than what is installed.
+    /// Fetches every repository's index, together, which disables an installed
+    /// version it revokes, and lists what is newer than what is installed.
     pub async fn check_updates(&self) -> PluginUpdatesResult {
-        let mut result = PluginUpdatesResult::default();
+        let mut fetches = Vec::new();
         for repository in self.repositories.list() {
-            let fetched = match self.fetch(&repository).await {
-                Ok((fetched, _)) => fetched,
+            let (asked, policy_for) = (repository.clone(), self.policy_for);
+            let signer = repository.signer(&self.official);
+            let fetch =
+                tokio::spawn(async move { Fetched::index(&asked, &signer?, policy_for).await });
+            fetches.push((repository, fetch));
+        }
+        let mut result = PluginUpdatesResult::default();
+        for (repository, fetch) in fetches {
+            let fetched = match fetch.await {
+                Ok(fetched) => fetched.map_err(PluginError::from),
+                Err(error) => Err(PluginError::io(IoOp::Read, error)),
+            };
+            let fetched = match fetched {
+                Ok(fetched) => self.accept(&repository, fetched).await,
+                Err(error) => Err(error),
+            };
+            let (fetched, revoked) = match fetched {
+                Ok(accepted) => accepted,
                 Err(error) => {
                     tracing::warn!(repository = repository.id, %error, "repository not checked");
                     result.failed.push(RepositoryFailure {
@@ -117,10 +152,12 @@ impl Plugins {
                     continue;
                 }
             };
-            for (id, installed) in self.installed_from(&repository.id) {
+            result.revoked.extend(revoked);
+            for (id, installed) in self.installed_from(&repository) {
                 let newer = fetched
                     .index
                     .latest(&id)
+                    .map(|(_, release)| release)
                     .filter(|release| is_newer(&release.version, &installed));
                 if let Some(release) = newer {
                     result.updates.push(PluginUpdate {
@@ -158,41 +195,48 @@ impl Plugins {
             .await
     }
 
+    /// The newest release of `id`, signed by the author who signed the
+    /// installed version and listed by the repository that vouched for it.
     async fn prepare_update(&self, id: &str) -> Result<Update, PluginError> {
-        let (repository, signer, installed) = {
+        let (installed, source) = {
             let slots = self.slots();
             match &slots[find(&slots, id)?].kind {
-                Kind::Guest(guest) => match &guest.source {
-                    Source::Repository { repository, signer } => {
-                        (repository.clone(), signer.clone(), guest.version.clone())
-                    }
-                    Source::Dev => return Err(PluginError::NotFromRepository(id.to_owned())),
-                },
-                Kind::Builtin(_) => return Err(PluginError::NotFromRepository(id.to_owned())),
+                Kind::Guest(guest) if guest.source != Source::Dev => {
+                    (guest.version.clone(), guest.source.clone())
+                }
+                _ => return Err(PluginError::NotFromRepository(id.to_owned())),
             }
         };
-        let pinned = self.repository(&repository)?;
-        let (fetched, current) = self.fetch(&pinned).await?;
-        if current != signer {
-            return Err(TrustError::Signer(repository).into());
+        let Source::Repository {
+            repository: from,
+            author,
+            ..
+        } = &source
+        else {
+            return Err(PluginError::NotFromRepository(id.to_owned()));
+        };
+        let pinned = self.repository(from)?;
+        if !source.vouched_by(&pinned) {
+            return Err(TrustError::RepositoryKey(from.clone()).into());
         }
-        let release = fetched
+        let (fetched, _) = self.fetch(&pinned).await?;
+        let (listing, release) = fetched
             .index
             .latest(id)
-            .filter(|release| is_newer(&release.version, &installed))
+            .filter(|(_, release)| is_newer(&release.version, &installed))
             .ok_or_else(|| PluginError::UpToDate(id.to_owned()))?;
-        let package = download(&fetched, release).await?;
-        let inspection = self.inspection(&package).await?;
+        if !same_key(&listing.author, author) {
+            return Err(TrustError::AuthorKey(id.to_owned()).into());
+        }
+        let package = download(&fetched, listing, release, &Signer::parse(author)?).await?;
+        let inspection = self.inspection(&package, &source).await?;
         let approved = self.store.record(id).unwrap_or_default().grant;
         Ok(Update {
             installed,
             widened: grant::widens(&approved, &inspection.grant),
             package,
             inspection,
-            source: Source::Repository {
-                repository,
-                signer: current,
-            },
+            source,
         })
     }
 
@@ -208,81 +252,128 @@ impl Plugins {
         id: &str,
         version: Option<&str>,
     ) -> Result<(Package, Source), PluginError> {
-        let (fetched, signer) = self.fetch(&self.repository(repository)?).await?;
-        let release = match version {
-            Some(version) => fetched
-                .index
-                .release(id, version)
-                .filter(|release| fetched.index.revocation(id, &release.version).is_none()),
+        let pinned = self.repository(repository)?;
+        let (fetched, _) = self.fetch(&pinned).await?;
+        let (listing, release) = match version {
+            Some(version) => fetched.index.release(id, version),
             None => fetched.index.latest(id),
         }
         .ok_or_else(|| PluginError::NoRelease {
             repository: repository.to_owned(),
             id: id.to_owned(),
         })?;
+        let author = Signer::parse(&listing.author)?;
+        let package = download(&fetched, listing, release, &author).await?;
         let source = Source::Repository {
             repository: repository.to_owned(),
-            signer,
+            repository_key: pinned.key,
+            author: author.key().to_owned(),
         };
-        Ok((download(&fetched, release).await?, source))
+        Ok((package, source))
     }
 
     /// The index of `repository`, verified under its pinned key and no older
-    /// than the last one seen, with the key's fingerprint. It records the sequence and disables what the
+    /// than the last one seen. It records the sequence and disables what the
     /// index revokes among the plugins installed from this repository.
-    async fn fetch(&self, repository: &Repository) -> Result<(Fetched, String), PluginError> {
+    async fn fetch(
+        &self,
+        repository: &Repository,
+    ) -> Result<(Fetched, Vec<PluginRevoked>), PluginError> {
         let signer = repository.signer(&self.official)?;
-        let fetched = Fetched::index(repository, &signer).await?;
-        let _changing = self.changes.lock().await;
-        if let Some(mut known) = self.repositories.get(&repository.id) {
-            if fetched.index.sequence > known.sequence {
-                known.sequence = fetched.index.sequence;
-                self.repositories.put(known).map_err(PluginError::Save)?;
-            }
-        }
-        self.revoke_listed(&repository.id, &fetched);
-        Ok((fetched, signer.fingerprint()))
+        let fetched = Fetched::index(repository, &signer, self.policy_for).await?;
+        self.accept(repository, fetched).await
     }
 
-    fn installed_from(&self, repository: &str) -> Vec<(String, String)> {
+    /// Takes in an index that verified under `repository`'s key, unless the
+    /// repository was removed or pinned to another key while it was fetched.
+    async fn accept(
+        &self,
+        repository: &Repository,
+        fetched: Fetched,
+    ) -> Result<(Fetched, Vec<PluginRevoked>), PluginError> {
+        let _changing = self.changes.lock().await;
+        let known = self.repository(&repository.id)?;
+        if !same_key(&known.key, &repository.key) {
+            return Err(TrustError::RepositoryKey(repository.id.clone()).into());
+        }
+        if fetched.index.sequence > known.sequence {
+            let repositories = self.repositories.clone();
+            let seen = Repository {
+                sequence: fetched.index.sequence,
+                ..known
+            };
+            blocking(IoOp::Write, move || repositories.put(seen))
+                .await?
+                .map_err(PluginError::Save)?;
+        }
+        let revoked = self.revoke_listed(repository, &fetched).await?;
+        Ok((fetched, revoked))
+    }
+
+    fn installed_from(&self, repository: &Repository) -> Vec<(String, String)> {
         self.slots()
             .iter()
             .filter_map(|slot| match &slot.kind {
-                Kind::Guest(guest) => match &guest.source {
-                    Source::Repository {
-                        repository: from, ..
-                    } if from == repository => Some((guest.id.clone(), guest.version.clone())),
-                    _ => None,
-                },
-                Kind::Builtin(_) => None,
+                Kind::Guest(guest) if guest.source.vouched_by(repository) => {
+                    Some((guest.id.clone(), guest.version.clone()))
+                }
+                _ => None,
             })
             .collect()
     }
 
     /// Marks each installed version the index revokes and stops it if it runs.
     /// The mark persists, so it stays off after a restart and cannot be enabled.
-    fn revoke_listed(&self, repository: &str, fetched: &Fetched) {
-        for (id, version) in self.installed_from(repository) {
-            let Some(revocation) = fetched.index.revocation(&id, &version) else {
-                continue;
-            };
+    async fn revoke_listed(
+        &self,
+        repository: &Repository,
+        fetched: &Fetched,
+    ) -> Result<Vec<PluginRevoked>, PluginError> {
+        let listed: Vec<PluginRevoked> = self
+            .installed_from(repository)
+            .into_iter()
+            .filter_map(|(id, version)| {
+                let revocation = fetched.index.revocation(&id, &version)?;
+                Some(PluginRevoked {
+                    id,
+                    version,
+                    repository: repository.id.clone(),
+                    reason: revocation.reason.clone(),
+                })
+            })
+            .collect();
+        if listed.is_empty() {
+            return Ok(listed);
+        }
+        let (store, marks) = (self.store.clone(), listed.clone());
+        let done = blocking(IoOp::Write, move || {
+            marks
+                .into_iter()
+                .filter(|revoked| match store.revoke(&revoked.id, &revoked.reason) {
+                    Ok(()) => true,
+                    Err(error) => {
+                        tracing::error!(plugin = revoked.id, %error, "cannot record the revocation");
+                        false
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .await?;
+        let mut slots = self.slots();
+        for revoked in &done {
             tracing::warn!(
-                plugin = id,
-                version,
-                repository,
+                plugin = revoked.id,
+                version = revoked.version,
+                repository = revoked.repository,
                 "installed version revoked"
             );
-            if let Err(error) = self.store.revoke(&id, &revocation.reason) {
-                tracing::error!(plugin = id, %error, "cannot record the revocation");
-                continue;
-            }
-            let mut slots = self.slots();
-            if let Ok(index) = find(&slots, &id) {
+            if let Ok(index) = find(&slots, &revoked.id) {
                 if slots[index].state == PluginState::Enabled {
                     slots[index].state = PluginState::Failed;
                 }
             }
         }
+        Ok(done)
     }
 }
 
@@ -294,20 +385,28 @@ struct Update {
     source: Source,
 }
 
-/// A package of a verified index: both files held to its digests, and named
-/// what the index says they are, so a listed version cannot carry another.
-async fn download(fetched: &Fetched, release: &Release) -> Result<Package, PluginError> {
-    let manifest = fetched.manifest(&release.manifest).await?;
-    let component = fetched.component(&release.component).await?;
-    let package = tokio::task::spawn_blocking(move || Package::new(manifest, component))
-        .await
-        .map_err(|error| PluginError::io(proto::error::IoOp::Read, error))??;
-    if package.manifest.id != release.id || package.manifest.version != release.version {
-        return Err(TrustError::Malformed(format!(
-            "the package says it is '{}' {}, the index lists '{}' {}",
-            package.manifest.id, package.manifest.version, release.id, release.version
-        ))
-        .into());
-    }
-    Ok(package)
+/// A release of a verified index: the `.hplugin` held to the index's digest
+/// and signed by `author` as the plugin and version the index lists, whose
+/// manifest says the same.
+async fn download(
+    fetched: &Fetched,
+    listing: &Listing,
+    release: &Release,
+    author: &Signer,
+) -> Result<Package, PluginError> {
+    let bytes = fetched.archive(release).await?;
+    let (id, version, author) = (listing.id.clone(), release.version.clone(), author.clone());
+    blocking(IoOp::Read, move || {
+        let archive = Hplugin::read(&bytes)?;
+        archive.verify(&author, &id, &version)?;
+        let package = Package::new(archive.manifest, archive.wasm)?;
+        if package.manifest.id != id || package.manifest.version != version {
+            return Err(PluginError::Trust(TrustError::Malformed(format!(
+                "the package says it is '{}' {}, the index lists '{id}' {version}",
+                package.manifest.id, package.manifest.version
+            ))));
+        }
+        Ok(package)
+    })
+    .await?
 }

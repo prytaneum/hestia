@@ -47,7 +47,10 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
         sandbox.set_calls(Arc::new(RouterCalls::new(router.clone(), &runtime)));
     }
     let restoring = runtime.clone();
-    tokio::spawn(async move { restoring.plugins().restore().await });
+    tokio::spawn(async move {
+        restoring.plugins().restore().await;
+        crate::runtime::watch_plugin_repositories(restoring).await;
+    });
     crate::runtime::spawn_ready_watcher(&runtime);
     crate::runtime::spawn_update_watcher(runtime.clone());
 

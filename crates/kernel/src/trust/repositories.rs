@@ -37,7 +37,7 @@ impl Document for Saved {
 /// for Hestia and so cannot be vouched by anyone who merely names a URL.
 pub fn pinned(key: &str, official: &[Signer]) -> Result<Signer, TrustError> {
     let signer = Signer::parse(key)?;
-    match official.iter().any(|own| own.key() == signer.key()) {
+    match official.iter().any(|own| own.same_key(&signer)) {
         true => Err(TrustError::OfficialKey),
         false => Ok(signer),
     }

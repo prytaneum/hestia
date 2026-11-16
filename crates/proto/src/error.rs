@@ -777,6 +777,29 @@ pub enum ErrorInfo {
     PluginUntrusted {
         detail: String,
     },
+    /// A plugin installed from a directory needs `plugins.developer` to install or run.
+    PluginDeveloperMode,
+    PluginRepositoryNotFound {
+        repository: String,
+    },
+    PluginRepositoryExists {
+        repository: String,
+    },
+    PluginReleaseNotFound {
+        repository: String,
+        plugin: String,
+    },
+    /// The plugin was installed from a directory, so no repository updates it.
+    PluginNotFromRepository {
+        plugin: String,
+    },
+    PluginUpToDate {
+        plugin: String,
+    },
+    /// An id of a plugin or repository must be lowercase letters, digits and `-`.
+    PluginIdInvalid {
+        id: String,
+    },
 
     // --- protocol ---
     UnknownChannel {
@@ -853,6 +876,8 @@ impl ErrorInfo {
             | FileNotFound { .. }
             | TaskNotFound { .. }
             | PluginNotFound { .. }
+            | PluginRepositoryNotFound { .. }
+            | PluginReleaseNotFound { .. }
             | ConfigKeyUnknown { .. }
             | ConfigKeyUnset { .. } => code::NOT_FOUND,
             SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
@@ -1126,6 +1151,26 @@ impl fmt::Display for ErrorInfo {
             }
             PluginInvalid { detail } => write!(f, "cannot install the plugin: {detail}"),
             PluginUntrusted { detail } => write!(f, "plugin not trusted: {detail}"),
+            PluginDeveloperMode => write!(
+                f,
+                "a plugin installed from a directory needs developer mode: \
+                 `hestia config set plugins.developer true`"
+            ),
+            PluginRepositoryNotFound { repository } => write!(f, "no repository '{repository}'"),
+            PluginRepositoryExists { repository } => {
+                write!(f, "repository '{repository}' is already added")
+            }
+            PluginReleaseNotFound { repository, plugin } => {
+                write!(f, "repository '{repository}' lists no release of '{plugin}'")
+            }
+            PluginNotFromRepository { plugin } => {
+                write!(f, "plugin '{plugin}' was not installed from a repository")
+            }
+            PluginUpToDate { plugin } => write!(f, "plugin '{plugin}' is up to date"),
+            PluginIdInvalid { id } => write!(
+                f,
+                "'{id}' is not a valid id: use lowercase letters, digits and '-'"
+            ),
             PluginExists { plugin } => write!(f, "plugin '{plugin}' is already installed"),
             PluginChanged { plugin } => {
                 write!(f, "plugin '{plugin}' changed since it was approved")

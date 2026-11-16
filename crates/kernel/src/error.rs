@@ -27,12 +27,14 @@ pub enum PluginError {
     Exists(String),
     #[error("plugin '{0}' changed since it was approved")]
     Changed(String),
-    #[error("installing from a directory needs developer mode: `hestia config set plugins.developer true`")]
+    #[error("a plugin installed from a directory needs developer mode: `hestia config set plugins.developer true`")]
     DeveloperMode,
     #[error(transparent)]
     Trust(#[from] TrustError),
     #[error("no repository '{0}'")]
     UnknownRepository(String),
+    #[error("'{0}' is not a valid id: use lowercase letters, digits and '-'")]
+    InvalidId(String),
     #[error("repository '{0}' is already added")]
     RepositoryExists(String),
     #[error("repository '{repository}' lists no release of '{id}'")]
@@ -112,14 +114,20 @@ impl From<PluginError> for ErrorInfo {
             PluginError::Trust(reason) => ErrorInfo::PluginUntrusted {
                 detail: reason.to_string(),
             },
-            reason @ (PluginError::DeveloperMode
-            | PluginError::UnknownRepository(_)
-            | PluginError::RepositoryExists(_)
-            | PluginError::NoRelease { .. }
-            | PluginError::NotFromRepository(_)
-            | PluginError::UpToDate(_)) => ErrorInfo::PluginInvalid {
-                detail: reason.to_string(),
+            PluginError::UnknownRepository(repository) => {
+                ErrorInfo::PluginRepositoryNotFound { repository }
+            }
+            PluginError::RepositoryExists(repository) => {
+                ErrorInfo::PluginRepositoryExists { repository }
+            }
+            PluginError::NoRelease { repository, id } => ErrorInfo::PluginReleaseNotFound {
+                repository,
+                plugin: id,
             },
+            PluginError::NotFromRepository(plugin) => ErrorInfo::PluginNotFromRepository { plugin },
+            PluginError::UpToDate(plugin) => ErrorInfo::PluginUpToDate { plugin },
+            PluginError::InvalidId(id) => ErrorInfo::PluginIdInvalid { id },
+            PluginError::DeveloperMode => ErrorInfo::PluginDeveloperMode,
             PluginError::Secret(detail) => ErrorInfo::MalformedRequest { detail },
             other => ErrorInfo::Internal {
                 detail: other.to_string(),

@@ -14,7 +14,7 @@ use crate::contract::{Contract, Empty};
 pub struct RepositoryInfo {
     pub id: String,
     pub url: String,
-    /// A short name for the pinned key.
+    /// SHA-256 of the pinned key, in hex.
     pub signer: String,
 }
 
@@ -42,6 +42,7 @@ pub struct PluginRepoAdd;
 impl Contract for PluginRepoAdd {
     const CHANNEL: &'static str = "plugin.repo.add";
     const TIMEOUT: Duration = Duration::from_secs(60);
+    const CHANGES: Option<Scope> = Some(Scope::Plugins);
     type Params = PluginRepoAddParams;
     type Result = RepositoryInfo;
 }
@@ -50,6 +51,7 @@ impl Contract for PluginRepoAdd {
 pub struct PluginRepoRemove;
 impl Contract for PluginRepoRemove {
     const CHANNEL: &'static str = "plugin.repo.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Plugins);
     type Params = PluginTarget;
     type Result = Empty;
 }
@@ -79,6 +81,7 @@ pub struct PluginInspectRelease;
 impl Contract for PluginInspectRelease {
     const CHANNEL: &'static str = "plugin.release.inspect";
     const TIMEOUT: Duration = Duration::from_secs(5 * 60);
+    const CHANGES: Option<Scope> = Some(Scope::Plugins);
     type Params = PluginReleaseParams;
     type Result = Inspection;
 }

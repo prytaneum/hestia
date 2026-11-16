@@ -46,7 +46,8 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
         Some(sandbox.clone()),
         Table::kernel(),
     )
-    .unwrap();
+    .unwrap()
+    .with_developer(true);
 
     let pkg = home.path().join("pkg");
     package(&pkg, "consumer", service_guest("consumer"));
@@ -62,12 +63,12 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
 
     plugins.disable("probe").await.unwrap();
     assert!(matches!(
-        plugins.install(&pkg, &inspection.approval_digest, true).await,
+        plugins.install(&pkg, &inspection.approval_digest).await,
         Err(PluginError::Package(PackageError::Unprovided(package))) if package == "hestia:probe"
     ));
     plugins.enable("probe").await.unwrap();
     let installed = plugins
-        .install(&pkg, &inspection.approval_digest, true)
+        .install(&pkg, &inspection.approval_digest)
         .await
         .unwrap();
     assert_eq!(installed.state, PluginState::Enabled);
@@ -81,7 +82,8 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
         Some(sandbox.clone()),
         Table::kernel(),
     )
-    .unwrap();
+    .unwrap()
+    .with_developer(true);
     without_provider.restore().await;
     assert_eq!(
         without_provider

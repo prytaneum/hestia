@@ -61,10 +61,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<PluginInstall, _, _>(|p, ctx| async move {
         let dir = package_dir(&p.path)?;
-        let developer = ctx.runtime.engine().config().settings().plugins.developer;
         ctx.runtime
             .plugins()
-            .install(dir, &p.approval_digest, developer)
+            .install(dir, &p.approval_digest)
             .await
             .map_err(ErrorInfo::from)
     });

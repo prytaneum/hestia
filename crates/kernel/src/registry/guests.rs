@@ -5,18 +5,18 @@
 
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use proto::error::IoOp;
-use proto::plugin::{Grant, Inspection, PluginInfo, PluginState};
-
-use crate::trust::TrustError;
+use proto::plugin::{Grant, Inspection, PluginInfo, PluginState, SignerInfo};
 
 use super::{find, info, schema, Kind, Plugins, Saved, Slot};
 use crate::error::{PackageError, PluginError};
 use crate::grant;
 use crate::install::{Approval, Package, Source};
 use crate::runtime::{Loaded, Sandbox, SandboxError};
+use crate::trust::{Signer, TrustError};
 
 const SECRETS: &str = "secrets";
 
@@ -59,19 +59,14 @@ impl Plugins {
     /// Derives the grant of the package in `dir` without compiling or running
     /// any of it.
     pub async fn inspect(&self, dir: &Path) -> Result<Inspection, PluginError> {
-        self.inspection(&read(dir).await?).await
+        self.inspection(&read(dir).await?, &Source::Dev).await
     }
 
     /// Installs the package in `dir` if it still derives `approved`, then starts
     /// it. Only developer mode installs from a directory, which no signature
     /// vouches for. A plugin whose `init` fails stays installed, `failed`.
-    pub async fn install(
-        &self,
-        dir: &Path,
-        approved: &str,
-        developer: bool,
-    ) -> Result<PluginInfo, PluginError> {
-        if !developer {
+    pub async fn install(&self, dir: &Path, approved: &str) -> Result<PluginInfo, PluginError> {
+        if !self.developer() {
             return Err(PluginError::DeveloperMode);
         }
         let package = read(dir).await?;
@@ -85,7 +80,7 @@ impl Plugins {
         source: Source,
     ) -> Result<PluginInfo, PluginError> {
         let _changing = self.changes.lock().await;
-        let inspection = self.inspection(&package).await?;
+        let inspection = self.inspection(&package, &source).await?;
         let id = inspection.id.clone();
         if inspection.approval_digest != approved {
             return Err(PluginError::Changed(id));
@@ -188,6 +183,7 @@ impl Plugins {
     ) -> Result<PluginInfo, PluginError> {
         let id = inspection.id.as_str();
         let sandbox = self.sandbox()?.clone();
+        self.require_provided(&inspection.grant.requires)?;
         let (old, was) = {
             let slots = self.slots();
             let slot = &slots[find(&slots, id)?];
@@ -210,12 +206,6 @@ impl Plugins {
         .await
         .map_err(|error| PluginError::io(IoOp::Write, error))?;
         swapped?;
-        let rollback = || {
-            if let Err(error) = self.store.rollback(id) {
-                tracing::error!(plugin = id, %error, "cannot restore the previous version");
-            }
-            sandbox.forget(id);
-        };
         let guest = match self
             .link(&sandbox, package, &inspection.grant, source)
             .await
@@ -223,7 +213,7 @@ impl Plugins {
             Ok(guest) => Arc::new(guest),
             Err(error) => {
                 tracing::warn!(plugin = id, %error, "updated plugin did not load; rolled back");
-                rollback();
+                self.roll_back(&sandbox, id).await;
                 return Err(error);
             }
         };
@@ -231,7 +221,7 @@ impl Plugins {
         if was != PluginState::Disabled {
             if let Err(error) = self.start_guest(&guest).await {
                 tracing::warn!(plugin = id, %error, "updated plugin did not start; rolled back");
-                rollback();
+                self.roll_back(&sandbox, id).await;
                 self.place(id, old, Some(was))?;
                 return Err(error);
             }
@@ -240,6 +230,71 @@ impl Plugins {
         tracing::info!(plugin = id, version = guest.version, "plugin updated");
         let slots = self.slots();
         Ok(info(&slots[find(&slots, id)?]))
+    }
+
+    /// Brings back the version an update set aside and drops the compiled one.
+    async fn roll_back(&self, sandbox: &Sandbox, id: &str) {
+        let (store, owned) = (self.store.clone(), id.to_owned());
+        match tokio::task::spawn_blocking(move || store.rollback(&owned)).await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                tracing::error!(plugin = id, %error, "cannot restore the previous version")
+            }
+            Err(error) => {
+                tracing::error!(plugin = id, %error, "cannot restore the previous version")
+            }
+        }
+        sandbox.forget(id);
+    }
+
+    /// Whether a plugin installed from a directory may run.
+    pub(super) fn developer(&self) -> bool {
+        self.developer.load(Ordering::Relaxed)
+    }
+
+    /// Developer mode changed. Turning it off fails every running dev install
+    /// at once; turning it on starts the ones it stopped. A plugin the user
+    /// disabled stays disabled either way. Returns the ids whose state changed.
+    pub async fn set_developer(&self, on: bool) -> Vec<String> {
+        let _changing = self.changes.lock().await;
+        self.developer.store(on, Ordering::Relaxed);
+        let devs: Vec<(Arc<Guest>, PluginState)> = self
+            .slots()
+            .iter()
+            .filter_map(|slot| match &slot.kind {
+                Kind::Guest(guest) if guest.source == Source::Dev => {
+                    Some((guest.clone(), slot.state))
+                }
+                _ => None,
+            })
+            .collect();
+        tracing::info!(
+            developer = on,
+            plugins = devs.len(),
+            "developer mode changed"
+        );
+        let mut changed = Vec::new();
+        for (guest, state) in devs {
+            match (on, state) {
+                (false, PluginState::Enabled) => {
+                    let mut slots = self.slots();
+                    if let Ok(index) = find(&slots, &guest.id) {
+                        slots[index].state = PluginState::Failed;
+                    }
+                }
+                (true, PluginState::Failed) if guest.loaded.is_some() => {
+                    if let Err(error) = self.start_guest(&guest).await {
+                        tracing::warn!(plugin = guest.id, %error, "plugin did not start");
+                    }
+                }
+                _ => {}
+            }
+            let slots = self.slots();
+            if find(&slots, &guest.id).is_ok_and(|index| slots[index].state != state) {
+                changed.push(guest.id.clone());
+            }
+        }
+        changed
     }
 
     /// Replaces what the slot of `id` runs, and its state when one is given.
@@ -312,7 +367,11 @@ impl Plugins {
 
     /// The grant of `package` with its programs pinned, read off the async
     /// executor.
-    pub(super) async fn inspection(&self, package: &Package) -> Result<Inspection, PluginError> {
+    pub(super) async fn inspection(
+        &self,
+        package: &Package,
+        source: &Source,
+    ) -> Result<Inspection, PluginError> {
         let manifest = &package.manifest;
         let mut grant =
             grant::derive(&self.table, manifest, &package.shape).map_err(PackageError::from)?;
@@ -331,8 +390,21 @@ impl Plugins {
                 &package.manifest_bytes,
                 &package.wasm,
                 &grant,
+                source.signer(),
             ),
+            signer: self.signer_info(source),
             grant,
+        })
+    }
+
+    /// Who vouches for a package of `source`, as the prompt shows it.
+    fn signer_info(&self, source: &Source) -> Option<SignerInfo> {
+        let (repository, author) = source.signer()?;
+        let author = Signer::parse(author).ok()?;
+        Some(SignerInfo {
+            repository: repository.to_owned(),
+            fingerprint: author.fingerprint(),
+            official: self.official.iter().any(|own| own.same_key(&author)),
         })
     }
 
@@ -359,8 +431,8 @@ impl Plugins {
         if package.manifest.id != id {
             return Err(PackageError::Renamed(package.manifest.id).into());
         }
-        let inspection = self.inspection(&package).await?;
         let record = self.store.record(id).unwrap_or_default();
+        let inspection = self.inspection(&package, &record.source).await?;
         if record.digest != inspection.approval_digest {
             return Err(PluginError::Changed(id.to_owned()));
         }
@@ -419,6 +491,9 @@ impl Plugins {
     /// leaves it `failed`, and one that reaches the trap limit is disabled and
     /// stays so after a restart.
     pub(super) async fn start_guest(&self, guest: &Guest) -> Result<(), PluginError> {
+        if guest.source == Source::Dev && !self.developer() {
+            return Err(PluginError::DeveloperMode);
+        }
         if let Some(reason) = self
             .store
             .record(&guest.id)

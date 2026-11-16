@@ -27,16 +27,30 @@ pub struct RepositoryFailure {
     pub detail: String,
 }
 
+/// An installed version a repository's signed index revokes. It is disabled and
+/// never starts again.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginRevoked {
+    pub id: String,
+    pub version: String,
+    pub repository: String,
+    pub reason: String,
+}
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(default, rename_all = "camelCase")]
 pub struct PluginUpdatesResult {
     pub updates: Vec<PluginUpdate>,
+    pub revoked: Vec<PluginRevoked>,
     pub failed: Vec<RepositoryFailure>,
 }
 
 /// Fetches every repository's index and lists the newer versions of what it
-/// installed. A revoked installed version is disabled on the way.
+/// installed. A revoked installed version is disabled on the way and listed.
+/// Repositories are fetched together, each within its own time cap.
 pub struct PluginUpdates;
 impl Contract for PluginUpdates {
     const CHANNEL: &'static str = "plugin.updates";
@@ -62,6 +76,7 @@ pub struct PluginUpdateInspect;
 impl Contract for PluginUpdateInspect {
     const CHANNEL: &'static str = "plugin.update.inspect";
     const TIMEOUT: Duration = Duration::from_secs(5 * 60);
+    const CHANGES: Option<Scope> = Some(Scope::Plugins);
     type Params = PluginTarget;
     type Result = UpdateInspection;
 }

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use proto::plugin::{PluginInfo, PluginKind, PluginSource, PluginState};
@@ -10,7 +11,7 @@ use crate::error::PluginError;
 use crate::grant::{Reserved, Table};
 use crate::install::{sandbox_root, Store};
 use crate::runtime::Sandbox;
-use crate::trust::{Repositories, Signer, OFFICIAL_KEYS};
+use crate::trust::{policy, PolicyFor, Repositories, Signer, OFFICIAL_KEYS};
 use common::schema::{self, Document};
 use guests::Guest;
 
@@ -104,6 +105,10 @@ pub struct Plugins {
     reserved: Arc<Reserved>,
     repositories: Repositories,
     official: Vec<Signer>,
+    policy_for: PolicyFor,
+    /// Whether a plugin installed from a directory may run. Changed only by
+    /// [`Plugins::set_developer`], under `changes`.
+    developer: AtomicBool,
 }
 
 impl Plugins {
@@ -140,6 +145,10 @@ impl Plugins {
                 }
             }
         }
+        let official = OFFICIAL_KEYS
+            .iter()
+            .map(|key| Signer::parse(key))
+            .collect::<Result<_, _>>()?;
         let disabled: HashSet<String> = schema::load::<Saved>(&path)
             .map(|saved| saved.disabled.into_iter().collect())
             .unwrap_or_default();
@@ -164,10 +173,9 @@ impl Plugins {
                 ..Reserved::default()
             }),
             repositories: Repositories::new(data_home),
-            official: OFFICIAL_KEYS
-                .iter()
-                .filter_map(|key| Signer::parse(key).ok())
-                .collect(),
+            official,
+            policy_for: policy,
+            developer: AtomicBool::new(false),
         })
     }
 
@@ -181,13 +189,30 @@ impl Plugins {
         self
     }
 
+    /// Whether a plugin installed from a directory may run from the start.
+    /// Later changes go through [`Plugins::set_developer`].
+    pub fn with_developer(self, on: bool) -> Self {
+        self.developer
+            .store(on, std::sync::atomic::Ordering::Relaxed);
+        self
+    }
+
     /// Replaces the keys that stand for Hestia, which no repository may pin.
+    #[cfg(feature = "probe")]
     pub fn with_official_keys(mut self, keys: &[&str]) -> Result<Self, PluginError> {
         self.official = keys
             .iter()
             .map(|key| Signer::parse(key))
             .collect::<Result<_, _>>()?;
         Ok(self)
+    }
+
+    /// Reaches repositories over plain-http loopback, for tests that serve their
+    /// files locally.
+    #[cfg(feature = "loopback")]
+    pub fn with_loopback(mut self) -> Self {
+        self.policy_for = crate::trust::loopback;
+        self
     }
 
     /// Every package's interfaces and permissions: the kernel's and those of

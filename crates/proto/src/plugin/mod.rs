@@ -8,7 +8,7 @@ mod update;
 
 pub use grant::{
     Grant, GrantedPermission, Inspection, PermissionScope, PluginInspect, PluginInstall,
-    PluginInstallParams, PluginPackage, Program, ScopeKind, Tier,
+    PluginInstallParams, PluginPackage, Program, ScopeKind, SignerInfo, Tier,
 };
 pub use registry::{
     PluginDisable, PluginEnable, PluginInfo, PluginKind, PluginList, PluginRemove,
@@ -23,6 +23,6 @@ pub use surface::{
     PluginQuestionClosed,
 };
 pub use update::{
-    PluginUpdate, PluginUpdateApply, PluginUpdateApplyParams, PluginUpdateInspect, PluginUpdates,
-    PluginUpdatesResult, RepositoryFailure, UpdateInspection,
+    PluginRevoked, PluginUpdate, PluginUpdateApply, PluginUpdateApplyParams, PluginUpdateInspect,
+    PluginUpdates, PluginUpdatesResult, RepositoryFailure, UpdateInspection,
 };

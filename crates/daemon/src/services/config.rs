@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use engine::ConfigError;
+use proto::change::{ChangedEvent, Scope};
 use proto::config::{
     ConfigGet, ConfigGetResult, ConfigList, ConfigListResult, ConfigSet, AUTOSTART_KEY, HOME_KEY,
 };
@@ -13,6 +14,8 @@ use serde_json::{json, Value};
 
 use crate::autostart;
 use crate::runtime::Channels;
+
+const DEVELOPER_KEY: &str = "plugins.developer";
 
 fn config_err(e: ConfigError) -> ErrorInfo {
     match e {
@@ -100,6 +103,16 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .set_config(&key, p.value)
             .map_err(config_err)?;
         tracing::info!(key = %key, "config updated");
+        if key == DEVELOPER_KEY {
+            let developer = ctx.runtime.engine().config().settings().plugins.developer;
+            let changed = ctx.runtime.plugins().set_developer(developer).await;
+            if !changed.is_empty() {
+                ctx.runtime.hub().publish_topic(&ChangedEvent {
+                    scope: Scope::Plugins,
+                    ids: changed,
+                });
+            }
+        }
         Ok(Empty {})
     });
 

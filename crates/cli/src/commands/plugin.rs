@@ -131,10 +131,22 @@ fn source_name(source: PluginSource) -> &'static str {
 }
 
 fn show_grant(inspection: &Inspection) -> Result<()> {
-    ui::show(View::detail([
+    let mut details = vec![
         ("Plugin", format!("{} ({})", inspection.name, inspection.id)),
         ("Version", inspection.version.clone()),
-    ]))?;
+    ];
+    if let Some(signer) = &inspection.signer {
+        let standing = match signer.official {
+            true => "Hestia (official)",
+            false => "its author, not Hestia",
+        };
+        details.push(("Repository", signer.repository.clone()));
+        details.push((
+            "Signed by",
+            format!("{standing}, key {}", signer.fingerprint),
+        ));
+    }
+    ui::show(View::detail(details))?;
     let grant = &inspection.grant;
     if grant.permissions.is_empty() {
         ui::show(View::note("it asks for no permissions"))?;
@@ -265,6 +277,18 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                 ui::show(View::note(format!(
                     "{}: not checked: {}",
                     failure.repository, failure.detail
+                )))?;
+            }
+            for revoked in &found.revoked {
+                ui::show(View::note(format!(
+                    "{} {} is revoked by {} and disabled{}",
+                    revoked.id,
+                    revoked.version,
+                    revoked.repository,
+                    match revoked.reason.is_empty() {
+                        true => String::new(),
+                        false => format!(": {}", revoked.reason),
+                    }
                 )))?;
             }
             if found.updates.is_empty() {
