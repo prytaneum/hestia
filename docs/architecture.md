@@ -57,7 +57,8 @@ flowchart TD
 | `proto`   | wire contracts and domain types (serde), shared verbatim by both sides                            |
 | `ipc`     | transport (socket or pipe) and the JSON envelope; reads `common` only to scope the endpoint       |
 | `common`  | identity, paths, logging, crash reports, document schema ([below](#cross-cutting-code))           |
-| `kernel`  | the plugin registry and `Builtin`; knows no launcher logic ([below](#the-kernel))                 |
+| `kernel`  | the registry, `Builtin` and the WASM sandbox; knows no launcher logic ([below](#the-kernel))      |
+| `sdk`     | `hestia-sdk`, the guest side of `hestia:kernel`; built for `wasm32-wasip2`, not a default member  |
 | `client`  | typed SDK, one facade per domain over a `Session`; re-exports `proto`                             |
 | `engine`  | the launcher core; knows no socket; lists the built-in plugins it compiles in                     |
 | `daemon`  | `hestiad`: router, services, job managers, the plugin registry, autostart; links `client` (ping)  |
@@ -101,8 +102,8 @@ What is yours sits at the top level. What the launcher can regenerate sits under
 ├── skins/               the skin library
 ├── shared/              the shared settings store (sync)
 ├── java/                installed Java runtimes
-├── meta/                regenerable game files
-│   └── versions/ libraries/ assets/ natives/
+├── meta/                regenerable game files and compiled plugins
+│   └── versions/ libraries/ assets/ natives/ plugins/
 ├── cache/               content-addressed download cache
 ├── processes/           supervisor records and captured logs
 ├── tmp/                 downloads in flight; emptied at start
@@ -157,6 +158,20 @@ it or it has work running. The disabled ids persist in `plugins.json`; start-up 
 so a plugin whose requirement is off stays `failed`. The kernel depends on `proto` and `common` only, so it cannot reach
 the launcher. `hestiad`'s runtime builds the registry from `engine::builtins()` and the router consults it for owner
 gates.
+
+The kernel also holds the WASM sandbox (`runtime/`): one wasmtime engine for the daemon, a fresh store and instance per
+call, run as async calls that yield on every 10 ms epoch tick, so each call's wall-clock budget (`init`: 10 s) also
+bounds a guest waiting inside a host call, and dropping the call stops the guest. Memory is capped at 256 MiB under the
+pooling allocator. At most 4 calls per plugin and 16 overall run at once; the rest wait for a slot within their budget.
+The third trap in ten minutes is reported as `TrapLimit`, and the registry disables the plugin. WASI has no network, no
+preopen and an empty environment. Compiled components are cached under `meta/plugins/`, one entry per plugin, each
+tagged with HMAC-SHA256 under a per-install key kept outside `meta/`; an entry whose tag does not cover its source, the
+engine and its bytes is recompiled, never loaded. The API is `hestia:kernel@0.1.0` (`types`, `log`, `app`,
+`lifecycle`) in `crates/sdk/wit/kernel/`. `crates/sdk` (`hestia-sdk`, MIT OR Apache-2.0, not a default member: it
+targets `wasm32-wasip2`) always carries the imports and enables one export per cargo feature; `hestia::export!` exports
+the enabled ones. A component's exports are found per interface, a missing one meaning not provided. The tests build the
+guests in `crates/kernel/tests/guest/` once per run; `examples/typescript/` builds a `lifecycle`-only plugin with `jco`
+under Bun in CI.
 
 ## Subsystem pages
 

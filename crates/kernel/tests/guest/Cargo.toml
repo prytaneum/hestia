@@ -1,0 +1,13 @@
+[package]
+name = "guest"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+hestia-sdk = { path = "../../../sdk", features = ["lifecycle"] }
+
+[profile.release]
+opt-level = 1

@@ -158,7 +158,7 @@ is usually one line in each of five places.
 
 [GPL-3.0-only](LICENSE) © 2026 toraaoo — published by [prytaneum](https://github.com/prytaneum)
 
-The exception is `crates/proto`, which is `MIT OR Apache-2.0`.
+The exceptions are `crates/proto` and the plugin SDK, `crates/sdk`, which are `MIT OR Apache-2.0`.
 
 The desktop skin preview and its thumbnail renderer are ported from
 [Modrinth's launcher](https://github.com/modrinth/code) (GPL-3.0-only, © Rinth, Inc.) — the reason Hestia is GPL rather

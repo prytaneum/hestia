@@ -16,8 +16,9 @@ const ENV_FILTER: &str = "HESTIA_LOG";
 /// it lowers: a plugin compile at trace takes tens of seconds and floods the file.
 const FIREHOSE_FILTER: &str = "trace,cranelift=info,regalloc2=info,wasmtime=info";
 
-const CRATES: [&str; 7] = [
-    "hestia", "desktop", "common", "client", "engine", "ipc", "proto",
+/// Hestia's own targets; `plugin` carries the lines plugins write through `log`.
+const CRATES: [&str; 9] = [
+    "hestia", "desktop", "common", "client", "engine", "ipc", "proto", "kernel", "plugin",
 ];
 
 const FOREIGN_LEVEL: &str = "warn";

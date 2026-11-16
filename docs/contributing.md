@@ -330,6 +330,8 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
+The kernel's tests build their guest plugins for `wasm32-wasip2`; `rust-toolchain.toml` installs that target.
+
 Run these at the root without `-p` (every member but `desktop` is a default member; `-p` re-resolves features and
 compiles a second copy of the dependency tree). Narrow a test run by name: `cargo test content::`.
 

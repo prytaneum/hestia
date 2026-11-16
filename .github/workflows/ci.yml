@@ -30,11 +30,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+          # The kernel's tests build their guest plugins for this target.
+          targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
       - name: fmt
         run: cargo fmt --all --check
       - name: clippy
         run: cargo clippy --workspace --exclude desktop --all-targets --features proto/ts -- -D warnings
+      # The SDK is not a default member; lint it for its target with every export.
+      - name: clippy (sdk)
+        run: cargo clippy -p hestia-sdk --target wasm32-wasip2 --features lifecycle -- -D warnings
       - name: test
         run: cargo test --workspace --exclude desktop
 

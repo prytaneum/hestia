@@ -55,6 +55,8 @@ image = { version = "0.25.8", default-features = false, features = ["png"] }
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 sha1 = "0.11"
 sha2 = "0.11"
+hmac = "0.13"
+getrandom = "0.4"
 tar = "0.4.46"
 flate2 = "1.1.9"
 fastnbt = "2.5.0"
@@ -63,6 +65,9 @@ uuid = { version = "1.23.4", features = ["v4", "v7"] }
 junction = "2.1.0"
 sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
 tempfile = "3.24.0"
+wasmtime = { version = "50.0.1", default-features = false, features = ["std", "runtime", "cranelift", "component-model", "pooling-allocator", "async"] }
+wasmtime-wasi = { version = "50.0.1", default-features = false, features = ["p2"] }
+wit-bindgen = "0.63.0"
 
 # Debug info stays in per-object `.dwo` files instead of being copied into
 # every linked binary. Cargo drops it where rustc lacks support (Windows MSVC
@@ -73,6 +78,13 @@ split-debuginfo = "unpacked"
 # Dependencies keep file:line for backtraces; workspace crates keep full info.
 [profile.dev.package."*"]
 debug = "line-tables-only"
+
+# Cranelift compiles every plugin component and wasmtime runs it; unoptimised
+# they make the sandbox tests take minutes.
+[profile.dev.package.wasmtime]
+opt-level = 2
+[profile.dev.package.cranelift-codegen]
+opt-level = 2
 
 [profile.release]
 lto = "thin"

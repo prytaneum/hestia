@@ -43,7 +43,7 @@ futures-util = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 p256 = { version = "0.14.0", features = ["ecdsa"] }
-getrandom = "0.4"
+getrandom = { workspace = true }
 base64 = { workspace = true }
 minisign-verify = "0.3"
 
