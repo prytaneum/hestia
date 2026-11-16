@@ -39,6 +39,10 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
     crate::runtime::spawn_task_scheduler(runtime.clone());
     crate::runtime::spawn_metrics_sampler(runtime.clone());
     crate::runtime::spawn_network_watcher(runtime.clone());
+    // After recovery and once plugins can see the network state: each `init`
+    // may take its whole budget, and clients must not wait on them.
+    let restoring = runtime.clone();
+    tokio::spawn(async move { restoring.plugins().restore().await });
     crate::runtime::spawn_ready_watcher(&runtime);
     crate::runtime::spawn_update_watcher(runtime.clone());
     let router = Arc::new(make_router());

@@ -169,6 +169,45 @@ pub fn prompt(text: &str) -> Result<String> {
     Ok(line.trim().to_string())
 }
 
+/// Ask for a secret inline without echoing it. Piped input is read as one
+/// line, so a script can pass the value on stdin instead.
+pub fn prompt_secret(text: &str) -> Result<String> {
+    use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+    use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+
+    if !std::io::stdin().is_terminal() {
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line)?;
+        return Ok(line.trim_end_matches(['\r', '\n']).to_string());
+    }
+    eprint!("{text}: ");
+    std::io::stderr().flush()?;
+    enable_raw_mode()?;
+    let mut secret = String::new();
+    let outcome = loop {
+        let key = match event::read() {
+            Ok(Event::Key(key)) if key.kind == KeyEventKind::Press => key,
+            Ok(_) => continue,
+            Err(error) => break Err(error.into()),
+        };
+        match key.code {
+            KeyCode::Enter => break Ok(()),
+            KeyCode::Esc => break Err(anyhow!("cancelled")),
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                break Err(anyhow!("cancelled"))
+            }
+            KeyCode::Backspace => {
+                secret.pop();
+            }
+            KeyCode::Char(c) => secret.push(c),
+            _ => {}
+        }
+    };
+    let _ = disable_raw_mode();
+    eprintln!();
+    outcome.map(|()| secret)
+}
+
 /// Ask a yes/no question inline: `[y/N]` appended to the prompt, defaulting
 /// to no. Errors without an interactive terminal.
 pub fn prompt_confirm(text: &str) -> Result<bool> {

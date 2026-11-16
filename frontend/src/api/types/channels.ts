@@ -82,6 +82,7 @@ import type { HostInfoResult } from "./generated/HostInfoResult";
 import type { ImageFetchParams } from "./generated/ImageFetchParams";
 import type { ImageFetchResult } from "./generated/ImageFetchResult";
 import type { ImportDone } from "./generated/ImportDone";
+import type { Inspection } from "./generated/Inspection";
 import type { InstanceCreateParams } from "./generated/InstanceCreateParams";
 import type { InstanceDetails } from "./generated/InstanceDetails";
 import type { InstanceExportParams } from "./generated/InstanceExportParams";
@@ -120,10 +121,13 @@ import type { NetworkStatus } from "./generated/NetworkStatus";
 import type { PingResult } from "./generated/PingResult";
 import type { PluginAnswerParams } from "./generated/PluginAnswerParams";
 import type { PluginInfo } from "./generated/PluginInfo";
+import type { PluginInstallParams } from "./generated/PluginInstallParams";
 import type { PluginLink } from "./generated/PluginLink";
 import type { PluginNotice } from "./generated/PluginNotice";
+import type { PluginPackage } from "./generated/PluginPackage";
 import type { PluginQuestion } from "./generated/PluginQuestion";
 import type { PluginQuestionClosed } from "./generated/PluginQuestionClosed";
+import type { PluginSecretParams } from "./generated/PluginSecretParams";
 import type { PluginTarget } from "./generated/PluginTarget";
 import type { ProcessExitEvent } from "./generated/ProcessExitEvent";
 import type { ProcessInfo } from "./generated/ProcessInfo";
@@ -280,7 +284,11 @@ export interface Channels {
   "plugin.answer": { params: Partial<PluginAnswerParams>; result: Empty };
   "plugin.disable": { params: Partial<PluginTarget>; result: PluginInfo };
   "plugin.enable": { params: Partial<PluginTarget>; result: PluginInfo };
+  "plugin.inspect": { params: Partial<PluginPackage>; result: Inspection };
+  "plugin.install": { params: Partial<PluginInstallParams>; result: PluginInfo };
   "plugin.list": { params: Empty; result: Array<PluginInfo> };
+  "plugin.remove": { params: Partial<PluginTarget>; result: Empty };
+  "plugin.secret.set": { params: Partial<PluginSecretParams>; result: Empty };
   "process.list": { params: Empty; result: Array<ProcessInfo> };
   "process.logs": { params: Partial<ProcessLogsParams>; result: Array<ProcessLogLine> };
   "process.start": { params: Partial<ProcessSpec>; result: ProcessStartResult };
@@ -390,6 +398,8 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "instance.create": 60000,
   "modpack.check_update": 120000,
   "modpack.preview_update": 120000,
+  "plugin.inspect": 60000,
+  "plugin.install": 60000,
   "server.files.compress": 600000,
   "server.files.copy": 600000,
   "server.files.extract": 600000,

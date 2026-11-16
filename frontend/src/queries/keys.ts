@@ -62,6 +62,10 @@ export const keys = {
     all: ['daemon'] as const,
     status: () => [...keys.daemon.all, 'status'] as const,
   },
+  plugins: {
+    all: ['plugins'] as const,
+    list: () => [...keys.plugins.all, 'list'] as const,
+  },
   host: {
     all: ['host'] as const,
     info: () => [...keys.host.all, 'info'] as const,

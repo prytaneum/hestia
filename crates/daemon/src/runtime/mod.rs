@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use engine::{Engine, InstanceRecord, ProcessIo, ServerRecord};
-use kernel::Plugins;
+use kernel::{Limits, Plugins, Sandbox, Table};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
 use proto::process::{ProcessInfo, ProcessSpec};
@@ -163,6 +163,7 @@ pub fn instance_info(
 pub struct Runtime {
     engine: Arc<Engine>,
     plugins: Plugins,
+    sandbox: Option<Arc<Sandbox>>,
     hub: Arc<EventHub>,
     surface: Arc<Surface>,
     jobs: Jobs,
@@ -183,11 +184,25 @@ impl Runtime {
     /// Build over a given engine, the seam a test crosses to use a temporary
     /// data home.
     pub fn over(engine: Engine, log_path: PathBuf) -> Self {
-        let plugins = Plugins::new(engine.data_home(), engine::builtins()).expect(
-            "engine::builtins() must list unique ids whose requirements exist and do not cycle",
-        );
-        let engine = Arc::new(engine);
+        let home = engine.data_home();
         let hub = Arc::new(EventHub::default());
+        let surface = Arc::new(Surface::new(hub.clone(), home.to_path_buf()));
+        let sandbox = match Sandbox::new(
+            home.join("meta").join("plugins"),
+            &home.join("plugins.key"),
+            Limits::default(),
+        ) {
+            Ok(sandbox) => Some(Arc::new(sandbox.with_services(surface.clone()))),
+            Err(error) => {
+                tracing::error!(%error, "the plugin sandbox did not start; WASM plugins will not run");
+                None
+            }
+        };
+        let plugins = Plugins::new(home, engine::builtins(), sandbox.clone(), Table::kernel())
+            .expect(
+                "engine::builtins() must list unique ids whose requirements exist and do not cycle",
+            );
+        let engine = Arc::new(engine);
         // One registry for every cancellable job, keyed by job id — what
         // `job.cancel` looks a running job up in, whichever manager owns it.
         let cancellations = Cancellations::default();
@@ -220,10 +235,10 @@ impl Runtime {
             processes.clone(),
             cancellations.clone(),
         );
-        let surface = Arc::new(Surface::new(hub.clone(), engine.data_home().to_path_buf()));
         Runtime {
             engine,
             plugins,
+            sandbox,
             hub,
             surface,
             jobs,
@@ -304,11 +319,16 @@ impl Runtime {
         &self.plugins
     }
 
+    /// Missing when the sandbox could not start; WASM plugins then never run.
+    pub fn sandbox(&self) -> Option<&Sandbox> {
+        self.sandbox.as_deref()
+    }
+
     pub fn hub(&self) -> &EventHub {
         &self.hub
     }
 
-    /// What plugins draw through and keep their files in; hand it to the sandbox.
+    /// What plugins draw through and keep their files in.
     pub fn surface(&self) -> &Arc<Surface> {
         &self.surface
     }

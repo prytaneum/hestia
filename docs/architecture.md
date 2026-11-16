@@ -97,7 +97,8 @@ What is yours sits at the top level. What the launcher can regenerate sits under
 ├── config.json          settings
 ├── accounts.json        signed-in accounts (owner-only)
 ├── plugins.json         the plugins you turned off
-├── plugins/<id>/        what Hestia keeps for a plugin: settings, secrets (owner-only)
+├── plugins.key          the key that vouches for the compiled plugin cache (owner-only)
+├── plugins/<id>/        an installed plugin: package, approved digest, settings, secrets (owner-only)
 ├── plugin-data/<id>/    the plugin's own files, its `/data`
 ├── servers/<slug>/      one directory per server
 ├── instances/<slug>/    one directory per instance
@@ -160,6 +161,21 @@ an enabled plugin requires it or it has work running. The disabled ids persist i
 what the user turned off, so a plugin whose requirement is off stays `failed`. The kernel depends on `proto` and
 `common` only, so it cannot reach the launcher. `hestiad`'s runtime builds the registry from `engine::builtins()` and
 the router consults it for owner gates.
+
+WASM plugins sit in the same registry. A package is a directory with `plugin.toml` (identity and the scope of each
+permission that takes one) and `plugin.wasm`, each read only as a regular file under a size cap. `plugin.inspect`
+derives the **grant** from the component's top-level imports and exports without compiling it: each `hestia:kernel`
+interface maps, through the package's table, to a permission with a tier, so a manifest cannot ask for less or more
+than the code uses. Another `hestia:` package is a requirement an enabled built-in must provide; anything else but
+`wasi:` is refused. The `approval_digest` covers the id, the exact manifest and component bytes, each permission with
+its scope, and the requirements, never Hestia's prompt text; `plugin.install` refuses a package that no longer derives
+it, and start-up recomputes it and lists a changed package `failed` without running it. A permission the grant lacks
+links as a stub whose functions answer `denied(<permission>)`; an interface with a function that has no error to answer
+with cannot be denied. Installs, enables, disables and removals run one at a time. The daemon runtime owns one
+`kernel::Sandbox` (none if it cannot start, and WASM plugins are then listed but never run): compiled components under
+`meta/plugins/`, vouched for by `plugins.key`; `app.info` reports online only while the network is reachable and
+offline mode is off; installed plugins start after recovery, off the accept loop; a plugin that reaches the trap limit
+is disabled and stays so across restarts, and removing one deletes its cache entry.
 
 `vetting` is the one network policy: every request and download, core or plugin, is held to https, a granted host (a
 wildcard matches one label and never a public suffix), a resolver that refuses addresses inside the machine, a time and

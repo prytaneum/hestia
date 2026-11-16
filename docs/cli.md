@@ -535,7 +535,15 @@ hestia job cancel <id>           # cancel one by the id `job list` shows
 hestia plugin list               # every plugin: id, name, version, state, requires
 hestia plugin enable <id>        # also enables what it requires, first
 hestia plugin disable <id>       # refused while an enabled plugin requires it
+hestia plugin add <dir>          # show what the plugin asks for, then install it (--yes skips the prompt)
+hestia plugin remove <id>        # delete an installed plugin; a built-in cannot be removed
+hestia plugin secret set <id> <key>   # store a secret for a plugin that asks for `secrets`; typed without echo
 ```
+
+`add` takes a directory holding `plugin.toml` (id, name, version, and the scope of each permission that takes one) and
+`plugin.wasm`. The permissions are read from the component, never declared; the prompt lists each with its tier, and the
+approval covers the exact package, so one that changes between the prompt and the install is refused. `secret set`
+reads the value from stdin when it is not a terminal.
 
 ## Download cache
 

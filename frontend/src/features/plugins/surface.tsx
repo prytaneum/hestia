@@ -5,7 +5,7 @@ import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
 import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
-import { useConnection, useDaemonEvent } from '@/queries';
+import { useConnection, useDaemonEvent, usePluginNamer } from '@/queries';
 
 const NOTICE = {
   info: notify.info,
@@ -22,6 +22,7 @@ export function PluginSurface() {
   const [questions, setQuestions] = useState<PluginQuestion[]>([]);
   const [links, setLinks] = useState<PluginLink[]>([]);
 
+  const nameOf = usePluginNamer();
   const connection = useConnection();
   useEffect(() => {
     if (connection === 'disconnected') {
@@ -30,8 +31,8 @@ export function PluginSurface() {
     }
   }, [connection]);
 
-  useDaemonEvent('plugin.notice', ({ plugin: name, level, message }) =>
-    (NOTICE[level] ?? notify.info)(name, { description: message }),
+  useDaemonEvent('plugin.notice', ({ plugin: id, level, message }) =>
+    (NOTICE[level] ?? notify.info)(nameOf(id), { description: message }),
   );
   useDaemonEvent('plugin.question', (question) =>
     setQuestions((queue) => [...queue, question]),
@@ -62,7 +63,9 @@ export function PluginSurface() {
         open={Boolean(question)}
         onOpenChange={(open) => !open && settle(false)}
         size="sm"
-        title={m['plugin.question.title']({ plugin: question?.plugin ?? '' })}
+        title={m['plugin.question.title']({
+          plugin: question ? nameOf(question.plugin) : '',
+        })}
       >
         <DialogBody>
           <p className="text-sm whitespace-pre-wrap">{question?.message}</p>
@@ -80,7 +83,9 @@ export function PluginSurface() {
         open={Boolean(link)}
         onOpenChange={close}
         size="sm"
-        title={m['plugin.link.title']({ plugin: link?.plugin ?? '' })}
+        title={m['plugin.link.title']({
+          plugin: link ? nameOf(link.plugin) : '',
+        })}
         description={m['plugin.link.body']()}
       >
         <DialogBody>

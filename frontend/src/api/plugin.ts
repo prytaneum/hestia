@@ -1,5 +1,11 @@
 /** The `plugin.*` channels. */
 import { call } from './core/ipc';
+import type { PluginInfo } from './types';
+
+/** Every plugin and its state. */
+export function list(): Promise<PluginInfo[]> {
+  return call('plugin.list');
+}
 
 /** Answers the question `request` that `plugin` asked (`plugin.question`). */
 export async function answer(

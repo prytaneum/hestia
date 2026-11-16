@@ -9,13 +9,22 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use proto::net::NetworkStatus;
+use proto::net::{NetworkState, NetworkStatus};
 
 use super::Runtime;
 
 const TICK: Duration = Duration::from_secs(5);
 
+/// Plugins see the network only when it is reachable and the user has not
+/// pinned the daemon offline.
+fn tell_plugins(runtime: &Runtime, status: &NetworkStatus) {
+    if let Some(sandbox) = runtime.sandbox() {
+        sandbox.set_online(status.state == NetworkState::Online && !status.offline_mode);
+    }
+}
+
 pub fn spawn_network_watcher(runtime: Arc<Runtime>) {
+    tell_plugins(&runtime, &runtime.engine().network().status());
     let refresher = runtime.clone();
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(TICK);
@@ -33,6 +42,7 @@ pub fn spawn_network_watcher(runtime: Arc<Runtime>) {
                 return;
             }
             let status = states.borrow_and_update().clone();
+            tell_plugins(&runtime, &status);
             publish(&runtime, &status);
         }
     });
