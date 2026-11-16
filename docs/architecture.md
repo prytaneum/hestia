@@ -179,6 +179,20 @@ start, and WASM plugins are then listed but never run): compiled components unde
 start after recovery, off the accept loop; a plugin that reaches the trap limit is disabled and stays so across
 restarts, and removing one deletes its cache entry.
 
+**Trust.** A WASM plugin comes from a directory (a dev install, refused unless `plugins.developer` is on) or from a
+repository. A repository is added with a pinned minisign key (`repositories.json`), and its signed `index.json` lists
+each release with the SHA-256 of its manifest and component, so a package is trusted by digest and a download is held
+to it. The signature's trusted comment, `hestia-index <repository> <sequence> <expires>`, must match the body, so it
+cannot be lifted onto another repository or a longer life; an index below the highest sequence seen is a replay, one past
+`expires` is dead, and Hestia's own keys (`trust::OFFICIAL_KEYS`, none yet) are refused for any repository a user adds.
+Index and package fetches go through `vetting` on the repository's host and the hosts its signed index names. The
+approval record (`approval.json`) keeps the approved grant, the source (dev, or repository and signer) and any
+revocation. An update is held to the installed signer and replaces the files through a `.previous` directory: a version
+that fails to link or to start is rolled back, and a restart restores the previous version of an update that never
+finished. It asks for approval again when `grant::widens` finds a permission, a scope entry (host, endpoint, unchecked host,
+or program by path, arguments and digest) or a required package the approved grant lacked; nothing updates without the digest of what was shown. A version the index revokes is marked in
+its record, so it never starts again.
+
 `vetting` is the one network policy: every request and download, core or plugin, is held to https, a granted host (a
 wildcard matches one label and never a public suffix), a resolver that refuses addresses inside the machine, a time and
 size cap, and a checksum or a declared unhashed host, rechecked on every redirect. The engine's core callers state their

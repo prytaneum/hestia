@@ -535,7 +535,12 @@ hestia job cancel <id>           # cancel one by the id `job list` shows
 hestia plugin list               # every plugin: id, name, version, state, requires
 hestia plugin enable <id>        # also enables what it requires, first
 hestia plugin disable <id>       # refused while an enabled plugin requires it
-hestia plugin add <dir>          # show what the plugin asks for, then install it (--yes skips the prompt)
+hestia plugin add <dir>          # install from a directory (developer mode); shows what it asks for first (--yes skips)
+hestia plugin repo add <id> <url> --key <minisign key>   # add a repository under a pinned key
+hestia plugin repo list|remove <id>
+hestia plugin get <repo> <id> [--version V]   # install from a repository after the same prompt
+hestia plugin updates            # fetch every index; lists newer versions, disables revoked ones
+hestia plugin update <id>        # apply an update; one that asks for more shows the prompt again (--yes skips)
 hestia plugin remove <id>        # delete an installed plugin; a built-in cannot be removed
 hestia plugin secret set <id> <key>   # store a secret for a plugin that asks for `secrets`; typed without echo
 ```
@@ -544,6 +549,16 @@ hestia plugin secret set <id> <key>   # store a secret for a plugin that asks fo
 `plugin.wasm`. The permissions are read from the component, never declared; the prompt lists each with its tier, and the
 approval covers the exact package, so one that changes between the prompt and the install is refused. `secret set`
 reads the value from stdin when it is not a terminal.
+
+`add` is a dev install: it needs `hestia config set plugins.developer true`, since nothing signs a directory. A
+repository is an `index.json` and its minisign signature at the same URL plus `.minisig`; `repo add` pins the key you
+give and fetches the index once. Only the key you pinned vouches for the index, a key that stands for Hestia is refused
+for any repository you add, and an index that is expired, older than one already seen or signed for another repository
+is refused. An update never applies on its own: `update` asks again when the new version needs a permission, a scope
+entry (a host, an endpoint, an unchecked host or a program with another path, arguments or digest) or a required
+package the approved one did not, and it must be signed by the key that signed the installed
+version. One that fails to load is rolled back. A version the signed index revokes is disabled the next time
+`updates` fetches it, and stays off after a restart.
 
 ## Download cache
 
