@@ -129,8 +129,15 @@ fn start_up_never_enables_what_the_user_turned_off() {
     );
 
     plugins.disable("extra").unwrap();
-    let saved = std::fs::read_to_string(&path).unwrap();
-    assert!(saved.contains("core") && saved.contains("extra"));
+    let restarted = Plugins::new(path, build(&log)).unwrap();
+    assert!(log.lock().unwrap().is_empty());
+    assert_eq!(
+        states(&restarted),
+        [
+            ("core".into(), PluginState::Disabled),
+            ("extra".into(), PluginState::Disabled),
+        ]
+    );
 }
 
 #[test]

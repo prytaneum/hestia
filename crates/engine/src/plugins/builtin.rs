@@ -17,10 +17,10 @@ pub struct Busy;
 
 /// Hestia's own native code, registered through the same registry as any plugin.
 ///
-/// The registry holds its lock while it calls `enable` and `disable`, so neither
-/// may reach `Engine::plugins()`. Releasing the lock would need an intermediate
-/// "enabling" state to keep concurrent calls consistent; a callback that only
-/// starts or stops its own work does not need that.
+/// The registry holds its lock while it calls `enable` and `disable`, and the
+/// router reads that lock on every call to a plugin-owned channel. Both must
+/// return promptly (register or unregister, never wait on work) and must not
+/// reach `Engine::plugins()`.
 pub trait Builtin: Send + Sync {
     fn descriptor(&self) -> Descriptor;
     fn enable(&self) -> anyhow::Result<()>;

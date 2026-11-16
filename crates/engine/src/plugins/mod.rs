@@ -1,20 +1,30 @@
-//! What a plugin system builds on, kept apart from any runtime: download
-//! vetting, program pinning, and the signed repository index.
-#![allow(dead_code)] // held for the plugin system that returns; nothing in the engine calls them until then
+//! The plugin registry and built-ins, beside what the plugin system builds on:
+//! download vetting, program pinning, and the signed repository index.
 
-pub(crate) mod api;
 mod builtin;
-mod catalogue;
 mod error;
-mod index;
-mod invocation;
-mod official;
-mod program;
 mod registry;
+
+// Kept for the plugin system's later tasks; nothing in the engine calls them yet.
+#[allow(dead_code)]
+pub(crate) mod api;
+#[allow(dead_code)]
+mod catalogue;
+#[allow(dead_code)]
+mod index;
+#[allow(dead_code)]
+mod invocation;
+#[allow(dead_code)]
+mod official;
+#[allow(dead_code)]
+mod program;
+#[allow(dead_code)]
 mod repos;
+#[allow(dead_code)]
 mod repositories;
 #[cfg(test)]
 pub(crate) mod testkit;
+#[allow(dead_code)]
 pub(crate) mod vouch;
 
 pub use builtin::{all, Builtin, Busy, Descriptor};

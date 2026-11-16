@@ -59,7 +59,7 @@ impl Plugins {
             if disabled.contains(slots[index].id()) {
                 continue;
             }
-            if let Err(error) = start(&mut slots, index) {
+            if let Err(error) = enable_at_start_up(&mut slots, index) {
                 tracing::warn!(%error, "built-in plugin did not start");
             }
         }
@@ -83,7 +83,7 @@ impl Plugins {
     pub fn enable(&self, id: &str) -> Result<PluginInfo, PluginError> {
         let mut slots = self.slots();
         let index = find(&slots, id)?;
-        let outcome = activate(&mut slots, index);
+        let outcome = enable_with_requirements(&mut slots, index);
         let saved = self.save(&slots);
         outcome?;
         saved?;
@@ -167,7 +167,7 @@ fn find(slots: &[Slot], id: &str) -> Result<usize, PluginError> {
 /// turned off: a plugin whose requirement is not enabled stays failed. Not
 /// persisted, so it recovers once the requirement is enabled and the plugin is
 /// enabled again.
-fn start(slots: &mut [Slot], index: usize) -> Result<(), PluginError> {
+fn enable_at_start_up(slots: &mut [Slot], index: usize) -> Result<(), PluginError> {
     for required in slots[index].plugin.descriptor().requires {
         let required_index = find(slots, required)?;
         if slots[required_index].state != PluginState::Enabled {
@@ -180,19 +180,19 @@ fn start(slots: &mut [Slot], index: usize) -> Result<(), PluginError> {
             return Ok(());
         }
     }
-    activate(slots, index)
+    enable_with_requirements(slots, index)
 }
 
 /// Requirements come first in `slots`, so recursing into them enables in
 /// dependency order. A requirement that fails leaves the dependent failed too.
-fn activate(slots: &mut [Slot], index: usize) -> Result<(), PluginError> {
+fn enable_with_requirements(slots: &mut [Slot], index: usize) -> Result<(), PluginError> {
     if slots[index].state == PluginState::Enabled {
         return Ok(());
     }
     let id = slots[index].id();
     for required in slots[index].plugin.descriptor().requires {
         let required_index = find(slots, required)?;
-        if let Err(error) = activate(slots, required_index) {
+        if let Err(error) = enable_with_requirements(slots, required_index) {
             slots[index].state = PluginState::Failed;
             return Err(error);
         }
