@@ -110,6 +110,8 @@ const CHANGED: Record<Topics['changed']['scope'], QueryKey[]> = {
   sync: [keys.sync.all],
   screenshots: [keys.screenshots.all],
   cache: [keys.cache.all, [FOOTPRINT]],
+  // Swept whole by `startInvalidation`: a plugin owns channels any query reads.
+  plugins: [],
 };
 
 /** The key prefixes a daemon event outdates — exported for the regression test. */
@@ -159,6 +161,13 @@ function isEntryUpdatesKey({ queryKey }: { queryKey: QueryKey }): boolean {
   );
 }
 
+/** Every query but the footprint walks, which don't drift on their own and are expensive. */
+function invalidateAll(): void {
+  void queryClient.invalidateQueries({
+    predicate: (query) => query.queryKey[0] !== FOOTPRINT,
+  });
+}
+
 let started = false;
 
 /** Install the feed once, at app bootstrap. */
@@ -174,17 +183,14 @@ export function startInvalidation(): void {
     // Coming back online is the other reconnect: everything upstream-backed
     // failed or answered from a cached catalogue while we were out.
     if (event.topic === 'net.state') sweepOnReturnToOnline(event.payload);
+    if (event.topic === 'changed' && event.payload.scope === 'plugins')
+      invalidateAll();
   }).catch(() => {
     // Outside the Tauri shell there are no daemon events to hear.
   });
   onConnectionChange((state) => {
-    // The daemon may have changed while we were away, so refresh everything —
-    // except the footprint walks, which don't drift on their own and are
-    // expensive; they refetch on next mount if stale.
-    if (state === 'connected')
-      void queryClient.invalidateQueries({
-        predicate: (query) => query.queryKey[0] !== FOOTPRINT,
-      });
+    // The daemon may have changed while we were away.
+    if (state === 'connected') invalidateAll();
   }).catch(() => {
     // Same: no bridge, nothing to watch.
   });

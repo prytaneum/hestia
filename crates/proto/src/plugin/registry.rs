@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +54,7 @@ impl Contract for PluginList {
 pub struct PluginEnable;
 impl Contract for PluginEnable {
     const CHANNEL: &'static str = "plugin.enable";
+    const CHANGES: Option<Scope> = Some(Scope::Plugins);
     type Params = PluginTarget;
     type Result = PluginInfo;
 }
@@ -62,6 +64,7 @@ impl Contract for PluginEnable {
 pub struct PluginDisable;
 impl Contract for PluginDisable {
     const CHANNEL: &'static str = "plugin.disable";
+    const CHANGES: Option<Scope> = Some(Scope::Plugins);
     type Params = PluginTarget;
     type Result = PluginInfo;
 }

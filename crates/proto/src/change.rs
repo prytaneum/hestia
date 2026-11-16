@@ -30,6 +30,8 @@ pub enum Scope {
     Sync,
     Screenshots,
     Cache,
+    /// Which plugins are enabled, and so which channels answer.
+    Plugins,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
