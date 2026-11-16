@@ -103,6 +103,16 @@ async fn a_plugin_loads_logs_and_runs_init_inside_the_wasi_rule() {
     assert!(!bare.provides_lifecycle());
     sandbox.init(&bare).await.unwrap();
 
+    let chatty = sandbox.load("chatty", &guest("chatty")).await.unwrap();
+    sandbox.init(&chatty).await.unwrap();
+    let log = captured();
+    assert_eq!(
+        log.matches("chatty line").count(),
+        1000,
+        "lines past the cap are dropped"
+    );
+    assert!(log.contains("are dropped"));
+
     let probe = sandbox.load("probe", &guest("probe")).await.unwrap();
     let outcome = sandbox.init(&probe).await;
     assert!(

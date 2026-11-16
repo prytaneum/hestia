@@ -5,12 +5,14 @@ use super::bindings::hestia::kernel::{app, log, types};
 use super::limits::MemoryCap;
 
 const LOG_LINE_BYTES: usize = 4096;
+const LOG_LINES_PER_CALL: usize = 1000;
 
 /// The store data of one call. WASI sees no preopen, no network and an empty
 /// environment.
 pub(super) struct State {
     plugin: String,
     online: bool,
+    log_lines: usize,
     wasi: WasiCtx,
     table: ResourceTable,
     pub memory: MemoryCap,
@@ -21,6 +23,7 @@ impl State {
         State {
             plugin: plugin.to_owned(),
             online,
+            log_lines: 0,
             wasi: WasiCtxBuilder::new()
                 .allow_tcp(false)
                 .allow_udp(false)
@@ -45,8 +48,18 @@ impl types::Host for State {}
 
 impl log::Host for State {
     fn write(&mut self, level: log::Level, message: String) {
-        let line = &message[..message.floor_char_boundary(LOG_LINE_BYTES)];
+        self.log_lines += 1;
         let plugin = self.plugin.as_str();
+        if self.log_lines > LOG_LINES_PER_CALL {
+            if self.log_lines == LOG_LINES_PER_CALL + 1 {
+                tracing::warn!(
+                    plugin,
+                    "plugin log lines past {LOG_LINES_PER_CALL} in one call are dropped"
+                );
+            }
+            return;
+        }
+        let line = &message[..message.floor_char_boundary(LOG_LINE_BYTES)];
         match level {
             log::Level::Trace => tracing::trace!(target: "plugin", plugin, "{line:?}"),
             log::Level::Debug => tracing::debug!(target: "plugin", plugin, "{line:?}"),
