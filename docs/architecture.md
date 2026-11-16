@@ -209,7 +209,8 @@ It replaces the files through a `.previous` directory: a version that fails to l
 restart restores the previous version of an update that never finished (a finished one renames `.previous` to
 `.staging` before deleting it, and `remove` deletes both). It asks for approval again when `grant::widens` finds a
 permission, a scope entry (host, endpoint, unchecked host, or program by path, arguments and digest), a required
-package or an export the approved grant lacked; nothing updates without the digest of what was shown.
+package, an export or a schedule (a new one, or one that ticks more often) the approved grant lacked; nothing updates
+without the digest of what was shown.
 
 Every repository's index is fetched when the daemon starts, after recovery, and every 6 hours while online. A version
 the index revokes is marked in its record, disabled and listed in the `revoked` of `plugin.updates`, so it never starts
@@ -230,13 +231,13 @@ the plugin. WASI has no sockets and an empty environment; what reaches outside t
 `programs` and `ipc`, below. Compiled components are cached under `meta/plugins/`, one entry per plugin, each tagged
 with HMAC-SHA256 under a per-install key kept outside `meta/`; an entry whose tag does not cover its source, the engine
 and its bytes is recompiled, never loaded. The API is `hestia:kernel@0.1.0` (`types`, `log`, `app`, `data`, `settings`,
-`secrets`, `messages`, `progress`, `notify`, and `download`, `programs` and `ipc` in a world of their own, `reach`,
-which a toolchain that keeps every world import, such as `jco`, leaves out of a plugin that does not use them; exports
-`lifecycle` and `settings-changed`) in `crates/sdk/wit/kernel/`. `crates/sdk` (`hestia-sdk`, MIT OR Apache-2.0, not a
-default member: it targets `wasm32-wasip2`) always carries the imports and enables one export per cargo feature;
-`hestia::export!` exports the enabled ones. A component's exports are found per interface, a missing one meaning not
-provided. The tests build the guests in `crates/kernel/tests/guest/` and `guest-services/` once per run;
-`examples/typescript/` builds a `lifecycle`-only plugin with `jco` under Bun in CI.
+`secrets`, `messages`, `progress`, `notify`, `jobs`, and `download`, `programs` and `ipc` in a world of their own,
+`reach`, which a toolchain that keeps every world import, such as `jco`, leaves out of a plugin that does not use them;
+exports `lifecycle`, `settings-changed`, `commands`, `on-schedule` and `on-job-done`) in `crates/sdk/wit/kernel/`.
+`crates/sdk` (`hestia-sdk`, MIT OR Apache-2.0, not a default member: it targets `wasm32-wasip2`) always carries the
+imports and enables one export per cargo feature; `hestia::export!` exports the enabled ones. A component's exports are
+found per interface, a missing one meaning not provided. The tests build the guests in `crates/kernel/tests/guest/` and
+`guest-services/` once per run; `examples/typescript/` builds a `lifecycle`-only plugin with `jco` under Bun in CI.
 
 A built-in exposes a WIT package of its own through `crates/kernel/src/api/<package>/`: its table (`Builtin::table`,
 merged into the kernel's by `Plugins::new`, which refuses a row outside the package the built-in `provides`, an
@@ -288,6 +289,35 @@ for a URL nobody granted. Only a front-end that subscribes as drawing plugins (`
 the desktop) is asked; with none connected a question is declined and a link refused. Progress counts only in a job, and
 `cancelled` is the call's own. `Sandbox::change_setting` stores a value the user changed and then calls
 `settings-changed`; `Sandbox::store_secret` stores one the user entered.
+
+A plugin's manifest declares its **commands** (a name, a summary and typed arguments: string, integer or boolean) and
+its **schedules** (`every = "30m"`, a whole number of minutes, hours or days, counted from the last run). A manifest
+declares at most 32 commands and 8 schedules, and no command is named `help` nor argument `help` or `version`, which the
+CLI's parser keeps. The component must export `commands` for the first and `on-schedule` for the second, or the install
+is refused. Schedules are part of the grant (`Grant.schedules`: id and interval), because they act without anyone
+asking: the prompt lists them and `widens` flags a new one or one that ticks more often; a new command needs no new
+approval, a person starts it. `plugin.run` runs a command as a job (for a person, never for a plugin that calls the
+channel): it has the command budget of an hour, reports `progress` (only the latest report is kept, so a plugin
+reporting in a loop queues nothing), may `confirm` because a person started it, and is cancelled cooperatively through
+`progress.cancelled`. A cancel gives the plugin a grace of 5 s (the event budget) to return; one still running is
+dropped, which stops the guest and releases the named locks it held, and the job reports `cancelled`. What it wrote to
+`/data` stays. A plugin with a command running cannot be disabled, removed or updated (`PluginBusy`); developer mode
+turned off, the plugin's trap limit and the daemon stopping stop its commands outright. `jobs.start` (in `base`: no
+permission, only the budget below) queues one of the plugin's own commands the same way (never another plugin's: the
+plugin is whoever the call runs as), not as a person, and when that job ends, outside the job, the plugin's
+`on-job-done` hears its id and outcome. Each `jobs.start` and each schedule tick spends a wake-up: 30 in a burst, one
+refilled per second per plugin, and a tick that finds none is skipped. The daemon checks the schedules once a minute
+(`Plugins::run_due`, plugins side by side). The last run of each schedule is kept as unix time in
+`plugins/<id>/schedules.json`, started at install and at enable: a run missed while the daemon was down or the machine
+asleep is made up once at the next check, and a clock set back counts from its new time and never repeats a run.
+Everything a command run shows (`plugin.notice`, `plugin.question`, `plugin.link`, and its
+`closed`) carries the job id, passed to the host through the `Services` calls, so a front-end that started the run
+subscribes to that id and draws only its own, and counts as a surface only for that run's questions; the CLI does this
+for `hestia <plugin> <command>`, the desktop still draws every plugin's. A plugin id may not equal a top-level
+`hestia` command (`proto::naming::CLI_VERBS`, kept equal to the parser by a CLI test). Commands and schedules are
+exports, so an update that adds the `commands` or `on-schedule` export widens the grant and asks again; only an enabled
+plugin runs either, so a directory install left `failed` while developer mode is off answers no command and ticks no
+schedule.
 
 ## Subsystem pages
 

@@ -543,6 +543,7 @@ hestia plugin updates            # fetch every index; lists newer versions, disa
 hestia plugin update <id>        # apply an update; one that asks for more shows the prompt again (--yes skips)
 hestia plugin remove <id>        # delete an installed plugin; a built-in cannot be removed
 hestia plugin secret set <id> <key>   # store a secret for a plugin that asks for `secrets`; typed without echo
+hestia <plugin> <command> [--arg value]   # run a command the plugin declares; `hestia <plugin> --help` lists them
 ```
 
 `add` takes a directory holding `plugin.toml` (id, name, version, and the scope of each permission that takes one) and
@@ -563,6 +564,29 @@ be signed by the author key that signed the installed version, from the reposito
 fails to load is rolled back. A version the signed index revokes is disabled when the daemon checks every repository
 (at start and every 6 hours) or when `updates` does, is listed there, and stays off after a restart. `repo remove`
 followed by `repo add` starts the sequence floor again, which recovers a repository whose floor is out of reach.
+
+A plugin declares its commands and schedules in `plugin.toml`:
+
+```toml
+[[commands]]
+name = "clean"
+summary = "Delete old backups"
+args = [{ name = "keep", kind = "integer", required = true }, { name = "dry-run", kind = "boolean" }]
+
+[[schedules]]
+id = "nightly"
+every = "1d"          # whole minutes (30m), hours (6h) or days (1d), counted from the last run
+```
+
+`hestia <plugin> <command>` turns the declared arguments into `--keep 3 --dry-run`, checks them in the daemon and runs
+the command as a job (`hestia job list`). Ctrl-C cancels the job: the plugin sees it and may stop between steps, and one
+still running after 5 s is stopped (what it already wrote to its files stays); a second Ctrl-C stops waiting. A plugin
+with a command running cannot be disabled or removed. The CLI draws what that run shows: notices as lines, a confirmation as a prompt (a plugin may ask only in a command a person started),
+and a link as the address with a question whether to open it. A plugin id may not equal a `hestia` command, so
+`hestia server` can never mean a plugin. A word that is neither a command nor an installed plugin gets the usual
+"unrecognized subcommand" error with its suggestions; the daemon-not-running error appears only for a word that
+resembles no command and so may be a plugin. The approval prompt of `plugin install` and `update` lists a plugin's
+schedules beside its permissions.
 
 ## Download cache
 
