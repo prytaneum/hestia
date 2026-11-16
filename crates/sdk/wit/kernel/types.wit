@@ -1,0 +1,16 @@
+package hestia:kernel@0.1.0;
+
+interface types {
+    variant plugin-error {
+        not-found(string),
+        invalid(string),
+        /// Names the permission that is missing or declined.
+        denied(string),
+        unsupported,
+        offline,
+        upstream(string),
+        busy,
+        failed(string),
+        other(string),
+    }
+}

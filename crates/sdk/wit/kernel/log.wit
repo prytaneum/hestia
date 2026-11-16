@@ -1,0 +1,14 @@
+package hestia:kernel@0.1.0;
+
+/// No permission. Lines carry the plugin's id in the host log.
+interface log {
+    enum level {
+        trace,
+        debug,
+        info,
+        warn,
+        error,
+    }
+
+    write: func(level: level, message: string);
+}

@@ -1,0 +1,18 @@
+package hestia:kernel@0.1.0;
+
+/// No permission.
+interface app {
+    record app-info {
+        name: string,
+        version: string,
+        channel: string,
+        /// The host's operating system, as Rust names it: `linux`, `windows`, `macos`.
+        os: string,
+        /// The host's CPU architecture, as Rust names it: `x86_64`, `aarch64`.
+        arch: string,
+        /// Whether Hestia believes it can reach the network when the call starts.
+        online: bool,
+    }
+
+    info: func() -> app-info;
+}

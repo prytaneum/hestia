@@ -1,0 +1,20 @@
+package hestia:kernel@0.1.0;
+
+/// What every plugin can import, whatever it exports.
+world base {
+    import types;
+    import log;
+    import app;
+}
+
+/// One world per export; the SDK's feature of the same name enables it.
+world lifecycle-plugin {
+    include base;
+    export lifecycle;
+}
+
+/// The host's view: every import and every export, each export found on its own.
+world host {
+    include base;
+    export lifecycle;
+}

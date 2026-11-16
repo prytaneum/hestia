@@ -1,0 +1,8 @@
+package hestia:kernel@0.1.0;
+
+/// Called when the plugin is enabled or loaded, within 10 s.
+interface lifecycle {
+    use types.{plugin-error};
+
+    init: func() -> result<_, plugin-error>;
+}
