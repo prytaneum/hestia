@@ -4,4 +4,9 @@ export type EventsSubscribeParams = {
 /**
  * Empty subscribes to every event.
  */
-id: string, };
+id: string, 
+/**
+ * The subscriber draws what plugins show (notices, questions, links), so
+ * the daemon may ask the user through it.
+ */
+drawsPlugins: boolean, };

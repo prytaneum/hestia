@@ -22,6 +22,7 @@
       "./messages/{locale}/skin.json",
       "./messages/{locale}/settings.json",
       "./messages/{locale}/onboarding.json",
+      "./messages/{locale}/plugin.json",
       "./messages/{locale}/domain.json",
       "./messages/{locale}/error.json",
       "./messages/{locale}/warning.json"

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "plugin": {
+    "link": {
+      "body": "Este plugin quer abrir este endereço no seu navegador.",
+      "dismiss": "Agora não",
+      "open": "Abrir",
+      "title": "{plugin} oferece um link"
+    },
+    "question": {
+      "accept": "Sim",
+      "decline": "Não",
+      "title": "{plugin} pergunta"
+    }
+  }
+}

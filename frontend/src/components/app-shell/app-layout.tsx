@@ -10,6 +10,7 @@ import { StatusBar } from '@/components/app-shell/status-bar';
 import { TopNav } from '@/components/app-shell/top-nav';
 import { TourProvider } from '@/features/onboarding';
 import { WelcomeDialog } from '@/features/onboarding/welcome';
+import { PluginSurface } from '@/features/plugins';
 
 export function AppLayout() {
   const { pathname } = useLocation();
@@ -40,6 +41,7 @@ export function AppLayout() {
         <WelcomeDialog />
         <FileDropOverlay />
         <OfflineOverlay />
+        <PluginSurface />
       </TourProvider>
     </SearchProvider>
   );
