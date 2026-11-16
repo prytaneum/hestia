@@ -6,6 +6,7 @@ pub mod config;
 pub mod content;
 pub mod daemon;
 pub mod instance;
+pub mod invoke;
 pub mod java;
 pub mod job;
 pub mod lifecycle;
@@ -66,17 +67,24 @@ const STOP_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
 /// into that request.
 ///
 /// The job's own future is still awaited afterwards, so the command exits on
-/// the daemon's `cancelled` event rather than guessing that the cancel took.
+/// the daemon's `cancelled` event rather than guessing that the cancel took. A
+/// second Ctrl-C gives up on that wait (a job may take a grace to stop) and
+/// reports the job cancelled; the daemon keeps its own cancel path.
 pub async fn cancellable<T>(
     client: &Client,
     id: &str,
     job: impl std::future::Future<Output = Result<T, client::IpcError>>,
 ) -> Result<T, client::IpcError> {
     tokio::pin!(job);
+    let mut asked = false;
     loop {
         tokio::select! {
             outcome = &mut job => return outcome,
             _ = tokio::signal::ctrl_c() => {
+                if asked {
+                    return Err(client::IpcError::Cancelled);
+                }
+                asked = true;
                 let _ = client.jobs().cancel(id).await;
             }
         }

@@ -174,6 +174,18 @@ fn show_grant(inspection: &Inspection) -> Result<()> {
             rows,
         ))?;
     }
+    if !grant.schedules.is_empty() {
+        let rows = grant
+            .schedules
+            .iter()
+            .map(|schedule| vec![schedule.id.clone(), schedule.every.clone()])
+            .collect();
+        ui::show(View::table(
+            "it wakes itself without being asked",
+            ["SCHEDULE", "EVERY"],
+            rows,
+        ))?;
+    }
     if !grant.requires.is_empty() {
         ui::show(View::line(format!(
             "it needs: {}",

@@ -155,7 +155,7 @@ fn copy_clipboard(text: &str) -> bool {
     false
 }
 
-fn open_browser(url: &str) {
+pub(super) fn open_browser(url: &str) {
     if !url.starts_with("https://") || url.contains(['"', '\'']) {
         return;
     }

@@ -220,6 +220,9 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::daemon::DaemonCmd,
     },
+    /// A plugin's own command: `hestia <plugin> <command>`
+    #[command(external_subcommand)]
+    Plugged(Vec<String>),
 }
 
 fn main() -> ExitCode {
@@ -267,6 +270,8 @@ fn main() -> ExitCode {
     let result = rt
         .block_on(dispatch(command))
         .and_then(|status| Ok(ui::json::finish().map(|()| status)?));
+    // A terminal read left over from a withdrawn question must not hold the exit.
+    rt.shutdown_background();
 
     match result {
         Ok(status) => status.code(),
@@ -367,6 +372,26 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitStatus> {
         Command::Config { cmd } => commands::config::run(cmd).await,
         Command::Screenshot { cmd } => commands::screenshot::run(cmd).await,
         Command::Sync { cmd } => commands::sync::run(cmd).await,
+        Command::Plugged(words) => commands::invoke::run(words, Cli::command()).await,
     }
     .map(|()| ExitStatus::Active)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use super::*;
+
+    #[test]
+    fn a_plugin_may_not_take_the_name_of_a_command_of_the_cli() {
+        let command = Cli::command();
+        let parsed: BTreeSet<&str> = command
+            .get_subcommands()
+            .flat_map(|sub| std::iter::once(sub.get_name()).chain(sub.get_all_aliases()))
+            .chain(["help"])
+            .collect();
+        let reserved: BTreeSet<&str> = proto::naming::CLI_VERBS.into_iter().collect();
+        assert_eq!(parsed, reserved);
+    }
 }
