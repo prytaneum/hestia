@@ -21,6 +21,12 @@ pub struct Busy;
 /// reach the registry.
 pub trait Builtin: Send + Sync {
     fn descriptor(&self) -> Descriptor;
+
+    /// The interfaces of the package it provides and the permission each
+    /// needs. The registry adds it to the kernel's, so a plugin can import them.
+    fn table(&self) -> Option<crate::grant::Table> {
+        None
+    }
     fn enable(&self) -> anyhow::Result<()>;
     fn disable(&self) -> Result<(), Busy>;
 }

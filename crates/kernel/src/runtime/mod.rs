@@ -3,10 +3,12 @@
 //! components.
 
 mod admission;
-mod bindings;
+pub(crate) mod bindings;
 mod cache;
 mod data;
 mod error;
+#[cfg(feature = "probe")]
+pub(crate) mod extension;
 mod host;
 mod limits;
 mod messages;
@@ -30,11 +32,17 @@ use tokio::time::{error::Elapsed, timeout_at, Instant};
 use wasmtime::component::{Component, HasSelf, InstancePre, Linker};
 use wasmtime::{Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig, Store};
 
+#[cfg(feature = "probe")]
+use crate::api::Chain;
+use crate::api::HostCalls;
 use admission::Admission;
 use bindings::exports::hestia::kernel::{lifecycle, settings_changed};
 use cache::Cache;
 pub use error::{GuestError, SandboxError};
-use host::{Call, State};
+#[cfg(feature = "probe")]
+pub(crate) use extension::{Budget, Extension};
+use host::Call;
+pub(crate) use host::State;
 pub use limits::Limits;
 use limits::MemoryCap;
 pub use services::{Answer, NoticeLevel, Services};
@@ -50,6 +58,8 @@ const SETTINGS_CHANGED: &str = "hestia:kernel/settings-changed@0.1.0";
 enum Entry<'a> {
     Init(&'a lifecycle::GuestIndices),
     SettingChanged(&'a settings_changed::GuestIndices, &'a str, &'a str),
+    #[cfg(feature = "probe")]
+    Extension(&'a dyn Extension),
 }
 
 /// Runs plugin components. Calls need a tokio runtime; dropping a call's future
@@ -87,6 +97,15 @@ impl Loaded {
         self.lifecycle.is_some()
     }
 
+    /// Whether the component exports `interface` (`package/name@version`).
+    #[cfg(feature = "probe")]
+    pub(crate) fn exports(&self, interface: &str) -> bool {
+        self.pre
+            .component()
+            .get_export_index(None, interface)
+            .is_some()
+    }
+
     /// Whether the component exports `settings-changed`.
     pub fn provides_settings_changed(&self) -> bool {
         self.settings_changed.is_some()
@@ -103,6 +122,7 @@ impl Sandbox {
         wasmtime_wasi::p2::add_to_linker_async(&mut linker).map_err(SandboxError::Engine)?;
         bindings::Host_::add_to_linker::<State, HasSelf<State>>(&mut linker, |state| state)
             .map_err(SandboxError::Engine)?;
+        crate::api::link(&mut linker)?;
         let ticker =
             Ticker::start(engine.clone()).map_err(|error| SandboxError::Engine(error.into()))?;
         Ok(Sandbox {
@@ -119,8 +139,15 @@ impl Sandbox {
 
     /// Gives plugins the files, grants and front-ends of the host around the sandbox.
     pub fn with_services(mut self, services: Arc<dyn Services>) -> Self {
-        self.shared = Shared::new(services);
+        self.shared.services = services;
         self
+    }
+
+    /// The router the adapters of built-in packages call through.
+    pub fn set_calls(&self, calls: Arc<dyn HostCalls>) {
+        if self.shared.calls.set(calls).is_err() {
+            tracing::warn!("the host calls were already set");
+        }
     }
 
     /// What `app.info` reports as network status to calls that start later.
@@ -150,6 +177,7 @@ impl Sandbox {
         let pre = linker
             .instantiate_pre(&opened.component)
             .map_err(SandboxError::Load)?;
+        crate::api::check_exports(&opened.component, &pre)?;
         let lifecycle = match opened.component.get_export_index(None, LIFECYCLE) {
             Some(_) => Some(lifecycle::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
             None => None,
@@ -220,6 +248,26 @@ impl Sandbox {
         .await
     }
 
+    /// One call into an extension point a built-in's package defines, run
+    /// like any other call; `chain` is the plugins that led to it.
+    #[cfg(feature = "probe")]
+    pub(crate) async fn extend(
+        &self,
+        loaded: &Loaded,
+        chain: Chain,
+        extension: &dyn Extension,
+    ) -> Result<(), SandboxError> {
+        let call = Call {
+            chain,
+            ..Call::default()
+        };
+        let budget = match extension.budget() {
+            Budget::Event => self.limits.event_timeout,
+        };
+        self.run(loaded, budget, call, Entry::Extension(extension))
+            .await
+    }
+
     /// Stores a secret the user entered for the plugin.
     pub fn store_secret(&self, plugin: &str, key: &str, value: &str) -> Result<(), SandboxError> {
         settings::save_secret(&self.shared, plugin, key, value).map_err(SandboxError::Setting)
@@ -235,6 +283,10 @@ impl Sandbox {
         entry: Entry<'_>,
     ) -> Result<(), SandboxError> {
         let plugin = loaded.plugin.as_str();
+        let call = Call {
+            chain: call.chain.enter(plugin)?,
+            ..call
+        };
         let start = Instant::now();
         let _permit = match timeout_at(start + budget, self.admission.admit(plugin)).await {
             Ok(Ok(permit)) => permit,
@@ -252,6 +304,10 @@ impl Sandbox {
                             .load(&mut store, &instance)?
                             .call_init(&mut store)
                             .await
+                    }
+                    #[cfg(feature = "probe")]
+                    Entry::Extension(extension) => {
+                        extension.call(&mut store, &instance, &loaded.pre).await
                     }
                     Entry::SettingChanged(indices, key, value) => {
                         indices

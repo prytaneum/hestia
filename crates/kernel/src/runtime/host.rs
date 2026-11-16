@@ -9,6 +9,7 @@ use super::limits::MemoryCap;
 use super::notify::Drawn;
 use super::pause::Pause;
 use super::shared::Shared;
+use crate::api::Chain;
 
 const LOG_LINE_BYTES: usize = 4096;
 const LOG_LINES_PER_CALL: usize = 1000;
@@ -22,26 +23,35 @@ pub(super) struct Call {
     pub job: Option<String>,
     pub cancelled: Arc<AtomicBool>,
     pub pause: Arc<Pause>,
+    /// The plugins whose calls led to this one, ending with the plugin running
+    /// it once the call starts.
+    pub chain: Chain,
 }
 
 /// The store data of one call. WASI sees one preopen, `/data`, no network and
 /// an empty environment.
-pub(super) struct State {
-    pub plugin: String,
+pub(crate) struct State {
+    pub(super) plugin: String,
     online: bool,
     log_lines: usize,
-    pub shared: Shared,
-    pub call: Call,
+    pub(super) shared: Shared,
+    pub(super) call: Call,
     /// The named locks this call holds, released when it ends however it ends.
-    pub held: Vec<String>,
-    pub drawn: Drawn,
+    pub(super) held: Vec<String>,
+    pub(super) drawn: Drawn,
     wasi: WasiCtx,
     table: ResourceTable,
-    pub memory: MemoryCap,
+    pub(super) memory: MemoryCap,
 }
 
 impl State {
-    pub fn new(plugin: &str, online: bool, memory: MemoryCap, shared: Shared, call: Call) -> Self {
+    pub(super) fn new(
+        plugin: &str,
+        online: bool,
+        memory: MemoryCap,
+        shared: Shared,
+        call: Call,
+    ) -> Self {
         let mut wasi = WasiCtxBuilder::new();
         wasi.allow_tcp(false)
             .allow_udp(false)
@@ -67,6 +77,24 @@ impl State {
             table: ResourceTable::new(),
             memory,
         }
+    }
+}
+
+/// What an adapter of a built-in package calls through: the daemon's router,
+/// with this call's chain, which already ends with this plugin.
+#[cfg(feature = "probe")]
+impl State {
+    pub(crate) fn link(&self) -> Result<crate::api::Link, types::PluginError> {
+        let calls = self
+            .shared
+            .calls
+            .get()
+            .cloned()
+            .ok_or(types::PluginError::Unsupported)?;
+        Ok(crate::api::Link {
+            calls,
+            chain: self.call.chain.clone(),
+        })
     }
 }
 

@@ -1,0 +1,34 @@
+package hestia:probe@0.1.0;
+
+/// A typed call: one router channel, converted both ways.
+interface read {
+    use hestia:kernel/types@0.1.0.{plugin-error};
+
+    record echoed {
+        text: string,
+        length: u32,
+    }
+
+    echo: func(text: string) -> result<echoed, plugin-error>;
+}
+
+/// A job function: it returns when the job it starts is done.
+interface work {
+    use hestia:kernel/types@0.1.0.{plugin-error};
+    use read.{echoed};
+
+    shout: func(text: string) -> result<echoed, plugin-error>;
+}
+
+/// An extension point: the plugin that exports it fills it.
+interface filler {
+    use hestia:kernel/types@0.1.0.{plugin-error};
+
+    fill: func(text: string) -> result<string, plugin-error>;
+}
+
+world host {
+    import read;
+    import work;
+    export filler;
+}

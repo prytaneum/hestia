@@ -35,6 +35,8 @@ pub enum GrantError {
     },
 }
 
+const KERNEL_PACKAGE: &str = "hestia:kernel";
+
 fn unversioned(name: &str) -> &str {
     name.split_once('@').map_or(name, |(base, _)| base)
 }
@@ -44,7 +46,8 @@ fn package_of(interface: &str) -> Option<&str> {
 }
 
 /// A permission is needed by importing an interface that `table` maps to it. A
-/// package the table does not know is a requirement on the plugin providing it.
+/// package other than the kernel's, or one the table does not know, is a
+/// requirement on the plugin providing it.
 pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant, GrantError> {
     let mut needed: BTreeMap<&str, &Permission> = BTreeMap::new();
     let mut requires = BTreeSet::new();
@@ -56,8 +59,11 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
         let Some(package) = package_of(interface).filter(|p| p.starts_with("hestia:")) else {
             return Err(GrantError::UnsupportedImport(import.clone()));
         };
-        if !table.knows_package(package) {
+        let known = table.knows_package(package);
+        if !known || package != KERNEL_PACKAGE {
             requires.insert(package.to_owned());
+        }
+        if !known {
             continue;
         }
         match table.gate(interface) {

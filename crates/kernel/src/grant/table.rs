@@ -65,6 +65,39 @@ impl Table {
         )
     }
 
+    /// Adds `package`'s table. Refused when a row lies outside `package`, an
+    /// interface or permission is already in this table, or a row names a
+    /// permission the table lacks: each would let one package's grant speak for
+    /// another's.
+    pub(crate) fn merge(&mut self, package: &str, other: Table) -> Result<(), String> {
+        let prefix = format!("{package}/");
+        for (interface, permission) in &other.interfaces {
+            if !interface.starts_with(&prefix) {
+                return Err(format!("'{interface}' is not an interface of {package}"));
+            }
+            if self.interfaces.iter().any(|(held, _)| held == interface) {
+                return Err(format!("'{interface}' is in two tables"));
+            }
+            if let Some(name) = permission {
+                if !other.permissions.iter().any(|p| p.name == *name) {
+                    return Err(format!(
+                        "'{interface}' needs '{name}', which {package} lacks"
+                    ));
+                }
+            }
+        }
+        if let Some(taken) = other
+            .permissions
+            .iter()
+            .find(|p| self.permissions.iter().any(|held| held.name == p.name))
+        {
+            return Err(format!("permission '{}' is in two tables", taken.name));
+        }
+        self.interfaces.extend(other.interfaces);
+        self.permissions.extend(other.permissions);
+        Ok(())
+    }
+
     pub fn knows_package(&self, package: &str) -> bool {
         self.interfaces
             .iter()
@@ -83,5 +116,57 @@ impl Table {
             Some(permission) => Gate::Needs(permission),
             None => Gate::Unknown,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn permission(name: &'static str) -> Permission {
+        Permission {
+            name,
+            tier: Tier::Sandboxed,
+            scope: None,
+            prompt: "p",
+        }
+    }
+
+    #[test]
+    fn a_package_table_speaks_only_for_its_own_package() {
+        let refused = [
+            ("hestia:kernel/log", None, None, "the kernel's interface"),
+            ("hestia:other/x", None, None, "another package's"),
+            (
+                "hestia:probe/x",
+                Some("probe:x"),
+                None,
+                "a permission it lacks",
+            ),
+            (
+                "hestia:probe/x",
+                Some("secrets"),
+                Some(permission("secrets")),
+                "a kernel permission",
+            ),
+        ];
+        for (interface, needs, extra, case) in refused {
+            let mut table = Table::kernel();
+            let other = Table::new(vec![(interface, needs)], extra.into_iter().collect());
+            assert!(table.merge("hestia:probe", other).is_err(), "{case}");
+        }
+        let mut table = Table::kernel();
+        let probe = || {
+            Table::new(
+                vec![("hestia:probe/read", Some("probe:read"))],
+                vec![permission("probe:read")],
+            )
+        };
+        table.merge("hestia:probe", probe()).unwrap();
+        assert!(matches!(table.gate("hestia:probe/read"), Gate::Needs(_)));
+        assert!(
+            table.merge("hestia:probe", probe()).is_err(),
+            "an interface in two tables"
+        );
     }
 }

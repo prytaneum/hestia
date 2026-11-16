@@ -54,6 +54,18 @@ impl Slot {
         }
     }
 
+    /// Whether this plugin, enabled, needs `plugin`: a built-in by its id, or
+    /// a WASM plugin by the package `plugin` provides.
+    fn needs(&self, plugin: &Slot) -> bool {
+        match (&self.kind, &plugin.kind) {
+            (Kind::Guest(guest), Kind::Builtin(builtin)) => builtin
+                .descriptor()
+                .provides
+                .is_some_and(|package| guest.requires.iter().any(|p| p == package)),
+            _ => self.requires().contains(&plugin.id()),
+        }
+    }
+
     fn requires(&self) -> &'static [&'static str] {
         match &self.kind {
             Kind::Builtin(plugin) => plugin.descriptor().requires,
@@ -104,6 +116,24 @@ impl Plugins {
     ) -> Result<Self, PluginError> {
         let path = data_home.join(FILE);
         let ordered = order(builtins)?;
+        let mut table = table;
+        for plugin in &ordered {
+            let descriptor = plugin.descriptor();
+            let invalid =
+                |reason: String| PluginError::Invalid(format!("'{}' {reason}", descriptor.id));
+            match (descriptor.provides, plugin.table()) {
+                (Some(package), Some(provided)) => {
+                    table.merge(package, provided).map_err(invalid)?;
+                }
+                (None, None) => {}
+                (Some(package), None) => {
+                    return Err(invalid(format!("provides {package} without its table")))
+                }
+                (None, Some(_)) => {
+                    return Err(invalid("has a table but provides no package".into()))
+                }
+            }
+        }
         let disabled: HashSet<String> = schema::load::<Saved>(&path)
             .map(|saved| saved.disabled.into_iter().collect())
             .unwrap_or_default();
@@ -124,6 +154,12 @@ impl Plugins {
             table,
             store: Store::new(data_home),
         })
+    }
+
+    /// Every package's interfaces and permissions: the kernel's and those of
+    /// the built-ins.
+    pub fn table(&self) -> &Table {
+        &self.table
     }
 
     pub fn list(&self) -> Vec<PluginInfo> {
@@ -181,9 +217,7 @@ impl Plugins {
             PluginState::Enabled => {
                 let dependents: Vec<String> = slots
                     .iter()
-                    .filter(|slot| {
-                        slot.state == PluginState::Enabled && slot.requires().contains(&id)
-                    })
+                    .filter(|slot| slot.state == PluginState::Enabled && slot.needs(&slots[index]))
                     .map(|slot| slot.id().to_string())
                     .collect();
                 if !dependents.is_empty() {

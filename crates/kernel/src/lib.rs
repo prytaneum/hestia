@@ -1,6 +1,7 @@
 //! The plugin kernel: the registry every plugin, built-in or not, is listed in,
 //! the sandbox WASM plugins run in, and the network policy every request passes.
 
+mod api;
 mod builtin;
 mod error;
 mod grant;
@@ -11,6 +12,9 @@ mod registry;
 mod runtime;
 pub mod vetting;
 
+#[cfg(feature = "probe")]
+pub use api::probe;
+pub use api::{Chain, ChainError, HostCalls, Reply};
 pub use builtin::{Builtin, Busy, Descriptor};
 pub use error::{PackageError, PluginError};
 pub use grant::{denials, GrantError, Permission, Table};

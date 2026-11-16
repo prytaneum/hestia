@@ -767,6 +767,11 @@ pub enum ErrorInfo {
     PluginBuiltin {
         plugin: String,
     },
+    /// A job a plugin started on a built-in's channel was cancelled before it
+    /// finished.
+    JobCancelled {
+        channel: String,
+    },
 
     // --- protocol ---
     UnknownChannel {
@@ -856,6 +861,7 @@ impl ErrorInfo {
             | DownloadFailed { .. }
             | StopTimedOut { .. }
             | PluginFailed { .. }
+            | JobCancelled { .. }
             | Internal { .. } => "handler_error",
             _ => code::BAD_REQUEST,
         }
@@ -1121,6 +1127,7 @@ impl fmt::Display for ErrorInfo {
             PluginBuiltin { plugin } => {
                 write!(f, "plugin '{plugin}' is built in and cannot be removed")
             }
+            JobCancelled { channel } => write!(f, "the {channel} job was cancelled"),
             UnknownChannel { channel } => write!(f, "unknown channel: {channel}"),
             MalformedRequest { detail } => write!(f, "malformed request: {detail}"),
             IncompatibleVersion { got, want } => {

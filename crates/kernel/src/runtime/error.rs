@@ -23,4 +23,8 @@ pub enum SandboxError {
     Setting(GuestError),
     #[error("plugin returned an error: {0:?}")]
     Guest(GuestError),
+    /// Running the plugin would loop: it is already in the call chain, or the
+    /// chain is at its depth limit. Nothing of the plugin ran.
+    #[error(transparent)]
+    Chain(#[from] crate::api::ChainError),
 }

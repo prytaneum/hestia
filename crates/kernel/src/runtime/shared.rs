@@ -1,8 +1,9 @@
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use super::services::Services;
 use super::settings::Files;
+use crate::api::HostCalls;
 
 /// What every call of a sandbox shares: the host's services and the state that
 /// outlives a call.
@@ -14,6 +15,8 @@ pub(super) struct Shared {
     pub files: Arc<Files>,
     /// Plugins whose `/data` directory exists, so a call does not create it again.
     pub mounted: Arc<Mutex<HashSet<String>>>,
+    /// The router the adapters call through; set once the daemon has one.
+    pub calls: Arc<OnceLock<Arc<dyn HostCalls>>>,
 }
 
 impl Shared {
@@ -23,6 +26,7 @@ impl Shared {
             locks: Arc::default(),
             files: Arc::default(),
             mounted: Arc::default(),
+            calls: Arc::default(),
         }
     }
 }

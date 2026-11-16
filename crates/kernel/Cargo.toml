@@ -10,6 +10,10 @@ publish.workspace = true
 # `Hosts::with_loopback`, for tests that serve files locally over plain http.
 # No production code calls it; a build without the feature does not have it.
 loopback = []
+# `probe`, the test built-in that exposes a typed package. Integration tests are
+# a separate crate, so cfg(test) cannot reach it; the self dev-dependency below
+# turns it on for them.
+probe = []
 
 [dependencies]
 proto = { workspace = true }
@@ -31,6 +35,7 @@ reqwest = { workspace = true }
 psl = { workspace = true }
 
 [dev-dependencies]
+kernel = { path = ".", features = ["probe"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 futures-util.workspace = true

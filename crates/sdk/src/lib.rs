@@ -13,6 +13,9 @@ pub mod base {
 /// The error a plugin returns to Hestia.
 pub use base::hestia::kernel::types::PluginError as Error;
 pub use base::hestia::kernel::{app, data, log, messages, notify, progress, secrets, settings};
+/// The bindings generator the SDK is built with, for a guest that imports a
+/// built-in's package (`runtime_path: "hestia::wit_bindgen::rt"`).
+pub use wit_bindgen;
 
 #[doc(hidden)]
 #[cfg(feature = "lifecycle")]

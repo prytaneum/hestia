@@ -325,14 +325,14 @@ async fn an_ungranted_interface_answers_denied_naming_its_permission() {
     );
 }
 
-struct Core(Option<&'static str>);
+struct Core;
 
 impl Builtin for Core {
     fn descriptor(&self) -> Descriptor {
         Descriptor {
             id: "core",
             name: "core",
-            provides: self.0,
+            provides: None,
             requires: &[],
         }
     }
@@ -347,37 +347,10 @@ impl Builtin for Core {
 }
 
 #[tokio::test]
-async fn a_package_another_plugin_must_provide_installs_only_beside_it() {
-    let home = tempfile::tempdir().unwrap();
-    let pkg = home.path().join("pkg");
-    package(&pkg, "grant-needs", guest("hello"), "");
-    let unaware = || Table::new(Vec::new(), Vec::new());
-
-    let alone = plugins(home.path(), unaware(), Vec::new());
-    let inspection = alone.inspect(&pkg).await.unwrap();
-    assert_eq!(inspection.grant.requires, ["hestia:kernel"]);
-    assert!(matches!(
-        alone.install(&pkg, &inspection.approval_digest).await,
-        Err(PluginError::Package(PackageError::Unprovided(_)))
-    ));
-
-    let provided = plugins(
-        home.path(),
-        unaware(),
-        vec![Arc::new(Core(Some("hestia:kernel")))],
-    );
-    let installed = provided
-        .install(&pkg, &inspection.approval_digest)
-        .await
-        .unwrap();
-    assert_eq!(installed.state, PluginState::Enabled);
-}
-
-#[tokio::test]
 async fn an_installed_plugin_survives_restarts_and_removal_takes_its_cache() {
     let home = tempfile::tempdir().unwrap();
     let pkg = home.path().join("pkg");
-    let build = || plugins(home.path(), Table::kernel(), vec![Arc::new(Core(None))]);
+    let build = || plugins(home.path(), Table::kernel(), vec![Arc::new(Core)]);
     let registry = build();
 
     package(&pkg, "grant-keep", guest("hello"), "");

@@ -25,6 +25,8 @@ pub(crate) struct Guest {
     pub name: String,
     pub version: String,
     granted: Vec<String>,
+    /// The packages its imports need an enabled built-in to provide.
+    pub requires: Vec<String>,
     pub loaded: Option<Loaded>,
 }
 
@@ -35,6 +37,7 @@ impl Guest {
             name: id.to_owned(),
             version: String::new(),
             granted: Vec::new(),
+            requires: Vec::new(),
             loaded: None,
         }
     }
@@ -65,7 +68,7 @@ impl Plugins {
         if inspection.approval_digest != approved {
             return Err(PluginError::Changed(id));
         }
-        self.require_provided(&inspection.grant)?;
+        self.require_provided(&inspection.grant.requires)?;
         if self.slots().iter().any(|slot| slot.id() == id) || self.store.dir(&id).exists() {
             return Err(PluginError::Exists(id));
         }
@@ -117,7 +120,12 @@ impl Plugins {
             let wanted = !disabled.contains(&id);
             match self.load_guest(&id).await {
                 Ok(guest) if wanted => {
+                    let unprovided = self.require_provided(&guest.requires);
                     let guest = self.add(guest, PluginState::Failed);
+                    if let Err(error) = unprovided {
+                        tracing::warn!(plugin = id, %error, "installed plugin did not start");
+                        continue;
+                    }
                     if let Err(error) = self.start_guest(&guest).await {
                         tracing::warn!(plugin = id, %error, "installed plugin did not start");
                     }
@@ -206,7 +214,7 @@ impl Plugins {
         })
     }
 
-    fn require_provided(&self, grant: &Grant) -> Result<(), PluginError> {
+    fn require_provided(&self, requires: &[String]) -> Result<(), PluginError> {
         let slots = self.slots();
         let provided = |package: &str| {
             slots.iter().any(|slot| {
@@ -215,7 +223,7 @@ impl Plugins {
                         if plugin.descriptor().provides == Some(package))
             })
         };
-        match grant.requires.iter().find(|package| !provided(package)) {
+        match requires.iter().find(|package| !provided(package)) {
             Some(package) => Err(PackageError::Unprovided(package.clone()).into()),
             None => Ok(()),
         }
@@ -264,6 +272,7 @@ impl Plugins {
             name: manifest.name.trim().to_owned(),
             version: manifest.version,
             granted,
+            requires: grant.requires.clone(),
             loaded: Some(loaded),
         })
     }
