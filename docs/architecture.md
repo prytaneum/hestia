@@ -167,8 +167,9 @@ permission that takes one) and `plugin.wasm`, each read only as a regular file u
 derives the **grant** from the component's top-level imports and exports without compiling it: each `hestia:kernel`
 interface maps, through the package's table, to a permission with a tier, so a manifest cannot ask for less or more
 than the code uses. Another `hestia:` package is a requirement an enabled built-in must provide; anything else but
-`wasi:` is refused. The `approval_digest` covers the id, the exact manifest and component bytes, each permission with
-its scope, and the requirements, never Hestia's prompt text; `plugin.install` refuses a package that no longer derives
+`wasi:` is refused, and a `wasi:` package the table lists (`wasi:http`) goes through it like any other. The
+`approval_digest` covers the id, the exact manifest and component bytes, each permission with its scope (including its
+unhashed hosts and pinned programs), and the requirements, never Hestia's prompt text; `plugin.install` refuses a package that no longer derives
 it, and start-up recomputes it and lists a changed package `failed` without running it. A permission the grant lacks
 links as a stub whose functions answer `denied(<permission>)`; an interface with a function that has no error to answer
 with cannot be denied. Installs, enables, disables and removals run one at a time. The daemon runtime owns one
@@ -187,10 +188,10 @@ call, run as async calls that yield on every 10 ms epoch tick, so each call's wa
 such as `settings-changed` 5 s) also bounds a guest waiting inside a host call, and dropping the call stops the guest.
 Memory is capped at 256 MiB under the pooling allocator. At most 4 calls per plugin and 16 overall run at once; the rest
 wait for a slot within their budget. The third trap in ten minutes is reported as `TrapLimit`, and the registry disables
-the plugin. WASI has no network and an empty environment. Compiled components are cached under `meta/plugins/`, one
+the plugin. WASI has no sockets and an empty environment; the only network is `wasi:http`, `download` and `ipc`, below. Compiled components are cached under `meta/plugins/`, one
 entry per plugin, each tagged with HMAC-SHA256 under a per-install key kept outside `meta/`; an entry whose tag does not
 cover its source, the engine and its bytes is recompiled, never loaded. The API is `hestia:kernel@0.1.0` (`types`,
-`log`, `app`, `data`, `settings`, `secrets`, `messages`, `progress`, `notify`; exports `lifecycle` and
+`log`, `app`, `data`, `settings`, `secrets`, `messages`, `progress`, `notify`, `download`, `programs`, `ipc`; exports `lifecycle` and
 `settings-changed`) in `crates/sdk/wit/kernel/`. `crates/sdk` (`hestia-sdk`, MIT OR Apache-2.0, not a default member: it
 targets `wasm32-wasip2`) always carries the imports and enables one export per cargo feature; `hestia::export!` exports
 the enabled ones. A component's exports are found per interface, a missing one meaning not provided. The tests build the
@@ -209,6 +210,18 @@ Every call enters its plugin into the `Chain` before it runs, so a plugin alread
 8, is refused before anything runs. The `probe` feature compiles the test built-in `hestia:probe` and the adapter
 plumbing, which no production package uses yet; the kernel tests drive it with
 `tests/guest-services/src/bin/consumer.rs`.
+
+Three kernel permissions carry a manifest scope the sandbox enforces on every call (`runtime/reach.rs` reads it from the
+grant): `network:connect` (`hosts`, and `unhashed` for the hosts that may serve a body nothing verifies) is the plugin's
+`vetting::Policy`, used by `wasi:http` (through `wasmtime-wasi-http` with its own `send_request`, so no request leaves
+except through the policy; the guest follows redirects itself and each hop is vetted again) and by `download` (streams
+into `/data`, a checksum or an unhashed host, a staged `.part` renamed into place, destination checked not to leave
+`/data`); `process:spawn` (`programs`, unrestricted) lists invocations, each an absolute path and its exact arguments
+separated by single spaces, and the grant pins each file by sha256 when it is derived, so a program that changed makes
+the plugin fail its approval at the next start and is refused again at the call; a program runs with no shell, an empty
+environment, `/data` as its directory and output capped at 1 MiB; `ipc:connect` (`endpoints`, unrestricted) names exact
+unix socket paths or Windows pipe names. A plugin whose `wasi:http` permission was not granted fails to load: that
+interface has resources, so it cannot be answered with `denied`.
 
 The services a plugin calls reach the host through the `Services` trait the sandbox is given (`with_services`); the
 defaults provide nothing, so `settings` answers `unsupported` and `confirm` is declined. `/data` is the only WASI
