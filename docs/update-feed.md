@@ -160,3 +160,9 @@ the whole URL — channel segment included — alongside `HESTIA_UPDATE_PUBKEY` 
 the key to trust. `scripts/update.sh --serve` compiles a signed fake manifest,
 wraps it in the same envelope the API answers with, and serves it, so the client
 half is exercisable with no API at all.
+
+The update requests run under the release network policy, which names the feed
+and release hosts and refuses plain http. A local `http://127.0.0.1` feed is
+reachable only from the engine's own tests (its `loopback` feature), so
+`scripts/update.sh --serve` needs that feature built in or an https endpoint on
+a host the policy grants.

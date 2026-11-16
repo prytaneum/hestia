@@ -57,7 +57,7 @@ flowchart TD
 | `proto`   | wire contracts and domain types (serde), shared verbatim by both sides                            |
 | `ipc`     | transport (socket or pipe) and the JSON envelope; reads `common` only to scope the endpoint       |
 | `common`  | identity, paths, logging, crash reports, document schema ([below](#cross-cutting-code))           |
-| `kernel`  | the registry, `Builtin` and the WASM sandbox; knows no launcher logic ([below](#the-kernel))      |
+| `kernel`  | the registry, `Builtin`, the WASM sandbox, network vetting ([below](#the-kernel))                  |
 | `sdk`     | `hestia-sdk`, the guest side of `hestia:kernel`; built for `wasm32-wasip2`, not a default member  |
 | `client`  | typed SDK, one facade per domain over a `Session`; re-exports `proto`                             |
 | `engine`  | the launcher core; knows no socket; lists the built-in plugins it compiles in                     |
@@ -152,12 +152,17 @@ that directory. Release builds use `panic = "abort"` and `strip = true`, so rele
 
 ## The kernel
 
-`crates/kernel` holds the plugin registry. A built-in implements `Builtin` (a descriptor with `provides` and `requires`,
-plus `enable` and `disable`) and is enabled in dependency order. Disabling is refused while an enabled plugin requires
-it or it has work running. The disabled ids persist in `plugins.json`; start-up never enables what the user turned off,
-so a plugin whose requirement is off stays `failed`. The kernel depends on `proto` and `common` only, so it cannot reach
-the launcher. `hestiad`'s runtime builds the registry from `engine::builtins()` and the router consults it for owner
-gates.
+`crates/kernel` holds the plugin registry and network vetting. A built-in implements `Builtin` (a descriptor with
+`provides` and `requires`, plus `enable` and `disable`) and is enabled in dependency order. Disabling is refused while
+an enabled plugin requires it or it has work running. The disabled ids persist in `plugins.json`; start-up never enables
+what the user turned off, so a plugin whose requirement is off stays `failed`. The kernel depends on `proto` and
+`common` only, so it cannot reach the launcher. `hestiad`'s runtime builds the registry from `engine::builtins()` and
+the router consults it for owner gates.
+
+`vetting` is the one network policy: every request and download, core or plugin, is held to https, a granted host (a
+wildcard matches one label and never a public suffix), a resolver that refuses addresses inside the machine, a time and
+size cap, and a checksum or a declared unhashed host, rechecked on every redirect. The engine's core callers state their
+hosts in `engine::net::hosts`.
 
 The kernel also holds the WASM sandbox (`runtime/`): one wasmtime engine for the daemon, a fresh store and instance per
 call, run as async calls that yield on every 10 ms epoch tick, so each call's wall-clock budget (`init`: 10 s) also

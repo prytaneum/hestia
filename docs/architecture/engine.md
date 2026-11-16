@@ -69,8 +69,20 @@ keys and mistyped values, so the struct is the validation. `normalize()` handles
 
 Every outbound request crosses `net`.
 
-- **Client.** One pooled `reqwest` client: 10 s connect, 30 s between bytes, 45 s total for a metadata call. A download
-  sets no total. Retries are bounded with jittered backoff and honour `Retry-After`. Only transport failures, 429 and
+- **Vetting.** No request leaves the engine except under a `kernel::vetting::Policy`: https only, no IP literal, no
+  credentials in the URL, a granted host, and a resolver that refuses addresses inside the machine (loopback, private,
+  link-local, CGNAT, multicast, unspecified, and the IPv6 forms that wrap one), which dials only the addresses it
+  vetted. The client keeps no cookies and follows no redirect itself: `Policy::get` walks them and vets every hop; an
+  API call (`Policy::request`) follows none. A body is checksummed, or comes from a host the policy declares as serving
+  unhashed files. An API or metadata call runs under `Limits::REQUEST` (30 s, 32 MiB), its body read only through
+  `net::Answer` or `net::read`; a file download under `Limits::DOWNLOAD` (2 GiB and 30 s without data, no total, since
+  a Java runtime on a slow line is not a failure). A policy that lists its hosts goes through the proxy
+  `HTTPS_PROXY`/`ALL_PROXY` names (minus `NO_PROXY`); an open one goes direct, so a URL from content cannot reach what
+  the proxy sees. The hosts Hestia itself reaches are listed in `net/hosts.rs` (`mojang`, `bedrock_catalogue`,
+  `bedrock`, `accounts`, `adoptium`, `release`), plus `typed` (a URL the user typed) and `untrusted` (a file an archive
+  named; a checksum is required). Plain-http loopback is reached only through `Hosts::with_loopback`, which exists in a
+  build with the kernel's `loopback` feature, enabled by the engine's tests.
+- **Client.** Retries are bounded with jittered backoff and honour `Retry-After`. Only transport failures, 429 and
   5xx are retried, never a 4xx or a checksum mismatch.
 - **Reachability.** `net::Network` is `Online | Offline | Unknown`, derived from real traffic: any answer marks it up,
   and only a transport failure with retries spent marks it down. `network.offline` pins it, and nothing is attempted
@@ -78,22 +90,19 @@ Every outbound request crosses `net`.
   while online only after a quiet minute.
 - **Catalogue store.** `net::store` keeps the last good copy of each catalogue response under `meta/catalogue/`, keyed
   by URL, so a version list fetched while offline is served stale.
-- **Untrusted fetches.** `net::guard::client()` refuses names resolving to loopback, private, link-local, CGNAT,
-  multicast or unspecified addresses, uses no proxy or cookies, and dials the addresses it vetted.
 
 ### Remote images
 
 The webview never contacts an image host. `image.fetch` (`net/image/`) fetches for it and the desktop serves the bytes
-over the `hestia-image` scheme. The fetch uses the guarded client, follows at most five redirects each re-checked
+over the `hestia-image` scheme. The fetch runs under an open policy, follows at most five redirects each vetted
 (https, a host name, no credentials), caps the body at 10 MiB and the fetch at 15 s, and sniffs the bytes as png, jpeg,
 gif, webp, avif or svg. Results are stored in the cache by SHA-256, with `cache/images.json` mapping URL to blob (256
 entries, oldest dropped). A repeat view, or any view while offline, makes no request.
 
 ## Downloads and the cache
 
-- **`Downloader`** streams a URL to a `.part` file, hashes incrementally, and renames only on success.
-  `Downloader::untrusted(max_bytes)` is for a link a user typed: its client refuses any redirect off https and aborts a
-  body above the cap.
+- **`Downloader`** streams a URL to a `.part` file under the `Policy` it is built with, hashes incrementally, aborts a
+  body above the policy's cap, and renames only on success.
 - **`Cache`** is content-addressed under `cache/<algorithm>/<hex[..2]>/<hex>`, keyed by checksum, so a file fetched once
   is reused whatever URL asked. It serves per-entry destinations (server jars and libraries, mods, modpack files).
   Files in the shared `meta/` tree and the JDK archive bypass it. Hits are re-hashed on the way out; a damaged blob is
@@ -177,8 +186,9 @@ segment of the feed URL (`.../updates/stable`, `.../beta`).
 
 Flavors (`FlavorProvider`), content sources (`ContentProvider`), Java distributions (`JavaProvider`) and pack formats
 (`PackProvider`) are traits held in a runtime-mutable `Roster` (`roster.rs`); only the built-ins are registered: vanilla
-Java and Bedrock, Adoptium, and Hestia's own archive. No content source is built in. A provider may hand downloads a
-`vouch::Policy` (granted hosts, checksums, redirects); the built-ins hand none, so their downloads take the plain path.
+Java and Bedrock, Adoptium, and Hestia's own archive. No content source is built in. Each flavor, content
+source and Java package names the `Policy` its downloads run under (`download_policy`, `JavaPackage::policy`, and a pack
+format's `policy`), so a built-in states its hosts in `net/hosts.rs` and a plugin will state its granted ones.
 Flavors, content sources, pack formats and Java distributions beyond the built-ins return with the new plugin system.
 
 The registry is not the engine's: it lives in the [kernel](../architecture.md#the-kernel). The engine only lists the
