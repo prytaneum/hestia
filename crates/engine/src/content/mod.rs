@@ -27,7 +27,7 @@ use proto::content::{
     SearchResult, VersionQuery, LOCAL_SOURCE,
 };
 
-use crate::roster::{RegisterError, Roster, Standing};
+use crate::roster::{RegisterError, Roster};
 use proto::error::ErrorInfo;
 use provider::ContentProvider;
 pub(crate) use provider::{LocalFile, UrlRef};
@@ -158,11 +158,10 @@ impl Content {
     pub fn register(
         &self,
         owner: &str,
-        standing: Standing,
         provider: Arc<dyn ContentProvider>,
     ) -> Result<(), RegisterError> {
         self.providers
-            .register(owner, standing, provider.id(), provider.clone())
+            .register(owner, provider.id(), provider.clone())
     }
 
     /// The full id of the source `name` means, for what is stored.

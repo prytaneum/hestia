@@ -75,7 +75,7 @@ pub use net::Network;
 #[cfg(windows)]
 pub use process::run_relay;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError, StdinError};
-pub use roster::{RegisterError, Standing};
+pub use roster::RegisterError;
 pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};
 pub use skins::Skins;
 pub use sync::Sync;

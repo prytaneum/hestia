@@ -27,7 +27,7 @@ use anyhow::Result;
 use proto::minecraft::{Edition, Flavor, GameVersion};
 
 use crate::cache::Cache;
-use crate::roster::{RegisterError, Roster, Standing};
+use crate::roster::{RegisterError, Roster};
 use profile::{InstanceProfile, ServerProfile};
 
 pub use loaders::Loaders;
@@ -71,11 +71,10 @@ impl Minecraft {
     pub fn register(
         &self,
         owner: &str,
-        standing: Standing,
         provider: Arc<dyn FlavorProvider>,
     ) -> Result<(), RegisterError> {
         let id = provider.info().id.to_string();
-        self.flavors.register(owner, standing, &id, provider)
+        self.flavors.register(owner, &id, provider)
     }
 
     /// Remove every flavor `owner` registered. An entry already created from

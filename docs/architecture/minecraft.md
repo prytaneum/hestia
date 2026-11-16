@@ -19,11 +19,11 @@ only.
 | java    | `vanilla` | yes    | yes    | Mojang's own, built in                                   |
 | bedrock | `vanilla` | yes    |        | Bedrock Dedicated Server, built in; native, no Java      |
 
-The registry is runtime-mutable: `register(owner, standing, provider)` adds a provider whose id reads `<owner>.<id>`,
+The registry is runtime-mutable: `register(owner, provider)` adds a provider whose id reads `<owner>.<id>`,
 `unregister(owner)` drops an owner's providers, and the built-ins are permanent. A bare name resolves through the
-roster (`roster.rs`, shared with the content, Java and pack registries): the built-in of that name first, then by
-standing (official, developer, community), then the only provider of that id; an unknown or ambiguous name is a typed
-error listing the full ids. No other flavor ships; flavors beyond the two vanillas return with the new plugin system.
+roster (`roster.rs`, shared with the content, Java and pack registries): the built-in of that name first, then the
+only provider of that id; an unknown or ambiguous name is a typed error listing the full ids. No other flavor ships;
+flavors beyond the two vanillas return with the new plugin system.
 Tests register the native stand-in `fixture::Flavor` (`crates/engine/tests/fixture/`) through the same call.
 
 A provider names itself in one `FlavorInfo`:

@@ -19,7 +19,7 @@ flowchart TD
 `ContentProvider` is the trait: paginated search, project detail, version resolution filtered by loader and game
 version, modpack resolution, URL recognition, the kinds and editions it serves, and whether it can serve now. Core ships
 none, so a fresh Hestia has an empty source list; content sources (Modrinth, CurseForge) return with the new plugin
-system. The registry is runtime-mutable (`register(owner, standing, provider)`, `unregister(owner)`); an id reads
+system. The registry is runtime-mutable (`register(owner, provider)`, `unregister(owner)`); an id reads
 `<owner>.<id>`, and a bare name is resolved by the roster (`roster.rs`). Tests register the native stand-in
 `fixture::Source` (`crates/engine/tests/fixture/`).
 

@@ -26,7 +26,7 @@ use crate::content::pack;
 use crate::engine::Engine;
 use crate::instances::InstanceRecord;
 use crate::registry;
-use crate::roster::{RegisterError, Standing};
+use crate::roster::RegisterError;
 use crate::transfer::archive::{self, Reader};
 use crate::transfer::PackProvider;
 use crate::transfer::{
@@ -58,11 +58,10 @@ impl Engine {
     pub fn register_pack(
         &self,
         owner: &str,
-        standing: Standing,
         pack: Arc<dyn PackProvider>,
     ) -> Result<(), RegisterError> {
         let id = pack.id().to_string();
-        self.packs.register(owner, standing, &id, pack)
+        self.packs.register(owner, &id, pack)
     }
 
     /// Drops every pack format `owner` registered.

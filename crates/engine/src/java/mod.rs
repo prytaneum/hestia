@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::download::Downloader;
 use crate::minecraft::materialize;
-use crate::roster::{RegisterError, Roster, Standing};
+use crate::roster::{RegisterError, Roster};
 
 pub use adoptium::Adoptium;
 pub use platform::JavaTarget;
@@ -58,11 +58,10 @@ impl Java {
     pub fn register(
         &self,
         owner: &str,
-        standing: Standing,
         provider: Arc<dyn JavaProvider>,
     ) -> Result<(), RegisterError> {
         let id = provider.id().to_string();
-        self.providers.register(owner, standing, &id, provider)
+        self.providers.register(owner, &id, provider)
     }
 
     pub fn unregister(&self, owner: &str) -> usize {
@@ -402,8 +401,7 @@ mod tests {
     #[tokio::test]
     async fn a_registered_provider_is_selected_by_id_and_unknown_ids_are_named() {
         let java = Java::new(PathBuf::from("java"));
-        java.register("acme", Standing::Community, Arc::new(Stub))
-            .expect("namespaced");
+        java.register("acme", Arc::new(Stub)).expect("namespaced");
 
         let releases = java.releases("acme.zulu").await.expect("stub releases");
         assert_eq!(releases[0].major, 21);

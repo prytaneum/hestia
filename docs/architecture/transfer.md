@@ -84,7 +84,7 @@ cozy.hestia (a zip)
 ## Pack providers
 
 `PackProvider` (`transfer/provider.rs`) is the seam for a format other than Hestia's. It registers as `<owner>.<id>`
-through `Engine::register_pack(owner, standing, provider)`; `unregister_packs(owner)` drops an owner's formats.
+through `Engine::register_pack(owner, provider)`; `unregister_packs(owner)` drops an owner's formats.
 
 | Method               | Purpose                                                                                                      |
 |----------------------|--------------------------------------------------------------------------------------------------------------|

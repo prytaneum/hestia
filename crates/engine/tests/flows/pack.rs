@@ -20,11 +20,7 @@ const PACK: &str = fixture::pack::ID;
 
 fn register(engine: &engine::Engine) {
     engine
-        .register_pack(
-            fixture::pack::OWNER,
-            engine::Standing::Community,
-            Arc::new(fixture::pack::Replay::new()),
-        )
+        .register_pack(fixture::pack::OWNER, Arc::new(fixture::pack::Replay::new()))
         .expect("the pack format registers");
 }
 
