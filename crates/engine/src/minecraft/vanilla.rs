@@ -26,23 +26,6 @@ const INFO: FlavorInfo = FlavorInfo {
     interchange: Cow::Borrowed(&[]),
 };
 
-const HOSTS: [&str; 5] = [
-    "piston-meta.mojang.com",
-    "piston-data.mojang.com",
-    "launcher.mojang.com",
-    "libraries.minecraft.net",
-    "resources.download.minecraft.net",
-];
-
-/// Whether `url` is on a host Mojang serves the game's own files from, which
-/// the launcher fetches under its core policy even inside a plugin's profile.
-pub(crate) fn serves(url: &str) -> bool {
-    reqwest::Url::parse(url)
-        .ok()
-        .and_then(|url| url.host_str().map(|host| HOSTS.contains(&host)))
-        .unwrap_or(false)
-}
-
 pub struct Vanilla;
 
 #[async_trait]

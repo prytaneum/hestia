@@ -8,9 +8,7 @@ pub(crate) mod launch;
 mod loaders;
 pub(crate) mod log4j;
 pub(crate) mod materialize;
-pub(crate) mod maven;
 mod meta;
-pub(crate) mod overlay;
 pub(crate) mod ping;
 pub(crate) mod plan;
 pub mod profile;
@@ -20,7 +18,6 @@ pub(crate) mod rcon;
 pub(crate) mod rules;
 pub(crate) mod servers;
 mod vanilla;
-pub(crate) use vanilla::serves as serves_vanilla;
 pub(crate) mod world;
 
 use std::path::Path;
@@ -35,8 +32,9 @@ use profile::{InstanceProfile, ServerProfile};
 
 pub use loaders::Loaders;
 pub use provider::{unmet, InstallRequest, JavaInstall, Prerequisite, Side};
-pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
-pub use provider::{BOTH_SIDES, CLIENT_ONLY, SERVER_ONLY};
+pub use provider::{
+    FlavorInfo, FlavorProvider, Loads, ResolveRequest, BOTH_SIDES, CLIENT_ONLY, SERVER_ONLY,
+};
 
 /// The Java majors Minecraft launch profiles ever require: 8 (pre-1.17),
 /// 16 (1.17), 17 (1.18–1.20.4), 21 (1.20.5+). Catalogue surfaces (the
@@ -253,11 +251,6 @@ impl Minecraft {
         self.provider(side, edition, flavor)?
             .install(side, request, on_progress)
             .await
-    }
-
-    /// The flavor a plugin's profile builds on: Mojang's game, unchanged.
-    pub(crate) fn vanilla(&self) -> Option<Arc<dyn FlavorProvider>> {
-        self.provider(Side::Client, Edition::Java, vanilla::ID).ok()
     }
 
     pub(crate) fn provider(

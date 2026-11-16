@@ -21,8 +21,7 @@ use proto::content::{
     UntrackedFile,
 };
 
-pub(in crate::engine::flows) use self::add::artifact_context;
-use self::add::{file_name, local_context};
+use self::add::file_name;
 use self::entry::EntryContent;
 pub(in crate::engine) use self::entry::EntryRef;
 use self::manage::{hold_items, list_content, remove_content, set_enabled, update_from_file};
@@ -32,7 +31,6 @@ use crate::content::install;
 use crate::engine::{Engine, Repin};
 use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::Side;
-use crate::plugins::CallChain;
 use crate::transfer::{self, archive::Reader};
 use proto::minecraft::Edition;
 
@@ -45,12 +43,11 @@ impl Engine {
         &self,
         entry: EntryRef<'_>,
         spec: &ContentAddSpec,
-        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> Result<ContentDone> {
         let ctx = self.content_ctx(entry)?;
         self.ensure_accepts(&ctx, spec.kind)?;
-        self.add_content(&ctx, spec, chain, on_progress).await
+        self.add_content(&ctx, spec, on_progress).await
     }
 
     /// Classify a local file for import, refusing a pack in any registered
@@ -124,17 +121,13 @@ impl Engine {
         kind: ContentKind,
         item: &str,
         path: &Path,
-        chain: &CallChain,
     ) -> Result<ContentDone> {
         let ctx = self.content_ctx(entry)?;
         self.refuse_pack_file(path).await?;
-        let sha1 = install::sha1_file(path).ok();
-        let context = local_context(&ctx, kind, None, &file_name(path), sha1.as_deref());
-        let warnings = self.vet_install(&context, chain).await?;
         Ok(ContentDone {
             items: vec![update_from_file(&ctx, kind, item, path)?],
             failures: Vec::new(),
-            warnings,
+            warnings: Vec::new(),
         })
     }
 
@@ -147,11 +140,10 @@ impl Engine {
         entry: EntryRef<'_>,
         kind: ContentKind,
         items: &[String],
-        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> Result<ContentDone> {
         let ctx = self.content_ctx(entry)?;
-        self.update_content(&ctx, kind, items, "", chain, on_progress)
+        self.update_content(&ctx, kind, items, "", on_progress)
             .await
     }
 
@@ -162,7 +154,6 @@ impl Engine {
         entry: EntryRef<'_>,
         kind: ContentKind,
         repin: Repin<'_>,
-        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> Result<ContentDone> {
         let Repin {
@@ -178,11 +169,11 @@ impl Engine {
         let ctx = self.content_ctx(entry)?;
         match source.is_empty() {
             true => {
-                self.repin_content(&ctx, kind, item, version, chain, on_progress)
+                self.repin_content(&ctx, kind, item, version, on_progress)
                     .await
             }
             false => {
-                self.move_content_source(&ctx, kind, repin, chain, on_progress)
+                self.move_content_source(&ctx, kind, repin, on_progress)
                     .await
             }
         }

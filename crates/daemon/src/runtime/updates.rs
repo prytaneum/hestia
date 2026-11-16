@@ -6,8 +6,6 @@
 
 use std::sync::Arc;
 
-use engine::CallChain;
-
 use proto::content::{ContentUpdatesFoundEvent, EntryContentUpdate};
 use proto::error::EntryKind;
 use proto::net::NetworkState;
@@ -81,7 +79,6 @@ impl Runtime {
             ContentJob::AutoUpdate { entry },
             String::new(),
             claim,
-            CallChain::default(),
         );
     }
 }

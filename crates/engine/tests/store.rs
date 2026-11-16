@@ -2,8 +2,8 @@
 //! servers, instances).
 
 use engine::{
-    Config, InstanceProfile, Instances, PluginRecord, Plugins, ServerJar, ServerLaunch,
-    ServerPhase, ServerProfile, ServerRuntime, Servers,
+    Config, InstanceProfile, Instances, ServerJar, ServerLaunch, ServerPhase, ServerProfile,
+    ServerRuntime, Servers,
 };
 use proto::minecraft::Edition;
 
@@ -622,36 +622,4 @@ fn instance_config_rejects_unknown_keys() {
     // Non-JVM keys are rejected (no properties file for instances).
     assert!(instances.config_set(id, "motd", "hi").is_err());
     assert!(instances.config_get(id, "motd").is_err());
-}
-
-fn plugin_record(id: &str) -> PluginRecord {
-    PluginRecord {
-        id: id.into(),
-        wasm_sha256: Some("ab".repeat(32)),
-        enabled: true,
-        ..PluginRecord::default()
-    }
-}
-
-#[test]
-fn plugin_ids_that_escape_the_directory_are_refused() {
-    let dir = temp_dir("plugins-id");
-    let plugins = Plugins::new(dir.path().join("plugins"));
-    assert!(plugins.plugin_dir("../escape").is_err());
-    assert!(plugins.remove("..").is_err());
-    assert!(plugins.save(&plugin_record("Bad/Id")).is_err());
-}
-
-#[cfg(unix)]
-#[test]
-fn a_plugin_directory_is_closed_to_other_users() {
-    use std::os::unix::fs::PermissionsExt;
-    let dir = temp_dir("plugins-mode");
-    let plugins = Plugins::new(dir.path().join("plugins"));
-    plugins.save(&plugin_record("probe")).unwrap();
-    let mode = std::fs::metadata(plugins.plugin_dir("probe").unwrap())
-        .unwrap()
-        .permissions()
-        .mode();
-    assert_eq!(mode & 0o777, 0o700);
 }

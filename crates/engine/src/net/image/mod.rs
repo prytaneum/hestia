@@ -23,7 +23,6 @@ use sha2::{Digest, Sha256};
 
 use super::{guard, network, stream_failure};
 use crate::cache::{Cache, IMAGE_INDEX};
-use crate::plugins::vouch::Policy;
 use index::{Entry, Index};
 
 const MAX_BYTES: usize = 10 * 1024 * 1024;
@@ -58,20 +57,9 @@ impl ImageProxy {
     /// The image at `url`: from the cache when it was fetched before, otherwise
     /// from the network. A cached copy is served even when offline.
     pub async fn fetch(&self, url: &str) -> Result<Image> {
-        self.fetch_under(url, None).await
-    }
-
-    /// [`fetch`](ImageProxy::fetch) for a URL a plugin named: the first URL and
-    /// every redirect hop must also be on a host the plugin's grant allows, and
-    /// a cached copy is served only for a URL the grant allows.
-    pub async fn fetch_vouched(&self, url: &str, policy: &Policy) -> Result<Image> {
-        self.fetch_under(url, Some(policy)).await
-    }
-
-    async fn fetch_under(&self, url: &str, policy: Option<&Policy>) -> Result<Image> {
         let mut target = Url::parse(url).map_err(|_| refused("not a valid URL"))?;
         target.set_fragment(None);
-        self.check_target(&target, policy)?;
+        self.check_target(&target)?;
 
         if let Some(hit) = self.cached(target.as_str()) {
             tracing::debug!(host = target.host_str(), "image served from cache");
@@ -82,7 +70,7 @@ impl ImageProxy {
         }
 
         let host = target.host_str().unwrap_or_default().to_string();
-        let image = tokio::time::timeout(TOTAL_TIMEOUT, self.download(target.clone(), policy))
+        let image = tokio::time::timeout(TOTAL_TIMEOUT, self.download(target.clone()))
             .await
             .map_err(|_| refused("the host took too long to answer"))??;
         tracing::debug!(host, bytes = image.bytes.len(), mime = %image.mime, "image fetched");
@@ -116,10 +104,7 @@ impl ImageProxy {
         }
     }
 
-    fn check_target(&self, url: &Url, policy: Option<&Policy>) -> Result<()> {
-        if let Some(policy) = policy {
-            policy.vet(url.as_str(), false).map_err(refused)?;
-        }
+    fn check_target(&self, url: &Url) -> Result<()> {
         #[cfg(test)]
         if self.local.is_some_and(|local| {
             url.host_str() == Some(&local.ip().to_string()) && url.port() == Some(local.port())
@@ -143,10 +128,10 @@ impl ImageProxy {
 
     /// Redirects are walked here, not by the client, so that a hop to `http://`
     /// or to an address is stopped by the same checks as the first request.
-    async fn download(&self, start: Url, policy: Option<&Policy>) -> Result<Image> {
+    async fn download(&self, start: Url) -> Result<Image> {
         let mut url = start;
         for _ in 0..=MAX_REDIRECTS {
-            self.check_target(&url, policy)?;
+            self.check_target(&url)?;
             let mut response = self
                 .client
                 .get(url.clone())
@@ -327,32 +312,6 @@ mod tests {
                 "{url}: {error}"
             );
         }
-    }
-
-    #[tokio::test]
-    async fn a_plugins_url_outside_its_grant_is_refused_before_any_request() {
-        use proto::plugin::{Grant, Permission, PermissionScope, ScopeKind};
-
-        let origin = Origin::start().await;
-        let dir = tempfile::tempdir().expect("temp dir");
-        let proxy = origin.proxy(dir.path().to_path_buf());
-        let grant = Grant {
-            permissions: [(
-                Permission::NetworkConnect,
-                PermissionScope::of(ScopeKind::Hosts, ["cdn.example.test"]),
-            )]
-            .into(),
-            ..Grant::default()
-        };
-        let policy = Policy::new(&grant);
-
-        let error = proxy
-            .fetch_vouched(&origin.url("/logo.png"), &policy)
-            .await
-            .expect_err("refused");
-
-        assert!(detail(&error).contains("image refused"), "{error}");
-        assert_eq!(origin.hits.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]

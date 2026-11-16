@@ -1,4 +1,4 @@
-use engine::{CallChain, Engine, InstanceUpdateSpec, LaunchRequest};
+use engine::{Engine, InstanceUpdateSpec, LaunchRequest};
 use proto::error::{EntryKind, ErrorInfo};
 use proto::instance::{
     InstanceLaunch, InstanceLaunchDone, InstanceUpdate, InstanceUpdateDone, InstanceUpdateParams,
@@ -20,14 +20,12 @@ impl Jobs {
         instance_id: String,
         params: InstanceUpdateParams,
         claim: Claim,
-        chain: CallChain,
     ) -> String {
         let spec = Spec {
             id: params.id.clone(),
             prefix: "instance-update",
             claim: Some(claim),
             subject: Spec::subject(EntryKind::Instance, &instance_id),
-            chain: chain.clone(),
         };
 
         self.run::<InstanceUpdate, _>(spec, move |engine, reporter| {
@@ -41,7 +39,6 @@ impl Jobs {
                             allow_downgrade: params.allow_downgrade,
                         },
                         params.pack,
-                        &chain,
                         &reporter.job(),
                     )
                     .await?;
@@ -57,7 +54,7 @@ impl Jobs {
     /// Prepare and spawn a fresh session of an instance off-thread. Instances may
     /// run several sessions at once, so this takes no claim — it does not
     /// refuse a running instance. Returns the launch job id.
-    pub fn start_instance_launch(&self, order: LaunchOrder, chain: CallChain) -> String {
+    pub fn start_instance_launch(&self, order: LaunchOrder) -> String {
         let LaunchOrder {
             instance_id,
             instance_name,
@@ -69,14 +66,12 @@ impl Jobs {
             id,
         } = order;
         let (session_id, seq) = self.reserve_session(&instance_id);
-        let hook_chain = chain.clone();
 
         let spec = Spec {
             id,
             prefix: "instance-launch",
             claim: None,
             subject: Spec::subject(EntryKind::Instance, &instance_id),
-            chain,
         };
 
         let processes = self.processes.clone();
@@ -101,7 +96,6 @@ impl Jobs {
                         reconcile,
                         quick_play,
                         offline,
-                        chain: &hook_chain,
                     },
                     &reporter.job(),
                 )

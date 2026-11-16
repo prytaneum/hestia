@@ -210,7 +210,7 @@ impl Drop for Writer {
     }
 }
 
-pub(crate) struct Reader {
+pub struct Reader {
     zip: zip::ZipArchive<File>,
 }
 
@@ -229,7 +229,7 @@ impl Reader {
 
     /// Every member name in the archive, directories included. A name that is
     /// not valid UTF-8 is left out; extracting it fails on its own.
-    pub(crate) fn names(&self) -> Vec<String> {
+    pub fn names(&self) -> Vec<String> {
         self.zip
             .file_names()
             .filter_map(|name| name.ok().map(|name| name.into_owned()))
@@ -256,7 +256,7 @@ impl Reader {
     }
 
     /// Reads a member, refusing one that decompresses past `max` bytes.
-    pub(crate) fn read_capped(&mut self, name: &str, max: usize) -> Result<Vec<u8>> {
+    pub fn read_capped(&mut self, name: &str, max: usize) -> Result<Vec<u8>> {
         let entry = self
             .zip
             .by_name(name)

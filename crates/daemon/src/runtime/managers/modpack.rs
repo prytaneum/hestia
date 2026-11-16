@@ -1,4 +1,4 @@
-use engine::{CallChain, Engine};
+use engine::Engine;
 use proto::error::EntryKind;
 use proto::job::{Job, JobSubject};
 use proto::minecraft::ProvisionProgress;
@@ -56,13 +56,12 @@ impl ModpackJob {
     async fn run(
         self,
         engine: &Engine,
-        chain: &CallChain,
         on_progress: &engine::Job<'_>,
     ) -> anyhow::Result<engine::ModpackOutcome> {
         match self {
             ModpackJob::InstallInstance { pack, target } => {
                 engine
-                    .install_instance_modpack(&pack, &target, chain, on_progress)
+                    .install_instance_modpack(&pack, &target, on_progress)
                     .await
             }
             ModpackJob::InstallServer {
@@ -72,12 +71,12 @@ impl ModpackJob {
                 port,
             } => {
                 engine
-                    .install_server_modpack(&pack, &target, eula, port, chain, on_progress)
+                    .install_server_modpack(&pack, &target, eula, port, on_progress)
                     .await
             }
             ModpackJob::Update { entry, to } => {
                 engine
-                    .update_entry_modpack(entry.entry_ref(), &to, chain, on_progress)
+                    .update_entry_modpack(entry.entry_ref(), &to, on_progress)
                     .await
             }
         }
@@ -87,13 +86,7 @@ impl ModpackJob {
 impl Jobs {
     /// Start a pack job off-thread. An install that creates its entry has no
     /// claim to hold: the entry does not exist yet to conflict with.
-    pub fn start_modpack<C>(
-        &self,
-        job: ModpackJob,
-        id: String,
-        claim: Option<Claim>,
-        chain: CallChain,
-    ) -> String
+    pub fn start_modpack<C>(&self, job: ModpackJob, id: String, claim: Option<Claim>) -> String
     where
         C: Job<Progress = ProvisionProgress, Done = ModpackDone>,
     {
@@ -102,12 +95,11 @@ impl Jobs {
             prefix: job.id_prefix(),
             claim,
             subject: job.subject(),
-            chain: chain.clone(),
         };
 
         self.run::<C, _>(spec, move |engine, reporter| {
             Box::pin(async move {
-                let outcome = job.run(engine, &chain, &reporter.job()).await?;
+                let outcome = job.run(engine, &reporter.job()).await?;
                 Ok(ModpackDone {
                     entry: outcome.entry,
                     entry_name: outcome.entry_name,

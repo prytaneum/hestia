@@ -2,16 +2,12 @@
 //! is ordering: which step runs before which, and what is left on disk when one
 //! of them fails.
 
-mod content_source;
-mod flavor;
 mod java;
 mod pack;
-mod plugin_update;
-mod resolve;
 
 use crate::fixture;
 
-use engine::{CallChain, Cancel, EntryRef, Job, LaunchRequest, ServerCreateSpec};
+use engine::{Cancel, EntryRef, Job, LaunchRequest, ServerCreateSpec};
 use proto::content::{ContentAddItem, ContentAddSpec, ContentDone, ContentKind};
 use proto::error::ErrorInfo;
 use proto::instance::QuickPlay;
@@ -161,7 +157,6 @@ async fn a_batch_installs_its_roots_and_their_required_dependencies_once() {
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["sodium", "iris"]),
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -192,7 +187,6 @@ async fn content_from_a_source_that_is_gone_still_lists_with_its_source_missing(
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["sodium"]),
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -252,12 +246,7 @@ async fn with_local_mod(
         ..ContentAddSpec::default()
     };
     engine
-        .add_entry_content(
-            EntryRef::Instance(&id),
-            &spec,
-            &NO_CHAIN,
-            &job(&cancel, &report),
-        )
+        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
         .await
         .expect("import the local build");
     (engine, id)
@@ -286,7 +275,6 @@ async fn a_new_build_updates_a_local_item_and_keeps_it_disabled() {
             ContentKind::Mod,
             "homemade-1.0.jar",
             std::path::Path::new(&newer),
-            &NO_CHAIN,
         )
         .await
         .expect("update from the file");
@@ -323,7 +311,6 @@ async fn a_build_under_the_same_name_is_what_the_game_then_loads() {
             ContentKind::Mod,
             "homemade.jar",
             std::path::Path::new(&newer),
-            &NO_CHAIN,
         )
         .await
         .expect("update from the file");
@@ -354,7 +341,6 @@ async fn a_tracked_item_is_not_updated_from_a_file() {
             ContentKind::Mod,
             "sodium",
             std::path::Path::new(&build),
-            &NO_CHAIN,
         )
         .await
         .expect_err("a tracked item keeps its source");
@@ -406,12 +392,7 @@ async fn a_local_file_a_source_recognises_installs_tracked_and_alone() {
         failures,
         ..
     } = engine
-        .add_entry_content(
-            EntryRef::Instance(&id),
-            &spec,
-            &NO_CHAIN,
-            &job(&cancel, &report),
-        )
+        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
         .await
         .expect("the batch runs");
 
@@ -459,12 +440,7 @@ async fn a_file_kept_local_can_later_move_to_a_source_that_recognises_it() {
         failures,
         ..
     } = engine
-        .add_entry_content(
-            EntryRef::Instance(&id),
-            &spec,
-            &NO_CHAIN,
-            &job(&cancel, &report),
-        )
+        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
         .await
         .expect("the batch runs");
 
@@ -488,7 +464,6 @@ async fn a_file_kept_local_can_later_move_to_a_source_that_recognises_it() {
                 version: "1.0.0",
                 source: "fixture",
             },
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -557,7 +532,6 @@ async fn an_imported_profile_is_resolved_for_the_host_not_carried_from_the_expor
         .import_instance(
             &exported.path.to_string_lossy(),
             "copy",
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -608,7 +582,6 @@ async fn with_referenceable_mod(
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["sodium"]),
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -683,12 +656,7 @@ async fn a_referenceable_item_missing_from_the_archive_is_downloaded_on_import()
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let outcome = engine
-        .import_instance(
-            &archive.to_string_lossy(),
-            "copy",
-            &NO_CHAIN,
-            &job(&cancel, &report),
-        )
+        .import_instance(&archive.to_string_lossy(), "copy", &job(&cancel, &report))
         .await
         .expect("the archive imports");
 
@@ -715,12 +683,7 @@ async fn a_download_that_does_not_match_its_hash_fails_the_import_and_leaves_no_
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let refused = engine
-        .import_instance(
-            &tampered.to_string_lossy(),
-            "copy",
-            &NO_CHAIN,
-            &job(&cancel, &report),
-        )
+        .import_instance(&tampered.to_string_lossy(), "copy", &job(&cancel, &report))
         .await;
 
     let error = refused
@@ -750,12 +713,7 @@ async fn an_item_with_neither_bytes_nor_a_download_is_dropped_and_reported() {
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let outcome = engine
-        .import_instance(
-            &archive.to_string_lossy(),
-            "copy",
-            &NO_CHAIN,
-            &job(&cancel, &report),
-        )
+        .import_instance(&archive.to_string_lossy(), "copy", &job(&cancel, &report))
         .await
         .expect("the archive imports");
 
@@ -795,7 +753,6 @@ async fn a_root_that_fails_does_not_stop_the_batch() {
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["ghost", "sodium"]),
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -827,12 +784,7 @@ async fn a_shared_pack_that_does_not_fit_stays_offered_and_never_warns() {
         ..add(&["cozy"])
     };
     engine
-        .add_entry_content(
-            EntryRef::Instance(&alpha),
-            &cozy,
-            &NO_CHAIN,
-            &job(&cancel, &report),
-        )
+        .add_entry_content(EntryRef::Instance(&alpha), &cozy, &job(&cancel, &report))
         .await
         .expect("install the pack where it fits");
     engine
@@ -873,12 +825,7 @@ async fn updatable(home: &std::path::Path, icon: &str) -> (engine::Engine, Strin
     let mut spec = add(&["sodium"]);
     spec.items[0].version = older.id.clone();
     engine
-        .add_entry_content(
-            EntryRef::Instance(&id),
-            &spec,
-            &NO_CHAIN,
-            &job(&cancel, &report),
-        )
+        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
         .await
         .expect("install the older version");
     (engine, id, files)
@@ -900,7 +847,6 @@ async fn an_update_moves_the_version_and_leaves_the_project_alone() {
             EntryRef::Instance(&id),
             ContentKind::Mod,
             &["sodium".to_string()],
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -941,7 +887,6 @@ async fn updating_a_disabled_item_leaves_it_out_of_the_load_dir() {
             EntryRef::Instance(&id),
             ContentKind::Mod,
             &["sodium".to_string()],
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -995,12 +940,7 @@ async fn an_item_that_cannot_update_leaves_the_rest_of_the_batch_recorded() {
         item.version = format!("{}-1", item.project);
     }
     engine
-        .add_entry_content(
-            EntryRef::Instance(&id),
-            &spec,
-            &NO_CHAIN,
-            &job(&cancel, &report),
-        )
+        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
         .await
         .expect("install the older versions");
 
@@ -1013,7 +953,6 @@ async fn an_item_that_cannot_update_leaves_the_rest_of_the_batch_recorded() {
             EntryRef::Instance(&id),
             ContentKind::Mod,
             &[],
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -1061,8 +1000,6 @@ async fn launchable(home: &std::path::Path) -> (engine::Engine, String) {
     (engine, record.id)
 }
 
-static NO_CHAIN: std::sync::LazyLock<CallChain> = std::sync::LazyLock::new(CallChain::default);
-
 fn launch<'a>(instance: &'a str, quick_play: Option<QuickPlay>) -> LaunchRequest<'a> {
     LaunchRequest {
         instance,
@@ -1071,7 +1008,6 @@ fn launch<'a>(instance: &'a str, quick_play: Option<QuickPlay>) -> LaunchRequest
         reconcile: true,
         quick_play,
         offline: false,
-        chain: &NO_CHAIN,
     }
 }
 
@@ -1239,593 +1175,6 @@ async fn a_cancelled_launch_stops_at_a_checkpoint() {
     );
 }
 
-fn plugin_manifest(network: &[&str]) -> String {
-    let permissions = if network.is_empty() {
-        String::new()
-    } else {
-        format!("[permissions]\n\"network:connect\" = {{ hosts = {network:?} }}\n")
-    };
-    format!(
-        "id = \"tunnel\"\nversion = \"1.0.0\"\napi = \"^{}\"\nwasm = \"plugin.wasm\"\n\
-         {permissions}",
-        proto::plugin::API_VERSION
-    )
-}
-
-fn install_plugin(
-    plugins: &engine::Plugins,
-    package: &std::path::Path,
-    approve: &str,
-) -> anyhow::Result<engine::PluginRecord> {
-    plugins.install(package, approve, &Cancel::new(), &|_| {}, |_| Ok(()))
-}
-
-#[test]
-fn a_reinstall_that_widens_the_grant_needs_its_own_approval() {
-    let home = tempfile::tempdir().expect("temp home");
-    let source = tempfile::tempdir().expect("package dir");
-    let engine = engine::Engine::new(Some(home.path()));
-    let plugins = engine.plugins();
-    std::fs::write(source.path().join("plugin.wasm"), b"component").unwrap();
-    std::fs::write(source.path().join("plugin.toml"), plugin_manifest(&[])).unwrap();
-    let first = plugins.inspect(source.path()).expect("inspect");
-    install_plugin(plugins, source.path(), &first.grant_digest).expect("install");
-    let kept = plugins.data_dir("tunnel").unwrap().join("state.json");
-    std::fs::write(&kept, "{}").unwrap();
-
-    std::fs::write(
-        source.path().join("plugin.toml"),
-        plugin_manifest(&["api.example.com"]),
-    )
-    .unwrap();
-    let refused = install_plugin(plugins, source.path(), &first.grant_digest)
-        .expect_err("the old approval does not cover a new host");
-    assert!(matches!(
-        engine::error_info(refused),
-        ErrorInfo::PluginApprovalStale
-    ));
-    assert!(
-        !plugins
-            .read_manifest("tunnel")
-            .unwrap()
-            .permissions
-            .contains_key(&proto::plugin::Permission::NetworkConnect),
-        "the refused package is not installed"
-    );
-
-    let widened = plugins.inspect(source.path()).expect("inspect");
-    let record = install_plugin(plugins, source.path(), &widened.grant_digest).expect("update");
-    assert!(record.grant.hosts().any(|host| host == "api.example.com"));
-    assert!(kept.exists(), "an update keeps the plugin's data");
-}
-
-#[test]
-fn a_package_the_runtime_refuses_leaves_nothing_behind() {
-    use std::io::Write;
-    use zip::write::SimpleFileOptions;
-
-    let home = tempfile::tempdir().expect("temp home");
-    let source = tempfile::tempdir().expect("package dir");
-    let engine = engine::Engine::new(Some(home.path()));
-    let package = source.path().join("tunnel.hplugin");
-    let mut zip = zip::ZipWriter::new(std::fs::File::create(&package).unwrap());
-    for (name, body) in [
-        ("plugin.toml", plugin_manifest(&[]).into_bytes()),
-        ("plugin.wasm", b"not a component".to_vec()),
-    ] {
-        zip.start_file(name, SimpleFileOptions::default()).unwrap();
-        zip.write_all(&body).unwrap();
-    }
-    zip.finish().unwrap();
-
-    let digest = engine
-        .plugins()
-        .inspect(&package)
-        .expect("inspect")
-        .grant_digest;
-    let refused = engine
-        .plugins()
-        .install(&package, &digest, &Cancel::new(), &|_| {}, |_| {
-            anyhow::bail!("not a component")
-        })
-        .expect_err("the runtime refuses it");
-
-    assert!(matches!(
-        engine::error_info(refused),
-        ErrorInfo::PluginInvalid { .. }
-    ));
-    assert!(engine.plugins().get("tunnel").is_none());
-    assert_eq!(
-        std::fs::read_dir(home.path().join("plugins")).map_or(0, |dir| dir
-            .flatten()
-            .filter(|entry| entry.path().is_dir())
-            .count()),
-        0,
-        "no package and no staging directory is left"
-    );
-}
-
-mod launch_hooks {
-    use std::sync::Arc;
-
-    use async_trait::async_trait;
-    use engine::{HostCalls, LoadedPlugin, PluginRecord, PluginRuntime, Roster};
-    use proto::error::ErrorInfo;
-    use proto::plugin::{Grant, Permission, PermissionScope, ScopeKind, Touched};
-    use proto::warning::WarningInfo;
-    use serde_json::{json, Value};
-    use sha2::{Digest, Sha256};
-
-    use super::*;
-
-    pub(super) struct NoHost;
-
-    #[async_trait]
-    impl HostCalls for NoHost {
-        fn permission(&self, _channel: &str) -> Option<Permission> {
-            None
-        }
-
-        fn touched(&self, _channel: &str, _payload: &Value) -> Touched {
-            Touched::Unscoped
-        }
-
-        async fn call(
-            &self,
-            _plugin: &str,
-            _chain: &CallChain,
-            _channel: &str,
-            _payload: Value,
-        ) -> Result<Value, ErrorInfo> {
-            Err(ErrorInfo::UnknownChannel {
-                channel: "no host in this test".into(),
-            })
-        }
-
-        async fn run_job(
-            &self,
-            plugin: &str,
-            chain: &CallChain,
-            channel: &str,
-            payload: Value,
-        ) -> Result<Value, ErrorInfo> {
-            self.call(plugin, chain, channel, payload).await
-        }
-    }
-
-    struct Loaded(Vec<Arc<LoadedPlugin>>);
-
-    impl Roster<LoadedPlugin> for Loaded {
-        fn loaded(&self) -> Vec<Arc<LoadedPlugin>> {
-            self.0.clone()
-        }
-    }
-
-    fn attach_probe<const P: usize, const H: usize>(
-        engine: &engine::Engine,
-        home: &std::path::Path,
-        answers: &[(&str, &Value)],
-        permissions: [Permission; P],
-        hooks: [&str; H],
-    ) -> (Arc<Loaded>, std::path::PathBuf) {
-        let wasm = std::fs::read(fixture::probe::component()).expect("probe component");
-        let runtime = PluginRuntime::new(
-            Arc::new(NoHost),
-            fixture::plugin_cache(),
-            Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
-        )
-        .expect("runtime");
-        let record = PluginRecord {
-            id: "probe".into(),
-            wasm_sha256: Some(
-                Sha256::digest(&wasm)
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect(),
-            ),
-            grant: Grant {
-                permissions: permissions
-                    .map(|permission| {
-                        let scope = match permission {
-                            Permission::LaunchPatch => {
-                                PermissionScope::of(ScopeKind::Properties, ["my.mod.flag"])
-                            }
-                            _ => PermissionScope::default(),
-                        };
-                        (permission, scope)
-                    })
-                    .into(),
-                contributions: PermissionScope::of(ScopeKind::Hooks, hooks),
-                ..Grant::default()
-            },
-            ..PluginRecord::default()
-        };
-        let data = home.join("probe-data");
-        std::fs::create_dir_all(&data).expect("data dir");
-        for (name, answer) in answers {
-            std::fs::write(data.join(format!("{name}.json")), answer.to_string()).expect("answer");
-        }
-        let settings = engine::PluginSettings::new(home.join("probe-settings.json"), Vec::new());
-        let plugin = runtime
-            .load(&record, &wasm, data.clone(), settings)
-            .expect("load");
-        let roster = Arc::new(Loaded(vec![Arc::new(plugin)]));
-        engine.hooks().attach(&roster);
-        (roster, data)
-    }
-
-    struct Rig {
-        engine: engine::Engine,
-        instance: String,
-        server: String,
-        data: std::path::PathBuf,
-        _roster: Arc<Loaded>,
-        _home: tempfile::TempDir,
-    }
-
-    async fn rig(answer: Value) -> Rig {
-        let home = tempfile::tempdir().expect("temp home");
-        let (engine, instance) = launchable(home.path()).await;
-        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
-        let server = engine
-            .provision_server(spec("fabric"), &job(&cancel, &report))
-            .await
-            .expect("provision the server")
-            .0
-            .id;
-
-        let answers = [("launch", &answer), ("server", &answer)];
-        let (roster, data) = attach_probe(
-            &engine,
-            home.path(),
-            &answers,
-            [Permission::LaunchPatch, Permission::AccountRead],
-            ["before-launch", "before-server-start"],
-        );
-        Rig {
-            engine,
-            instance,
-            server,
-            data,
-            _roster: roster,
-            _home: home,
-        }
-    }
-
-    #[tokio::test]
-    async fn only_what_the_allowlist_names_reaches_the_plan() {
-        let rig = rig(json!({
-            "jvm": ["-XX:+UseZGC", "-Dmy.mod.flag=1", "-javaagent:x.jar", "-Dundeclared=1"],
-            "game": ["--fullscreen", "--accessToken", "stolen"],
-        }))
-        .await;
-        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
-
-        let prepared = rig
-            .engine
-            .prepare_instance(launch(&rig.instance, None), &job(&cancel, &report))
-            .await
-            .expect("prepare");
-
-        let args = &prepared.plan.args;
-        let has = |wanted: &str| args.iter().any(|arg| arg == wanted);
-        assert!(has("-XX:+UseZGC") && has("-Dmy.mod.flag=1") && has("--fullscreen"));
-        for refused in [
-            "-javaagent:x.jar",
-            "-Dundeclared=1",
-            "--accessToken",
-            "stolen",
-        ] {
-            assert!(!has(refused), "{refused} in {args:?}");
-        }
-        let main_at = args
-            .iter()
-            .position(|arg| arg == "net.minecraft.client.main.Main")
-            .expect("main class");
-        let zgc_at = args.iter().position(|arg| arg == "-XX:+UseZGC").unwrap();
-        assert!(zgc_at < main_at, "JVM options precede the main class");
-
-        let mut named: Vec<&str> = prepared
-            .warnings
-            .iter()
-            .filter_map(|warning| match warning {
-                WarningInfo::LaunchArgDropped { plugin, arg } => {
-                    assert_eq!(plugin, "probe");
-                    Some(arg.as_str())
-                }
-                _ => None,
-            })
-            .collect();
-        named.sort_unstable();
-        assert_eq!(
-            named,
-            [
-                "--accessToken",
-                "-Dundeclared=1",
-                "-javaagent:x.jar",
-                "stolen"
-            ]
-        );
-
-        let seen = std::fs::read_to_string(rig.data.join("context.json")).expect("context");
-        assert!(seen.contains("player"), "{seen}");
-        assert!(
-            !seen.contains("fixture-access"),
-            "the token never reaches the guest"
-        );
-    }
-
-    #[tokio::test]
-    async fn a_veto_fails_the_launch_with_the_reason() {
-        let rig = rig(json!({ "veto": "not today" })).await;
-        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
-
-        let refused = rig
-            .engine
-            .prepare_instance(launch(&rig.instance, None), &job(&cancel, &report))
-            .await
-            .map(|_| ())
-            .expect_err("vetoed");
-
-        let ErrorInfo::PluginVetoed {
-            plugin,
-            hook,
-            reason,
-        } = engine::error_info(refused)
-        else {
-            panic!("not a veto");
-        };
-        assert_eq!(
-            (plugin.as_str(), hook.as_str(), reason.as_str()),
-            ("probe", "before-launch", "not today")
-        );
-    }
-
-    #[tokio::test]
-    async fn a_server_gets_the_jvm_flags_and_none_of_the_window_arguments() {
-        let rig = rig(json!({
-            "jvm": ["-XX:+UseZGC", "-javaagent:x.jar"],
-            "game": ["--fullscreen"],
-        }))
-        .await;
-
-        let (_, plan, warnings) = rig
-            .engine
-            .server_launch_plan(&rig.server, &NO_CHAIN)
-            .await
-            .expect("plan");
-
-        assert_eq!(plan.args.first().map(String::as_str), Some("-XX:+UseZGC"));
-        for refused in ["-javaagent:x.jar", "--fullscreen"] {
-            assert!(!plan.args.iter().any(|arg| arg == refused), "{refused}");
-        }
-        let mut named: Vec<&str> = warnings
-            .iter()
-            .filter_map(|warning| match warning {
-                WarningInfo::LaunchArgDropped { arg, .. } => Some(arg.as_str()),
-                _ => None,
-            })
-            .collect();
-        named.sort_unstable();
-        assert_eq!(named, ["--fullscreen", "-javaagent:x.jar"]);
-        let seen = std::fs::read_to_string(rig.data.join("context.json")).expect("context");
-        assert!(seen.contains("ServerContext"), "{seen}");
-    }
-
-    #[tokio::test]
-    async fn a_veto_fails_the_server_start_with_the_reason() {
-        let rig = rig(json!({ "veto": "maintenance" })).await;
-
-        let refused = rig
-            .engine
-            .server_launch_plan(&rig.server, &NO_CHAIN)
-            .await
-            .map(|_| ())
-            .expect_err("vetoed");
-
-        let ErrorInfo::PluginVetoed { hook, reason, .. } = engine::error_info(refused) else {
-            panic!("not a veto");
-        };
-        assert_eq!(
-            (hook.as_str(), reason.as_str()),
-            ("before-server-start", "maintenance")
-        );
-    }
-
-    #[tokio::test]
-    async fn a_refused_file_is_named_and_the_rest_of_the_batch_installs() {
-        let home = tempfile::tempdir().expect("temp home");
-        let files = fixture::Files::serve().await;
-        let source = fixture::Source {
-            projects: vec![
-                fixture::project("sodium", ContentKind::Mod),
-                fixture::project("fabric-api", ContentKind::Mod),
-            ],
-            versions: vec![
-                fixture::version("sodium", &files, "1.21", &["fabric-api"]),
-                fixture::version("fabric-api", &files, "1.21", &[]),
-            ],
-            ..Default::default()
-        };
-        let (engine, id) = instance(home.path(), source).await;
-        let refused = json!(["fabric-api.jar"]);
-        let (_roster, data) = attach_probe(
-            &engine,
-            home.path(),
-            &[("content", &refused)],
-            [Permission::ContentRead],
-            ["before-content-install"],
-        );
-        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
-
-        let ContentDone {
-            items: installed,
-            failures,
-            ..
-        } = engine
-            .add_entry_content(
-                EntryRef::Instance(&id),
-                &add(&["sodium"]),
-                &NO_CHAIN,
-                &job(&cancel, &report),
-            )
-            .await
-            .expect("the batch runs");
-
-        let names: Vec<&str> = installed.iter().map(|i| i.project_id.as_str()).collect();
-        assert_eq!(names, ["sodium"], "only the dependency is refused");
-        let [failure] = failures.as_slice() else {
-            panic!("one refusal expected: {failures:?}");
-        };
-        let ErrorInfo::PluginVetoed { hook, reason, .. } = &failure.error else {
-            panic!("not a veto: {:?}", failure.error);
-        };
-        assert_eq!(hook, "before-content-install");
-        assert!(reason.starts_with("fabric-api.jar: "), "{reason}");
-        assert!(data.join("content.json").is_file());
-    }
-
-    #[tokio::test]
-    async fn a_refused_update_leaves_the_item_where_it_was() {
-        let home = tempfile::tempdir().expect("temp home");
-        let (engine, id, _files) = updatable(home.path(), "").await;
-        let refused = json!(["sodium.jar"]);
-        let (_roster, _data) = attach_probe(
-            &engine,
-            home.path(),
-            &[("content", &refused)],
-            [Permission::ContentRead],
-            ["before-content-install"],
-        );
-        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
-
-        let done = engine
-            .update_entry_content(
-                EntryRef::Instance(&id),
-                ContentKind::Mod,
-                &["sodium".to_string()],
-                &NO_CHAIN,
-                &job(&cancel, &report),
-            )
-            .await
-            .expect("the batch runs");
-
-        assert!(done.items.is_empty(), "nothing moved: {:?}", done.items);
-        assert!(
-            matches!(&done.failures[..], [f] if matches!(f.error, ErrorInfo::PluginVetoed { .. })),
-            "{:?}",
-            done.failures
-        );
-        let (listed, _) = engine
-            .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
-            .expect("list");
-        assert_ne!(listed[0].version_id, "sodium-2");
-    }
-
-    #[tokio::test]
-    async fn a_pack_installs_without_the_files_a_plugin_refuses() {
-        let home = tempfile::tempdir().expect("temp home");
-        let drops = tempfile::tempdir().expect("temp drops");
-        let files = fixture::Files::serve().await;
-        let engine = super::pack::engine_with(home.path(), fixture::Source::default()).await;
-        let path = super::pack::pack_file(
-            drops.path(),
-            "cozy.zip",
-            ("Cozy", "1.0.0"),
-            &files,
-            &["refused.jar", "kept.jar"],
-            &["bundled.jar"],
-        );
-        let refused = json!(["refused.jar", "bundled.jar"]);
-        let (_roster, _data) = attach_probe(
-            &engine,
-            home.path(),
-            &[("content", &refused)],
-            [Permission::ContentRead],
-            ["before-content-install"],
-        );
-        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
-
-        let outcome = engine
-            .install_instance_modpack(
-                &ModpackRef {
-                    path,
-                    ..ModpackRef::default()
-                },
-                &ModpackTarget::Create {
-                    name: String::new(),
-                },
-                &NO_CHAIN,
-                &job(&cancel, &report),
-            )
-            .await
-            .expect("the pack installs");
-
-        let vetoed: Vec<&str> = outcome
-            .failures
-            .iter()
-            .filter(|f| matches!(f.error, ErrorInfo::PluginVetoed { .. }))
-            .map(|f| f.title.as_str())
-            .collect();
-        assert_eq!(vetoed.len(), 2, "{:?}", outcome.failures);
-        let mods = engine
-            .instances()
-            .instance_dir(&engine.instances().require(&outcome.entry).expect("entry"))
-            .join("mods");
-        assert!(mods.join("kept.jar").is_file());
-        assert!(!mods.join("refused.jar").exists());
-        assert!(!mods.join("bundled.jar").exists());
-    }
-
-    #[tokio::test]
-    async fn a_refused_local_file_is_never_imported() {
-        let home = tempfile::tempdir().expect("temp home");
-        let drops = tempfile::tempdir().expect("temp drops");
-        let (engine, id) = instance(home.path(), fixture::Source::default()).await;
-        let refused = json!(["homemade.jar"]);
-        let (_roster, _data) = attach_probe(
-            &engine,
-            home.path(),
-            &[("content", &refused)],
-            [Permission::ContentRead],
-            ["before-content-install"],
-        );
-        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
-        let spec = ContentAddSpec {
-            kind: ContentKind::Mod,
-            items: vec![ContentAddItem {
-                path: local_mod(drops.path(), "homemade.jar"),
-                ..ContentAddItem::default()
-            }],
-            ..ContentAddSpec::default()
-        };
-
-        let done = engine
-            .add_entry_content(
-                EntryRef::Instance(&id),
-                &spec,
-                &NO_CHAIN,
-                &job(&cancel, &report),
-            )
-            .await
-            .expect("the batch runs");
-
-        assert!(done.items.is_empty(), "{:?}", done.items);
-        let [failure] = done.failures.as_slice() else {
-            panic!("one refusal expected: {:?}", done.failures);
-        };
-        assert!(
-            matches!(&failure.error, ErrorInfo::PluginVetoed { reason, .. } if reason.starts_with("homemade.jar: ")),
-            "{:?}",
-            failure.error
-        );
-        assert!(!home
-            .path()
-            .join("instances/modded/mods/homemade.jar")
-            .exists());
-    }
-}
-
 #[tokio::test]
 async fn a_flavor_is_looked_up_within_its_edition() {
     let home = tempfile::tempdir().expect("temp home");
@@ -1909,12 +1258,7 @@ async fn a_check_inside_the_ttl_asks_upstream_nothing_until_refreshed() {
     let mut spec = add(&["sodium"]);
     spec.items[0].version = older.id.clone();
     engine
-        .add_entry_content(
-            EntryRef::Instance(&id),
-            &spec,
-            &CallChain::default(),
-            &job(&cancel, &report),
-        )
+        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
         .await
         .expect("install the older version");
     let count = || lookups.load(std::sync::atomic::Ordering::SeqCst);
@@ -1957,7 +1301,6 @@ async fn a_bulk_answer_that_the_pin_is_current_needs_no_version_lookup() {
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["sodium"]),
-            &CallChain::default(),
             &job(&cancel, &report),
         )
         .await
@@ -1992,7 +1335,6 @@ async fn choosing_a_version_holds_the_item_out_of_update_all() {
                 version: "sodium-1",
                 source: "",
             },
-            &CallChain::default(),
             &job(&cancel, &report),
         )
         .await
@@ -2007,7 +1349,6 @@ async fn choosing_a_version_holds_the_item_out_of_update_all() {
             EntryRef::Instance(&id),
             ContentKind::Mod,
             &[],
-            &CallChain::default(),
             &job(&cancel, &report),
         )
         .await
@@ -2020,7 +1361,6 @@ async fn choosing_a_version_holds_the_item_out_of_update_all() {
             EntryRef::Instance(&id),
             ContentKind::Mod,
             &["sodium".to_string()],
-            &CallChain::default(),
             &job(&cancel, &report),
         )
         .await
@@ -2055,4 +1395,27 @@ async fn auto_update_moves_what_is_not_held() {
         .expect("auto-update");
     assert!(done.failures.is_empty(), "{:?}", done.failures);
     assert_eq!(done.items[0].version_id, "sodium-2");
+}
+
+#[test]
+fn a_server_whose_flavor_is_not_registered_still_lists_and_resolves_what_it_accepts() {
+    let home = tempfile::tempdir().expect("temp home");
+    let engine = fixture::engine(
+        home.path(),
+        vec![fixture::Flavor::resolving("vanilla")],
+        vec![],
+    );
+    let profile = engine::ServerProfile {
+        flavor: "ghost".into(),
+        game_version: "1.21".into(),
+        ..Default::default()
+    };
+    engine
+        .servers()
+        .create("Ghost", Edition::Java, profile, None)
+        .expect("the record is written");
+
+    let listed = engine.servers().list();
+    assert_eq!(listed.len(), 1);
+    let _ = engine.server_accepts(Edition::Java, "ghost");
 }

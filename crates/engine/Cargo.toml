@@ -41,11 +41,6 @@ tokio = { workspace = true }
 futures-util = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-wasmtime = { workspace = true }
-wasmtime-wasi = { workspace = true }
-wasmtime-wasi-http = { workspace = true }
-http = { workspace = true }
-http-body-util = { workspace = true }
 p256 = { version = "0.14.0", features = ["ecdsa"] }
 getrandom = "0.4"
 base64 = { workspace = true }
@@ -66,4 +61,3 @@ tokio = { workspace = true, features = ["test-util"] }
 engine = { path = ".", features = ["loopback"] }
 tempfile.workspace = true
 minisign = { workspace = true }
-wat = "1.262.0"

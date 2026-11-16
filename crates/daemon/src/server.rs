@@ -9,8 +9,6 @@ use ipc::protocol::{decode_request, encode_response, DecodeError};
 use ipc::Connection;
 use tracing::Instrument;
 
-use engine::CallChain;
-
 use crate::runtime::{Caller, Changed, HandlerContext, Router, Runtime};
 use crate::services::make_router;
 
@@ -137,7 +135,6 @@ async fn serve_connection(
             conn_id,
             out: out_tx.clone(),
             caller: Caller::Client,
-            chain: CallChain::default(),
             changed: Changed::default(),
         };
         let router = router.clone();

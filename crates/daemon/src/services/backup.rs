@@ -27,7 +27,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
             },
             p.id,
             claim,
-            ctx.chain.clone(),
         );
         Ok(JobStarted { id })
     });
@@ -57,7 +56,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
             },
             p.id,
             claim,
-            ctx.chain.clone(),
         );
         Ok(JobStarted { id })
     });

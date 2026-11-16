@@ -5,7 +5,6 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use engine::CallChain;
 use ipc::protocol::Event;
 use proto::error::EntryKind;
 use proto::java::{JavaInstallPhase, JavaInstallProgress};
@@ -167,9 +166,6 @@ pub(super) struct Spec {
     /// The entry the job acts on; `None` for a global job or one whose entry
     /// does not exist yet.
     pub subject: Option<JobSubject>,
-    /// The hook call path that started the job. Carried here because the job
-    /// runs on a spawned task, which a task-local would not follow.
-    pub chain: CallChain,
 }
 
 impl Spec {
@@ -242,8 +238,7 @@ impl Jobs {
         let running = self.running.clone();
         let subject = spec.subject;
         let (job_id, kind) = (id.clone(), spec.prefix);
-        let chain = spec.chain;
-        tracing::info!(job = %id, kind, chain = ?chain, "job started");
+        tracing::info!(job = %id, kind, "job started");
 
         running.lock().unwrap().insert(
             id.clone(),
@@ -289,15 +284,15 @@ impl Jobs {
 
             let event = match outcome {
                 Ok(done) => {
-                    tracing::info!(job = %job_id, kind, chain = ?chain, "job done");
+                    tracing::info!(job = %job_id, kind, "job done");
                     job_event::<C>(&job_id, &subject, JobState::Done(&done))
                 }
                 Err(e) if engine::is_cancelled(&e) => {
-                    tracing::info!(job = %job_id, kind, chain = ?chain, "job cancelled");
+                    tracing::info!(job = %job_id, kind, "job cancelled");
                     job_event::<C>(&job_id, &subject, JobState::Cancelled)
                 }
                 Err(e) => {
-                    tracing::error!(job = %job_id, kind, chain = ?chain, error = format!("{e:#}"), "job failed");
+                    tracing::error!(job = %job_id, kind, error = format!("{e:#}"), "job failed");
                     job_event::<C>(
                         &job_id,
                         &subject,
@@ -392,7 +387,6 @@ mod tests {
             prefix: "test",
             claim: None,
             subject: Spec::subject(EntryKind::Server, "smp"),
-            chain: CallChain::default(),
         };
         jobs.run::<stand_in::Test, _>(spec, work)
     }

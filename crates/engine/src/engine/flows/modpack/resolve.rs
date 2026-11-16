@@ -23,9 +23,8 @@ use crate::content::{install, pack, LocalFile};
 use crate::engine::Engine;
 use crate::jvm::{JVM_ARGS_KEY, MEMORY_KEY};
 use crate::minecraft::{materialize, Side};
-use crate::plugins::PluginPack;
 use crate::transfer::archive::Reader;
-use crate::transfer::{Detected, Kind};
+use crate::transfer::{Detected, Kind, PackProvider};
 
 const STAGING: &str = "tmp";
 
@@ -238,7 +237,7 @@ impl Engine {
         detected: Detected,
     ) -> Result<(pack::Archive, ResolvedModpack)> {
         match detected.kind {
-            Kind::Plugin(plugin) => {
+            Kind::Pack(plugin) => {
                 let loaders = self.minecraft.loaders();
                 let vetted = plugin.read(&mut reader, &detected.prefix, &loaders).await?;
                 let (read, warnings) = (vetted.read, vetted.warnings);
@@ -276,7 +275,7 @@ impl Engine {
 
     async fn resolve_read(
         &self,
-        plugin: &Arc<PluginPack>,
+        plugin: &Arc<dyn PackProvider>,
         read: PackRead,
     ) -> Result<(ResolvedModpack, Option<Arc<crate::plugins::vouch::Policy>>)> {
         let Some(delegate) = read.resolve else {

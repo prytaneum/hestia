@@ -1,4 +1,3 @@
-use engine::CallChain;
 use proto::java::{JavaInstall, JavaInstallDone};
 
 use super::job::{Jobs, Spec};
@@ -13,7 +12,6 @@ impl Jobs {
         id: String,
         force: bool,
         provider: String,
-        chain: CallChain,
     ) -> Option<String> {
         let claim = self
             .claims
@@ -24,7 +22,6 @@ impl Jobs {
             prefix: "java-install",
             claim: Some(claim),
             subject: None,
-            chain,
         };
 
         Some(self.run::<JavaInstall, _>(spec, move |engine, reporter| {

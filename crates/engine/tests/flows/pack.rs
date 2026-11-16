@@ -1,83 +1,35 @@
-//! A pack format contributed by a plugin, from the `replay-pack` fixture:
-//! detected by the members it declares, claimed or not by the guest, read into
-//! a pack whose files are vetted before anything is fetched, and written out
+//! A pack format, from the native `replay` fixture: detected by the members it
+//! declares, claimed or not by the format, read into a pack and written out
 //! through the host.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use engine::{PluginRecord, PluginRuntime};
-use proto::plugin::{Manifest, Permission, PermissionScope, ScopeKind};
+use sha2::Digest;
+
 use proto::provider::Provider;
 use proto::transfer::{ExportFormat, ImportFormat};
 use proto::warning::WarningInfo;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 
-use super::content_source;
-use super::launch_hooks::NoHost;
 use super::*;
 
 const SHA1: &str = fixture::Files::BODY_SHA1;
-const PACK: &str = "replay-pack.replay";
-const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89";
+const PACK: &str = fixture::pack::ID;
 
-fn plugin_record(manifest: &Manifest, wasm: &[u8], hosts: &[&str]) -> PluginRecord {
-    let mut grant = manifest.grant();
-    grant.permissions.insert(
-        Permission::NetworkConnect,
-        PermissionScope::of(ScopeKind::Hosts, hosts.iter().copied()),
-    );
-    PluginRecord {
-        id: manifest.id.clone(),
-        wasm_sha256: Some(
-            Sha256::digest(wasm)
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect(),
-        ),
-        grant,
-        ..PluginRecord::default()
-    }
-}
-
-async fn contributions(home: &Path, hosts: &[&str]) -> (Manifest, engine::Contributions) {
-    let manifest: Manifest = toml::from_str(fixture::pack::MANIFEST).expect("manifest");
-    manifest.validate().expect("a valid manifest");
-    let wasm = std::fs::read(fixture::pack::component()).expect("replay-pack component");
-    let runtime = PluginRuntime::new(
-        Arc::new(NoHost),
-        fixture::plugin_cache(),
-        Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
-    )
-    .expect("runtime");
-    let data = home.join("replay-pack-data");
-    std::fs::create_dir_all(&data).expect("data dir");
-    let settings = engine::PluginSettings::new(home.join("replay-pack-settings.json"), Vec::new());
-    let record = plugin_record(&manifest, &wasm, hosts);
-    let plugin = Arc::new(runtime.load(&record, &wasm, data, settings).expect("load"));
-    let connected =
-        engine::Contributions::connect(&plugin, &manifest, engine::Standing::Community).await;
-    (manifest, connected)
-}
-
-async fn rig(home: &Path, files: &fixture::Files) -> engine::Engine {
-    let engine = fixture::engine(
-        home,
-        vec![
-            fixture::Flavor::resolving("vanilla"),
-            fixture::Flavor::resolving("fabric"),
-        ],
-        vec![],
-    );
-    let (manifest, connected) = contributions(home, &["127.0.0.1"]).await;
-    connected.register(&engine, &manifest.id);
-    let (plugin, index) = content_source::load(home, files, &["127.0.0.1"]);
-    engine::Contributions::connect(&plugin, &index, engine::Standing::Community)
-        .await
-        .register(&engine, &index.id);
+fn register(engine: &engine::Engine) {
     engine
+        .register_pack(
+            fixture::pack::OWNER,
+            engine::Standing::Community,
+            Arc::new(fixture::pack::Replay::new()),
+        )
+        .expect("the pack format registers");
+}
+
+async fn rig(home: &Path, _files: &fixture::Files) -> engine::Engine {
+    engine_with(home, fixture::Source::default()).await
 }
 
 pub(super) async fn engine_with(home: &Path, source: fixture::Source) -> engine::Engine {
@@ -89,8 +41,7 @@ pub(super) async fn engine_with(home: &Path, source: fixture::Source) -> engine:
         ],
         vec![source],
     );
-    let (manifest, connected) = contributions(home, &["127.0.0.1"]).await;
-    connected.register(&engine, &manifest.id);
+    register(&engine);
     engine
 }
 
@@ -164,12 +115,7 @@ fn replay(files: Value) -> Value {
 async fn import(engine: &engine::Engine, path: &Path) -> anyhow::Result<engine::ImportOutcome> {
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
     engine
-        .import_instance(
-            &path.to_string_lossy(),
-            "",
-            &CallChain::default(),
-            &job(&cancel, &report),
-        )
+        .import_instance(&path.to_string_lossy(), "", &job(&cancel, &report))
         .await
 }
 
@@ -264,118 +210,6 @@ async fn a_read_installs_its_files_and_the_trees_its_sides_take() {
 }
 
 #[tokio::test]
-async fn a_read_that_delegates_resolves_through_the_source_that_owns_the_manifest() {
-    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let files = fixture::Files::serve().await;
-    let engine = rig(home.path(), &files).await;
-    let manifest = json!({
-        "name": "Delegated",
-        "gameVersion": "1.21",
-        "resolve": {
-            "source": "static-index.index",
-            "manifest": { "files": [{ "path": "mods/b.jar", "url": "b.jar", "sha1": SHA1 }] },
-        },
-        "trees": { "shared": ["overrides"] },
-    });
-    let path = archive(drops.path(), manifest, &[("overrides/config/b.toml", "b")]);
-
-    let outcome = import(&engine, &path).await.expect("the pack imports");
-
-    assert!(outcome.failures.is_empty(), "{:?}", outcome.failures);
-    let data = data_of(&engine, &outcome);
-    assert!(data.join("mods/b.jar").is_file(), "the source's file");
-    assert!(data.join("config/b.toml").is_file(), "the pack's own tree");
-    let pack = engine
-        .entry_modpack(EntryRef::Instance(&outcome.record.id))
-        .expect("status")
-        .expect("a pack is recorded");
-    assert_eq!(pack.source, "static-index.index");
-    assert_eq!(pack.name, "Delegated", "the pack names itself");
-}
-
-#[tokio::test]
-async fn a_delegation_to_a_source_that_is_not_there_is_refused() {
-    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let engine = rig(home.path(), &fixture::Files::serve().await).await;
-    let manifest = json!({
-        "name": "Lost",
-        "gameVersion": "1.21",
-        "resolve": { "source": "nowhere", "manifest": {} },
-    });
-
-    import(&engine, &archive(drops.path(), manifest, &[]))
-        .await
-        .err()
-        .expect("no such source");
-    assert!(engine.instances().list().is_empty());
-}
-
-#[tokio::test]
-async fn an_answer_naming_a_path_outside_the_entry_or_a_file_the_rule_refuses_is_refused_whole() {
-    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let files = fixture::Files::serve().await;
-    let engine = rig(home.path(), &files).await;
-    let good = json!({ "path": "mods/a.jar", "url": files.url("a.jar"), "sha1": SHA1 });
-
-    let cases = [
-        (
-            "an escaping path",
-            json!({ "path": "../evil.jar", "url": files.url("a.jar"), "sha1": SHA1 }),
-        ),
-        (
-            "an absolute path",
-            json!({ "path": "/etc/evil.jar", "url": files.url("a.jar"), "sha1": SHA1 }),
-        ),
-        (
-            "a host the plugin was not granted",
-            json!({ "path": "mods/c.jar", "url": "https://evil.example.org/c.jar", "sha1": SHA1 }),
-        ),
-        (
-            "no checksum",
-            json!({ "path": "mods/c.jar", "url": files.url("c.jar") }),
-        ),
-        (
-            "a malformed checksum",
-            json!({ "path": "mods/c.jar", "url": files.url("c.jar"), "sha1": "abc" }),
-        ),
-    ];
-    for (name, bad) in cases {
-        let path = archive(drops.path(), replay(json!([good, bad])), &[]);
-        let error = import(&engine, &path)
-            .await
-            .err()
-            .unwrap_or_else(|| panic!("{name} must be refused"));
-        assert!(error.to_string().contains("refused"), "{name}: {error}");
-        assert!(
-            engine.instances().list().is_empty(),
-            "{name}: nothing is created from a refused answer"
-        );
-    }
-    assert!(!home.path().join("evil.jar").exists());
-}
-
-#[tokio::test]
-async fn an_override_tree_that_leaves_the_pack_is_refused() {
-    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let engine = rig(home.path(), &fixture::Files::serve().await).await;
-
-    for tree in ["..", "../up", "/abs", "a/../b", "."] {
-        let manifest = json!({
-            "name": "Replayed",
-            "gameVersion": "1.21",
-            "trees": { "shared": [tree] },
-        });
-        let path = archive(drops.path(), manifest, &[("up/x.txt", "x")]);
-        let error = import(&engine, &path)
-            .await
-            .err()
-            .unwrap_or_else(|| panic!("`{tree}` must be refused"));
-        assert!(error.to_string().contains("refused"), "{tree}: {error}");
-        assert!(engine.instances().list().is_empty());
-    }
-}
-
-#[tokio::test]
 async fn an_export_goes_through_the_format_and_carries_its_warnings() {
     let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     let engine = rig(home.path(), &fixture::Files::serve().await).await;
@@ -455,34 +289,6 @@ async fn an_export_goes_through_the_format_and_carries_its_warnings() {
 }
 
 #[tokio::test]
-async fn an_export_naming_a_file_it_does_not_hold_is_refused() {
-    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let engine = rig(home.path(), &fixture::Files::serve().await).await;
-    let id = engine
-        .create_instance("escape", "vanilla", "1.21", None, &[])
-        .await
-        .expect("create the instance")
-        .id;
-    let destination = drops.path().join("out.replay");
-    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
-
-    let error = engine
-        .export_instance(
-            &id,
-            &ExportFormat::Provider(Provider::new(PACK, "Replay")),
-            &destination.to_string_lossy(),
-            &[],
-            &job(&cancel, &report),
-        )
-        .await
-        .err()
-        .expect("the guest named a file outside the instance");
-
-    assert!(error.to_string().contains("refused"), "{error}");
-    assert!(!destination.exists(), "no archive is left behind");
-}
-
-#[tokio::test]
 async fn a_reads_jvm_settings_apply_to_the_instance_the_import_creates() {
     let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     let engine = rig(home.path(), &fixture::Files::serve().await).await;
@@ -517,55 +323,6 @@ async fn a_reads_jvm_settings_apply_to_the_instance_the_import_creates() {
 }
 
 #[tokio::test]
-async fn an_invalid_jvm_setting_is_dropped_with_a_warning_and_the_rest_imports() {
-    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let engine = rig(home.path(), &fixture::Files::serve().await).await;
-    for (setting, invalid, valid) in [
-        (
-            "memory",
-            json!({ "memory": "lots", "jvmArgs": "-XX:+UseG1GC" }),
-            "jvm-args",
-        ),
-        (
-            "jvm-args",
-            json!({ "memory": "2048m", "jvmArgs": "not-a-flag" }),
-            "memory",
-        ),
-    ] {
-        let mut manifest = json!({ "name": "Bad", "gameVersion": "1.21" });
-        manifest
-            .as_object_mut()
-            .unwrap()
-            .extend(invalid.as_object().unwrap().clone());
-
-        let outcome = import(&engine, &archive(drops.path(), manifest, &[]))
-            .await
-            .unwrap_or_else(|error| {
-                panic!("an invalid {setting} must not refuse the read: {error}")
-            });
-
-        let id = &outcome.record.id;
-        assert_eq!(
-            engine.instances().config_get(id, setting).unwrap(),
-            None,
-            "{setting} falls back to the default"
-        );
-        assert!(
-            engine.instances().config_get(id, valid).unwrap().is_some(),
-            "{valid} is still applied"
-        );
-        assert!(
-            matches!(
-                outcome.warnings.as_slice(),
-                [WarningInfo::PackSettingDropped { setting: dropped, .. }] if dropped == setting
-            ),
-            "{:?}",
-            outcome.warnings
-        );
-    }
-}
-
-#[tokio::test]
 async fn a_read_is_offered_the_loader_keys_of_its_format_and_its_loader_is_the_flavor_they_map_to()
 {
     let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
@@ -587,66 +344,6 @@ async fn a_read_is_offered_the_loader_keys_of_its_format_and_its_loader_is_the_f
         inspected.loader, "fabric",
         "an inspect names the flavor, as an import does"
     );
-}
-
-#[tokio::test]
-async fn a_pack_icon_becomes_the_instances_icon_and_an_unusable_one_is_dropped_with_a_warning() {
-    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let engine = rig(home.path(), &fixture::Files::serve().await).await;
-    let oversized = [PNG, &vec![0; 10 * 1024 * 1024]].concat();
-    type Members<'a> = &'a [(&'a str, &'a [u8])];
-    let cases: [(&str, &str, Members, bool); 6] = [
-        ("an image", "art/icon.png", &[("art/icon.png", PNG)], true),
-        (
-            "an escaping path",
-            "../icon.png",
-            &[("../icon.png", PNG)],
-            false,
-        ),
-        ("an absolute path", "/icon.png", &[("icon.png", PNG)], false),
-        ("a member that is not there", "gone.png", &[], false),
-        (
-            "a file that is no image",
-            "icon.png",
-            &[("icon.png", b"text")],
-            false,
-        ),
-        (
-            "an image over the size cap",
-            "big.png",
-            &[("big.png", &oversized)],
-            false,
-        ),
-    ];
-    for (name, icon, extra, taken) in cases {
-        let mut manifest = replay(json!([]));
-        manifest["icon"] = json!(icon);
-
-        let outcome = import(&engine, &archive_of(drops.path(), manifest, extra))
-            .await
-            .unwrap_or_else(|error| panic!("{name} must not fail the import: {error}"));
-
-        let stored = engine
-            .instances()
-            .instance_dir(&outcome.record)
-            .join("icon.png");
-        assert_eq!(stored.is_file(), taken, "{name}");
-        match taken {
-            true => assert!(
-                outcome.warnings.is_empty(),
-                "{name}: {:?}",
-                outcome.warnings
-            ),
-            false => assert!(
-                matches!(
-                    outcome.warnings.as_slice(),
-                    [WarningInfo::PackIconDropped { .. }]
-                ),
-                "{name}: {:?}",
-                outcome.warnings
-            ),
-        }
-    }
 }
 
 #[tokio::test]
@@ -672,7 +369,6 @@ async fn a_pack_in_a_plugins_format_is_refused_by_the_single_file_importer() {
         .add_entry_content(
             EntryRef::Instance(&record.id),
             &spec,
-            &CallChain::default(),
             &job(&cancel, &report),
         )
         .await
@@ -740,7 +436,6 @@ async fn install(engine: &engine::Engine, path: String) -> anyhow::Result<engine
             &ModpackTarget::Create {
                 name: String::new(),
             },
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -899,7 +594,6 @@ async fn a_pack_no_source_published_updates_from_a_newer_file() {
                 path: other,
                 ..ModpackMove::default()
             },
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await;
@@ -919,7 +613,6 @@ async fn a_pack_no_source_published_updates_from_a_newer_file() {
                 path: newer,
                 ..ModpackMove::default()
             },
-            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await

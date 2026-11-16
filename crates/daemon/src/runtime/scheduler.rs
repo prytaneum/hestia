@@ -6,7 +6,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use engine::CallChain;
 use proto::backup::ServerBackupCreate;
 use proto::tasks::TaskAction;
 
@@ -67,7 +66,7 @@ async fn run_due_tasks(runtime: &Runtime) {
                     .map(|_| ())
                     .map_err(|e| format!("{e:#}")),
                 TaskAction::Restart => runtime
-                    .restart_server(&record, &CallChain::default())
+                    .restart_server(&record)
                     .await
                     .map(|_| ())
                     .map_err(|e| e.to_string()),
@@ -79,12 +78,9 @@ async fn run_due_tasks(runtime: &Runtime) {
                             task.retention.map_or(DEFAULT_RETENTION, |n| n as usize),
                         ),
                     };
-                    runtime.jobs().start_backup::<ServerBackupCreate>(
-                        job,
-                        String::new(),
-                        claim,
-                        CallChain::default(),
-                    );
+                    runtime
+                        .jobs()
+                        .start_backup::<ServerBackupCreate>(job, String::new(), claim);
                     Ok(())
                 }
             };

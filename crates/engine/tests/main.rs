@@ -1,12 +1,8 @@
 //! The engine's integration tests, linked into one binary: each `tests/*.rs`
-//! would otherwise be its own binary carrying the whole engine and wasmtime.
+//! would otherwise be its own binary carrying the whole engine.
 
 mod auth_oracle;
-mod bundled;
-mod docs;
 mod fixture;
 mod flows;
-mod official;
-mod plugins;
 mod process;
 mod store;

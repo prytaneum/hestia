@@ -13,12 +13,59 @@ use proto::plugin::{Grant, Permission, ScopeKind};
 use reqwest::header::LOCATION;
 use reqwest::{Response, Url};
 
-use super::http::{authorize, Refusal};
 use crate::net::{self, guard};
 
 const MAX_REDIRECTS: usize = 5;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Why a request to a plugin-supplied destination was not made.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum Refusal {
+    #[error("the plugin lacks the network:connect permission")]
+    NotGranted,
+    #[error("only https requests are allowed")]
+    NotHttps,
+    #[error("the request URL is not valid")]
+    BadUrl,
+    #[error("an IP address cannot be a destination")]
+    IpLiteral,
+    #[error("`{0}` is not in the plugin's granted hosts")]
+    HostNotGranted(String),
+    #[error("the daemon is offline")]
+    Offline,
+}
+
+/// The destination host, lowercased and without a trailing dot, when a plugin
+/// holding `grant` may request `url` while the daemon is (not) `offline`.
+pub fn authorize(grant: &Grant, url: &Url, offline: bool) -> Result<String, Refusal> {
+    if !grant.holds(Permission::NetworkConnect) {
+        return Err(Refusal::NotGranted);
+    }
+    if url.scheme() != "https" {
+        return Err(Refusal::NotHttps);
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(Refusal::BadUrl);
+    }
+    let Some(host) = url.host_str() else {
+        return Err(Refusal::BadUrl);
+    };
+    let Some(domain) = url.domain() else {
+        return Err(Refusal::IpLiteral);
+    };
+    if guard::is_ip_literal(host) {
+        return Err(Refusal::IpLiteral);
+    }
+    let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+    if !grant.covers(Permission::NetworkConnect, ScopeKind::Hosts, &domain) {
+        return Err(Refusal::HostNotGranted(domain));
+    }
+    if offline {
+        return Err(Refusal::Offline);
+    }
+    Ok(domain)
+}
 
 /// Why a plugin-supplied download was stopped.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

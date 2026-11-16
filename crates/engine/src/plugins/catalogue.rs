@@ -10,7 +10,6 @@ use proto::repository::{Build, IndexedPlugin, RepositoryIndex};
 use super::index::icon_url;
 use super::repos::{key_id_of, revocation};
 use super::repositories::is_official_repository;
-use super::store::PluginRecord;
 
 /// A configured repository with the index to read it by.
 pub struct Source {
@@ -236,11 +235,8 @@ impl Listings {
 
     /// Signed by a key that no configured repository lists the plugin under.
     /// An unsigned install has no update source by design, so it is never obsolete.
-    pub fn obsolete(&self, record: &PluginRecord) -> bool {
-        record
-            .signer
-            .as_ref()
-            .is_some_and(|signer| !self.0.contains(&(signer.clone(), record.id.clone())))
+    pub fn obsolete(&self, id: &str, signer: Option<&str>) -> bool {
+        signer.is_some_and(|signer| !self.0.contains(&(signer.to_string(), id.to_string())))
     }
 }
 
@@ -405,15 +401,12 @@ mod tests {
         let (listed_key, other_key) = (Signer::new().key(), Signer::new().key());
         let sources = [source("https://a.example/i.json", &listed_key, |_| {})];
         let listings = Listings::of(&sources);
-        let record = |id: &str, signer: Option<String>| PluginRecord {
-            id: id.to_string(),
-            signer,
-            ..PluginRecord::default()
-        };
+        let listed = key_id_of(&listed_key).unwrap();
+        let other = key_id_of(&other_key).unwrap();
 
-        assert!(!listings.obsolete(&record("aa", Some(key_id_of(&listed_key).unwrap()))));
-        assert!(listings.obsolete(&record("aa", Some(key_id_of(&other_key).unwrap()))));
-        assert!(listings.obsolete(&record("zz", Some(key_id_of(&listed_key).unwrap()))));
-        assert!(!listings.obsolete(&record("zz", None)), "unsigned never");
+        assert!(!listings.obsolete("aa", Some(&listed)));
+        assert!(listings.obsolete("aa", Some(&other)));
+        assert!(listings.obsolete("zz", Some(&listed)));
+        assert!(!listings.obsolete("zz", None), "unsigned never");
     }
 }

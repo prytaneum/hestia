@@ -24,7 +24,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         if !p.eula {
             return Err(ErrorInfo::EulaRequired);
         }
-        match ctx.runtime.jobs().start_server_create(p, ctx.chain.clone()) {
+        match ctx.runtime.jobs().start_server_create(p) {
             Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::CreateInProgress),
         }
@@ -41,10 +41,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             false => Hold::stopped(JobKind::Update),
         };
         let (record, claim) = server_held(&ctx, &p.server, hold)?;
-        let id = ctx
-            .runtime
-            .jobs()
-            .start_server_update(record, p, claim, ctx.chain.clone());
+        let id = ctx.runtime.jobs().start_server_update(record, p, claim);
         Ok(JobStarted { id })
     });
 
@@ -53,10 +50,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             return Err(ErrorInfo::FieldRequired { field: Field::Path });
         }
         let (record, claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Content))?;
-        let id = ctx
-            .runtime
-            .jobs()
-            .start_world_import(record, p, claim, ctx.chain.clone());
+        let id = ctx.runtime.jobs().start_world_import(record, p, claim);
         Ok(JobStarted { id })
     });
 
@@ -105,17 +99,13 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerStart, _, _>(|p, ctx| async move {
         let (record, _claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Launch))?;
         tracing::info!(server = %record.id, name = %record.name, "starting server");
-        let (info, warnings) = crate::runtime::start_server(
-            ctx.runtime.engine(),
-            ctx.runtime.processes(),
-            &record.id,
-            &ctx.chain,
-        )
-        .await?;
+        let info =
+            crate::runtime::start_server(ctx.runtime.engine(), ctx.runtime.processes(), &record.id)
+                .await?;
         Ok(ServerStartResult {
             process_id: info.id,
             pid: info.pid,
-            warnings,
+            warnings: Vec::new(),
         })
     });
 
@@ -123,11 +113,11 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let (record, _claim) = server_held(&ctx, &p.server, Hold::live(JobKind::Launch))?;
         require_running(&ctx, &record)?;
         tracing::info!(server = %record.id, name = %record.name, "restarting server");
-        let (info, warnings) = ctx.runtime.restart_server(&record, &ctx.chain).await?;
+        let info = ctx.runtime.restart_server(&record).await?;
         Ok(ServerStartResult {
             process_id: info.id,
             pid: info.pid,
-            warnings,
+            warnings: Vec::new(),
         })
     });
 

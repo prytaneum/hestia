@@ -2,11 +2,7 @@
 //! real seams; these are the second adapter behind them, so a flow can be
 //! driven without reaching Mojang, Modrinth or a JDK mirror.
 
-pub mod index;
-pub mod java;
 pub mod pack;
-pub mod probe;
-pub mod replay;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -23,14 +19,6 @@ use proto::content::{
 };
 
 use proto::minecraft::{Artifact, Edition, GameVersion};
-
-/// One compiled-component cache for the whole test binary, kept across runs so
-/// each fixture is compiled once rather than once per test.
-pub fn plugin_cache() -> std::path::PathBuf {
-    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("plugin-cache");
-    std::fs::create_dir_all(&dir).expect("plugin cache dir");
-    dir
-}
 
 /// A flavor that resolves to a profile naming `artifact`, or fails when it is
 /// `None` — the two halves of what a provider can do to a create.

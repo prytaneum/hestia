@@ -58,7 +58,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let id = ctx
             .runtime
             .jobs()
-            .start_instance_update(record.id, p, claim, ctx.chain.clone());
+            .start_instance_update(record.id, p, claim);
         Ok(JobStarted { id })
     });
 
@@ -202,19 +202,16 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 });
             }
         }
-        let id = ctx.runtime.jobs().start_instance_launch(
-            LaunchOrder {
-                instance_id: record.id,
-                instance_name: record.name,
-                account: p.account,
-                reconcile: !running,
-                quick_play: p.quick_play,
-                offline: p.offline,
-                replace,
-                id: p.id,
-            },
-            ctx.chain.clone(),
-        );
+        let id = ctx.runtime.jobs().start_instance_launch(LaunchOrder {
+            instance_id: record.id,
+            instance_name: record.name,
+            account: p.account,
+            reconcile: !running,
+            quick_play: p.quick_play,
+            offline: p.offline,
+            replace,
+            id: p.id,
+        });
         // Auto-update checks inside the launch itself; otherwise look now, off
         // the launch's path, so a found update is reported while it plays.
         if !ctx.runtime.engine().config().settings().content.auto_update {

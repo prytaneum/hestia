@@ -67,13 +67,11 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .java()
             .provider(&provider)
             .map_err(crate::runtime::engine_error)?;
-        match ctx.runtime.jobs().start_java_install(
-            p.major,
-            p.id,
-            p.force,
-            provider,
-            ctx.chain.clone(),
-        ) {
+        match ctx
+            .runtime
+            .jobs()
+            .start_java_install(p.major, p.id, p.force, provider)
+        {
             Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::JavaInstallInProgress { major: p.major }),
         }

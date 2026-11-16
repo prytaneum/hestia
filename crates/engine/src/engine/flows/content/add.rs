@@ -10,10 +10,9 @@ use proto::content::{
     ContentAddItem, ContentAddSpec, ContentDone, ContentFailure, ContentKind, ContentProject,
     ContentVersion, DependencyKind, InstalledContent, LOCAL_SOURCE,
 };
-use proto::download::HashAlgorithm;
+
 use proto::error::ErrorInfo;
 use proto::minecraft::{Artifact, ProvisionPhase};
-use proto::warning::WarningInfo;
 use uuid::Uuid;
 
 use super::super::download::Download;
@@ -23,8 +22,6 @@ use crate::content::pool::Pool;
 use crate::content::{bedrock, inspect, install, record, Identified, LocalFile};
 use crate::engine::Engine;
 use crate::minecraft::materialize::{self, OnProgress};
-use crate::plugins::{BeforeContentInstall, CallChain};
-use proto::hook::InstallContext;
 
 /// One platform selector of a batch, resolved from its item: where it came
 /// from (`given`, for failure reporting), which source serves it, and the
@@ -49,7 +46,6 @@ impl Engine {
         &self,
         ctx: &EntryContent,
         spec: &ContentAddSpec,
-        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> Result<ContentDone> {
         install::kind_dir(spec.kind)?;
@@ -172,27 +168,13 @@ impl Engine {
                 continue;
             }
             let filename = local_filename(item, known);
-            let context = local_context(
-                ctx,
-                spec.kind,
-                known,
-                &filename,
-                file.as_ref().map(|f| f.sha1.as_str()),
-            );
-            match self.vet_install(&context, chain).await {
-                Ok(mut skipped) => warnings.append(&mut skipped),
-                Err(refused) => {
-                    failures.push(failure(&item.path, "", refused));
-                    continue;
-                }
-            }
             match add_file_content(ctx, spec.kind, item, &filename, &worlds, known, matches) {
                 Ok(installed) => items.push(installed),
                 Err(e) => failures.push(failure(&item.path, "", crate::error_info(e))),
             }
         }
         let mut platform = self
-            .add_platform_content(ctx, spec.kind, roots, &worlds, chain, on_progress)
+            .add_platform_content(ctx, spec.kind, roots, &worlds, on_progress)
             .await;
         items.append(&mut platform.items);
         failures.append(&mut platform.failures);
@@ -315,12 +297,11 @@ impl Engine {
         kind: ContentKind,
         roots: Vec<PlatformRoot>,
         worlds: &[String],
-        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> ContentDone {
         let mut items = Vec::new();
         let mut failures = Vec::new();
-        let mut warnings = Vec::new();
+        let warnings = Vec::new();
         if roots.is_empty() {
             return ContentDone::default();
         }
@@ -453,15 +434,6 @@ impl Engine {
 
         let mut downloads = Vec::new();
         for (node, version) in planned {
-            if let Some(context) = release_context(ctx, kind, &node.project.id, &version) {
-                match self.vet_install(&context, chain).await {
-                    Ok(mut skipped) => warnings.append(&mut skipped),
-                    Err(refused) => {
-                        failures.push(failure(&node.given, &node.project.title, refused));
-                        continue;
-                    }
-                }
-            }
             match self.plan_release(ctx, kind, &node.project.title, &version) {
                 Ok(download) => downloads.push(((node, version), download)),
                 Err(e) => failures.push(failure(
@@ -501,33 +473,6 @@ impl Engine {
         }
     }
 
-    /// Asks the `before-content-install` plugins about one file before it
-    /// lands. A veto names the file in its reason, so a refused dependency is
-    /// recognisable; the warnings are the plugins that could not answer.
-    pub(in crate::engine::flows) async fn vet_install(
-        &self,
-        context: &InstallContext,
-        chain: &CallChain,
-    ) -> Result<Vec<WarningInfo>, ErrorInfo> {
-        match self
-            .hooks()
-            .run::<BeforeContentInstall>(context, chain)
-            .await
-        {
-            Ok(outcome) => Ok(outcome.warnings),
-            Err(ErrorInfo::PluginVetoed {
-                plugin,
-                hook,
-                reason,
-            }) => Err(ErrorInfo::PluginVetoed {
-                plugin,
-                hook,
-                reason: format!("{}: {reason}", context.file_name),
-            }),
-            Err(other) => Err(other),
-        }
-    }
-
     /// One version's file, fetched on its own. `kind` is the *requested* kind,
     /// not the project's: Modrinth types datapacks as mod projects, so
     /// `project.kind` would route a datapack into `mods/`.
@@ -544,70 +489,6 @@ impl Engine {
             .download(&download, ProvisionPhase::Content, on_progress)
             .await?;
         release_of(version, sha1)
-    }
-}
-
-/// What a `before-content-install` hook is told about a platform version's
-/// file; `None` when the version has no file, which `plan_release` reports.
-pub(in crate::engine::flows) fn release_context(
-    ctx: &EntryContent,
-    kind: ContentKind,
-    project_id: &str,
-    version: &ContentVersion,
-) -> Option<InstallContext> {
-    let artifact = &install::primary_file(version).ok()?.artifact;
-    Some(artifact_context(
-        ctx,
-        kind,
-        (&version.source, project_id, &version.id),
-        artifact,
-    ))
-}
-
-/// What a `before-content-install` hook is told about a file about to be
-/// downloaded; `ids` are its source, project id and version id, any of them
-/// empty when unknown.
-pub(in crate::engine::flows) fn artifact_context(
-    ctx: &EntryContent,
-    kind: ContentKind,
-    (source, project_id, version_id): (&str, &str, &str),
-    artifact: &Artifact,
-) -> InstallContext {
-    InstallContext {
-        entry_id: ctx.id.clone(),
-        entry_type: ctx.side.into(),
-        source: source.to_string(),
-        project_id: project_id.to_string(),
-        version_id: version_id.to_string(),
-        file_name: artifact.filename.clone(),
-        sha1: artifact
-            .checksum
-            .as_ref()
-            .filter(|checksum| checksum.algorithm == HashAlgorithm::Sha1)
-            .map(|checksum| checksum.hex.clone())
-            .unwrap_or_default(),
-        kind,
-    }
-}
-
-/// What a `before-content-install` hook is told about a local file: the
-/// platform ids of the project a source knows it as, when one does.
-pub(in crate::engine::flows) fn local_context(
-    ctx: &EntryContent,
-    kind: ContentKind,
-    known: Option<&Identified>,
-    filename: &str,
-    sha1: Option<&str>,
-) -> InstallContext {
-    InstallContext {
-        entry_id: ctx.id.clone(),
-        entry_type: ctx.side.into(),
-        source: known.map_or(LOCAL_SOURCE.to_string(), |k| k.version.source.clone()),
-        project_id: known.map(|k| k.project.id.clone()).unwrap_or_default(),
-        version_id: known.map(|k| k.version.id.clone()).unwrap_or_default(),
-        file_name: filename.to_string(),
-        sha1: sha1.unwrap_or_default().to_string(),
-        kind,
     }
 }
 

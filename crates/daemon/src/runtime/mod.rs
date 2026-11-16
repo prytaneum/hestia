@@ -19,12 +19,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use engine::{CallChain, Engine, InstanceRecord, ProcessIo, ServerRecord};
+use engine::{Engine, InstanceRecord, ProcessIo, ServerRecord};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
 use proto::process::{ProcessInfo, ProcessSpec};
 use proto::server::ServerInfo;
-use proto::warning::WarningInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
 
@@ -52,17 +51,13 @@ pub use proto::naming::{
 
 /// Spawn a server's process from its launch plan — the one way a server is
 /// started, whether a client asked, a scheduled restart did, or an update put
-/// back a server it had stopped. The warnings are what its plugin hooks said.
+/// back a server it had stopped.
 pub async fn start_server(
     engine: &Engine,
     processes: &ProcessSupervisor,
     id: &str,
-    chain: &CallChain,
-) -> Result<(ProcessInfo, Vec<WarningInfo>), ErrorInfo> {
-    let (record, plan, warnings) = engine
-        .server_launch_plan(id, chain)
-        .await
-        .map_err(engine_error)?;
+) -> Result<ProcessInfo, ErrorInfo> {
+    let (record, plan) = engine.server_launch_plan(id).await.map_err(engine_error)?;
     let ProcessIo { log, stdin, stop } = engine::process_io(record.edition, &plan.cwd);
     let spec = ProcessSpec {
         id: server_process_id(id),
@@ -76,7 +71,7 @@ pub async fn start_server(
         ..ProcessSpec::default()
     };
     match processes.start(spec).await {
-        Ok(info) => Ok((info, warnings)),
+        Ok(info) => Ok(info),
         Err(e) => Err(start_error("server", e)),
     }
 }
@@ -239,13 +234,9 @@ impl Runtime {
 
     /// Stop a running server, wait for its process to exit, and start it
     /// again — shared by the `server.restart` channel and a scheduled restart.
-    pub async fn restart_server(
-        &self,
-        record: &ServerRecord,
-        chain: &CallChain,
-    ) -> Result<(ProcessInfo, Vec<WarningInfo>), ErrorInfo> {
+    pub async fn restart_server(&self, record: &ServerRecord) -> Result<ProcessInfo, ErrorInfo> {
         stop_server(&self.processes, record).await?;
-        start_server(&self.engine, &self.processes, &record.id, chain).await
+        start_server(&self.engine, &self.processes, &record.id).await
     }
 
     pub fn instance_view(&self, record: InstanceRecord) -> InstanceInfo {
@@ -374,14 +365,12 @@ impl fmt::Display for Caller {
 
 /// What every handler receives: the shared runtime, the calling connection's
 /// outbound channel (so streaming handlers like `events.subscribe` can push to
-/// it), and who is calling. `chain` is the hook call path;
-/// `changed` collects what the request changed, for its `changed` event.
+/// it), and who is calling. `changed` collects what the request changed, for its `changed` event.
 #[derive(Clone)]
 pub struct HandlerContext {
     pub runtime: Arc<Runtime>,
     pub conn_id: u64,
     pub out: UnboundedSender<String>,
     pub caller: Caller,
-    pub chain: CallChain,
     pub changed: Changed,
 }

@@ -11,7 +11,7 @@ use proto::content::{
 use proto::minecraft::ProvisionPhase;
 
 use super::super::batch::gather_ordered;
-use super::add::{failure, file_name, import_file, release_context, release_of};
+use super::add::{failure, file_name, import_file, release_of};
 use super::entry::EntryContent;
 use super::phase_progress;
 use crate::content::pool::Pool;
@@ -19,7 +19,6 @@ use crate::content::{install, record, Identified, LocalFile};
 use crate::edition;
 use crate::engine::{Engine, Repin};
 use crate::minecraft::materialize::OnProgress;
-use crate::plugins::CallChain;
 
 impl Engine {
     /// Move matched platform items to a newer version — the newest compatible
@@ -36,7 +35,6 @@ impl Engine {
         kind: ContentKind,
         references: &[String],
         pin: &str,
-        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> Result<ContentDone> {
         let index = install::load(&ctx.entry_dir);
@@ -62,7 +60,7 @@ impl Engine {
             }
         };
         on_progress.check()?;
-        self.install_updates(ctx, planned, failures, held, chain, on_progress)
+        self.install_updates(ctx, planned, failures, held, on_progress)
             .await
     }
 
@@ -74,21 +72,11 @@ impl Engine {
         planned: Vec<(InstalledContent, ContentVersion)>,
         mut failures: Vec<ContentFailure>,
         held: bool,
-        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> Result<ContentDone> {
-        let mut warnings = Vec::new();
+        let warnings = Vec::new();
         let mut downloads = Vec::new();
         for (item, version) in planned {
-            if let Some(context) = release_context(ctx, item.kind, &item.project_id, &version) {
-                match self.vet_install(&context, chain).await {
-                    Ok(mut skipped) => warnings.append(&mut skipped),
-                    Err(refused) => {
-                        failures.push(failure(&item.filename, &item.title, refused));
-                        continue;
-                    }
-                }
-            }
             match self.plan_release(ctx, item.kind, &item.title, &version) {
                 Ok(download) => downloads.push(((item, version), download)),
                 Err(e) => failures.push(failure(&item.filename, &item.title, crate::error_info(e))),
@@ -139,11 +127,10 @@ impl Engine {
         kind: ContentKind,
         reference: &str,
         pin: &str,
-        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> Result<ContentDone> {
         let mut done = self
-            .update_content(ctx, kind, &[reference.to_string()], pin, chain, on_progress)
+            .update_content(ctx, kind, &[reference.to_string()], pin, on_progress)
             .await?;
         match done.failures.pop() {
             Some(failure) => Err(failure.error.into()),
@@ -262,7 +249,6 @@ impl Engine {
         ctx: &EntryContent,
         kind: ContentKind,
         repin: Repin<'_>,
-        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> Result<ContentDone> {
         let Repin {
@@ -275,7 +261,7 @@ impl Engine {
         let source = source.as_str();
         if self.content.named(&item.source) == source {
             return self
-                .repin_content(ctx, kind, reference, pin, chain, on_progress)
+                .repin_content(ctx, kind, reference, pin, on_progress)
                 .await;
         }
         on_progress.report(&phase_progress(ProvisionPhase::Resolving));
@@ -289,10 +275,6 @@ impl Engine {
             .target_version(ctx, kind, source, &known.project.id, "", pin)
             .await
             .with_context(|| format!("cannot move '{}' to {source}", item.title))?;
-        let warnings = match release_context(ctx, item.kind, &known.project.id, &version) {
-            Some(context) => self.vet_install(&context, chain).await?,
-            None => Vec::new(),
-        };
         let release = self
             .fetch_release(ctx, item.kind, &known.project.title, &version, on_progress)
             .await?;
@@ -314,7 +296,7 @@ impl Engine {
         Ok(ContentDone {
             items: vec![moved],
             failures: Vec::new(),
-            warnings,
+            warnings: Vec::new(),
         })
     }
 }

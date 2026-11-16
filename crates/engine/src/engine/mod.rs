@@ -26,13 +26,12 @@ use crate::instances::Instances;
 use crate::java::Java;
 use crate::minecraft::Minecraft;
 use crate::net::image::ImageProxy;
-use crate::plugins::PluginPack;
-use crate::plugins::{Hooks, LoadedPlugin, Plugins, Remote, Repositories};
 use crate::process::ProcessSupervisor;
 use crate::roster::Roster;
 use crate::servers::Servers;
 use crate::skins::Skins;
 use crate::sync::Sync;
+use crate::transfer::PackProvider;
 use crate::update::Update;
 
 /// Everything a server create needs from the caller — the engine-side input to
@@ -94,14 +93,10 @@ pub struct Engine {
     accounts: Accounts,
     minecraft: Minecraft,
     content: Content,
-    packs: Roster<PluginPack>,
+    packs: Roster<dyn PackProvider>,
     content_updates: crate::content::updates::UpdateCache,
     servers: Servers,
     instances: Instances,
-    plugins: Plugins,
-    plugin_downloads: Remote,
-    plugin_repositories: Repositories,
-    hooks: Hooks<LoadedPlugin>,
     skins: Skins,
     sync: Sync,
     update: Update,
@@ -127,10 +122,6 @@ impl Engine {
         let accounts = Accounts::new(data_home.join("accounts.json"));
         let servers = Servers::new(data_home.join("servers"));
         let instances = Instances::new(data_home.join("instances"));
-        let plugins = Plugins::new(data_home.join("plugins"));
-        let plugin_downloads = Remote::new(data_home.join("tmp").join("plugins"));
-        let plugin_repositories =
-            Repositories::new(data_home.join("plugins").join("repositories.json"));
         let skins = Skins::new(data_home.join("skins"));
         let sync = Sync::new(data_home.join("shared"));
         crate::net::store::set_root(catalogue_dir(&data_home));
@@ -149,10 +140,6 @@ impl Engine {
             content_updates: Default::default(),
             servers,
             instances,
-            plugins,
-            plugin_downloads,
-            plugin_repositories,
-            hooks: Hooks::default(),
             skins,
             sync,
             update,
@@ -183,9 +170,7 @@ impl Engine {
     /// these belongs to a job that will never finish.
     fn reclaim_temp(&self) {
         let mut freed = self.java.reclaim();
-        freed += self.plugins.reclaim();
         freed += crate::reclaim::contents(&self.pack_staging());
-        freed += crate::reclaim::suffixed(&self.plugin_cache_dir(), common::atomic::SUFFIX);
         for record in self.servers.list() {
             let dir = self.servers.server_dir(&record);
             freed += crate::backup::reclaim(&dir);
@@ -198,11 +183,6 @@ impl Engine {
                 "reclaimed abandoned temp artifacts"
             );
         }
-    }
-
-    /// Where compiled plugin components are cached.
-    pub fn plugin_cache_dir(&self) -> PathBuf {
-        flows::meta_dir(&self.data_home).join("plugins")
     }
 
     pub fn config(&self) -> &Config {
@@ -245,22 +225,6 @@ impl Engine {
         })
     }
 
-    /// [`fetch_image`](Engine::fetch_image) for a URL a plugin named: only from
-    /// hosts its grant names, on every redirect hop.
-    pub async fn fetch_plugin_image(
-        &self,
-        grant: &proto::plugin::Grant,
-        url: &str,
-    ) -> anyhow::Result<proto::image::ImageFetchResult> {
-        use base64::Engine as _;
-        let policy = crate::plugins::vouch::Policy::new(grant);
-        let image = self.images.fetch_vouched(url, &policy).await?;
-        Ok(proto::image::ImageFetchResult {
-            mime: image.mime,
-            bytes: base64::engine::general_purpose::STANDARD.encode(image.bytes),
-        })
-    }
-
     pub fn java(&self) -> &Java {
         &self.java
     }
@@ -273,7 +237,7 @@ impl Engine {
         &self.minecraft
     }
 
-    pub(crate) fn packs(&self) -> &Roster<PluginPack> {
+    pub(crate) fn packs(&self) -> &Roster<dyn PackProvider> {
         &self.packs
     }
 
@@ -287,24 +251,6 @@ impl Engine {
 
     pub fn instances(&self) -> &Instances {
         &self.instances
-    }
-
-    pub fn plugins(&self) -> &Plugins {
-        &self.plugins
-    }
-
-    /// The interceptors of the loaded plugins; the daemon attaches the roster.
-    pub fn hooks(&self) -> &Hooks<LoadedPlugin> {
-        &self.hooks
-    }
-
-    /// Plugin packages fetched from a URL, held between inspect and install.
-    pub fn plugin_downloads(&self) -> &Remote {
-        &self.plugin_downloads
-    }
-
-    pub(crate) fn plugin_repositories(&self) -> &Repositories {
-        &self.plugin_repositories
     }
 
     pub fn skins(&self) -> &Skins {

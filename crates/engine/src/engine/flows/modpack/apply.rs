@@ -10,11 +10,10 @@ use anyhow::Result;
 use proto::content::{
     ContentFailure, ContentKind, ContentProject, InstalledContent, ModpackFile, ResolvedModpack,
 };
-use proto::minecraft::{Artifact, ProvisionPhase};
+use proto::minecraft::ProvisionPhase;
 use proto::modpack::{InstalledModpack, ModpackOverride};
 use proto::warning::WarningInfo;
 
-use super::super::content::artifact_context;
 use super::super::content::entry::{content_target, EntryContent};
 use super::super::download::Download;
 use super::{pack_display_name, FileIdentity, Supplied};
@@ -25,7 +24,6 @@ use crate::content::{exclude, install, modpack, pack, record};
 use crate::engine::Engine;
 use crate::minecraft::{materialize, Side};
 use crate::plugins::vouch::Policy;
-use crate::plugins::CallChain;
 
 impl Engine {
     /// The install itself, once the entry exists: refuse a pack the entry
@@ -37,7 +35,6 @@ impl Engine {
         resolved: &ResolvedModpack,
         project: Option<&ContentProject>,
         archive: &mut pack::Archive,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<(InstalledModpack, Vec<ContentFailure>, Vec<WarningInfo>)> {
         self.ensure_entry_matches(ctx, resolved)?;
@@ -80,7 +77,7 @@ impl Engine {
         let patterns = exclude::OverridePatterns::new(&settings.overrides_exclusions);
         let policy = archive.policy();
         let (mut supplied, mut failures, mut vetted) = self
-            .fetch_pack_content(ctx, &managed, resolved, &policy, chain, job)
+            .fetch_pack_content(ctx, &managed, resolved, &policy, job)
             .await;
         warnings.append(&mut vetted);
         let mut overrides = self
@@ -109,27 +106,6 @@ impl Engine {
             match pooled_override(&file.path, &accepts) {
                 Some((kind, name, enabled)) => {
                     let filename = name.to_string();
-                    let artifact = Artifact {
-                        filename: filename.clone(),
-                        ..Artifact::default()
-                    };
-                    let mut context =
-                        artifact_context(ctx, kind, (&resolved.source, "", ""), &artifact);
-                    context.sha1 = file.sha1.clone();
-                    match self.vet_install(&context, chain).await {
-                        Ok(mut skipped) => warnings.append(&mut skipped),
-                        Err(refused) => {
-                            if let Ok(target) = content_target(ctx, kind, &filename) {
-                                let _ = std::fs::remove_file(target);
-                            }
-                            failures.push(ContentFailure {
-                                item: file.path.clone(),
-                                title: filename,
-                                error: refused,
-                            });
-                            continue;
-                        }
-                    }
                     // Written last, so it wins a name the index also supplied.
                     supplied.retain(|s| !(s.kind == kind && s.filename == filename));
                     supplied.push(Supplied {
@@ -230,7 +206,6 @@ impl Engine {
         files: &[(ContentKind, &ModpackFile)],
         resolved: &ResolvedModpack,
         policy: &Option<Arc<Policy>>,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> (Vec<Supplied>, Vec<ContentFailure>, Vec<WarningInfo>) {
         let mut named = HashSet::new();
@@ -256,30 +231,10 @@ impl Engine {
         self.hydrate(&mut identities).await;
 
         let mut failures = Vec::new();
-        let mut warnings = Vec::new();
+        let warnings = Vec::new();
         let mut downloads = Vec::new();
         for (pending, file) in queued {
             let label = pending.label();
-            let ids = match &pending.identity {
-                Some(identity) => (
-                    identity.source.as_str(),
-                    identity.project_id.as_str(),
-                    identity.version_id.as_str(),
-                ),
-                None => (resolved.source.as_str(), "", ""),
-            };
-            let context = artifact_context(ctx, pending.kind, ids, &file.artifact);
-            match self.vet_install(&context, chain).await {
-                Ok(mut skipped) => warnings.append(&mut skipped),
-                Err(refused) => {
-                    failures.push(ContentFailure {
-                        item: file.path.clone(),
-                        title: label,
-                        error: refused,
-                    });
-                    continue;
-                }
-            }
             let planned = materialize::validate_filename(&file.artifact.filename).and_then(|()| {
                 Ok(Download {
                     artifact: file.artifact.clone(),

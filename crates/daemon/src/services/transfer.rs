@@ -25,10 +25,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             destination: p.destination,
             exclude: p.exclude,
         };
-        let id = ctx
-            .runtime
-            .jobs()
-            .start_export(order, claim, ctx.chain.clone());
+        let id = ctx.runtime.jobs().start_export(order, claim);
         Ok(JobStarted { id })
     });
 
@@ -48,10 +45,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<InstanceImport, _, _>(|p, ctx| async move {
         require_path(&p.path)?;
-        let id = ctx
-            .runtime
-            .jobs()
-            .start_import(p.id, p.path, p.name, ctx.chain.clone());
+        let id = ctx.runtime.jobs().start_import(p.id, p.path, p.name);
         Ok(JobStarted { id })
     });
 

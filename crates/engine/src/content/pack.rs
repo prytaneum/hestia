@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use proto::content::{ModpackFile, SideSupport};
-use proto::error::ArchiveFault;
 use proto::minecraft::{ConfigEntry, ProvisionPhase};
 use proto::provider::pack::OverrideTrees;
 use proto::warning::WarningInfo;
@@ -150,10 +149,6 @@ pub(crate) fn shallowest(names: &[String], marker: &str) -> Option<String> {
                 .map(str::to_string),
         })
         .min_by_key(|root| root.matches('/').count())
-}
-
-pub(crate) fn invalid(reason: ArchiveFault) -> anyhow::Error {
-    proto::error::ErrorInfo::ModpackInvalid { reason }.into()
 }
 
 /// A relative path that stays inside the game directory: not empty, not

@@ -10,7 +10,6 @@ mod download;
 pub use content::entry::EntryRef;
 pub use content::updates::{Checked, Swept};
 mod flavors;
-mod handover;
 mod icon;
 mod instance;
 
@@ -23,7 +22,6 @@ mod multiplayer;
 pub use multiplayer::ServerListWrite;
 mod packs;
 mod recent;
-mod repository;
 mod restore;
 mod screenshots;
 mod server;

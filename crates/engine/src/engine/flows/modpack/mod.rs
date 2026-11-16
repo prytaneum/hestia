@@ -43,7 +43,6 @@ use crate::content::{install, modpack, pack};
 use crate::engine::{Engine, InstanceUpdateSpec, ServerCreateSpec, ServerUpdateSpec};
 use crate::instances::InstanceRecord;
 use crate::minecraft::Side;
-use crate::plugins::CallChain;
 use crate::registry;
 use crate::servers::ServerRecord;
 
@@ -121,19 +120,16 @@ impl Engine {
         &self,
         reference: &ModpackRef,
         target: &ModpackTarget,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
         let fetched = self.fetch_pack(reference, "", job).await?;
-        self.install_instance_pack(fetched, target, chain, job)
-            .await
+        self.install_instance_pack(fetched, target, job).await
     }
 
     pub(crate) async fn install_instance_pack(
         &self,
         (resolved, project, mut archive): resolve::FetchedPack,
         target: &ModpackTarget,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
         let entry = match target {
@@ -159,7 +155,6 @@ impl Engine {
                 &resolved,
                 project.as_ref(),
                 &mut archive,
-                chain,
                 job,
             )
             .await;
@@ -213,7 +208,6 @@ impl Engine {
         target: &ModpackTarget,
         eula: bool,
         port: Option<u16>,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
         let (resolved, project, mut archive) = self.fetch_pack(reference, "", job).await?;
@@ -250,7 +244,6 @@ impl Engine {
                 &resolved,
                 project.as_ref(),
                 &mut archive,
-                chain,
                 job,
             )
             .await;
@@ -276,7 +269,6 @@ impl Engine {
         &self,
         target: EntryRef<'_>,
         to: &ModpackMove,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
         let ctx = self.content_ctx(target)?;
@@ -316,7 +308,6 @@ impl Engine {
             &resolved,
             project.as_ref(),
             &mut archive,
-            chain,
             job,
         )
         .await
@@ -328,7 +319,6 @@ impl Engine {
         &self,
         spec: ServerUpdateSpec,
         pack: PackPolicy,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<VersionChange<ServerRecord>> {
         let moved = self
@@ -337,7 +327,6 @@ impl Engine {
                 &spec.version,
                 pack,
                 spec.allow_downgrade,
-                chain,
                 job,
             )
             .await?;
@@ -364,7 +353,6 @@ impl Engine {
         &self,
         spec: InstanceUpdateSpec,
         pack: PackPolicy,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<VersionChange<InstanceRecord>> {
         let moved = self
@@ -373,7 +361,6 @@ impl Engine {
                 &spec.version,
                 pack,
                 spec.allow_downgrade,
-                chain,
                 job,
             )
             .await?;
@@ -406,7 +393,6 @@ impl Engine {
         version: &str,
         pack: PackPolicy,
         allow_downgrade: bool,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<PackStep> {
         let ctx = self.content_ctx(target)?;
@@ -434,7 +420,7 @@ impl Engine {
             allow_downgrade,
             ..ModpackMove::default()
         };
-        let outcome = self.update_entry_modpack(target, &to, chain, job).await?;
+        let outcome = self.update_entry_modpack(target, &to, job).await?;
         Ok(PackStep::Moved(Box::new(outcome)))
     }
 
@@ -536,12 +522,11 @@ impl Engine {
         resolved: &ResolvedModpack,
         project: Option<&ContentProject>,
         archive: &mut pack::Archive,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
         let ctx = self.content_ctx(target)?;
         let (pack, failures, warnings) = self
-            .apply_pack(&ctx, resolved, project, archive, chain, job)
+            .apply_pack(&ctx, resolved, project, archive, job)
             .await?;
         Ok(ModpackOutcome {
             entry: ctx.id,

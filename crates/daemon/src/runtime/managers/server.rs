@@ -1,4 +1,4 @@
-use engine::{CallChain, Engine, ServerCreateSpec, ServerRecord, ServerUpdateSpec};
+use engine::{Engine, ServerCreateSpec, ServerRecord, ServerUpdateSpec};
 use proto::error::EntryKind;
 use proto::process::ProcessState;
 use proto::server::{
@@ -26,11 +26,7 @@ fn provisioned(engine: &Engine, outcome: (engine::ServerRecord, Vec<WarningInfo>
 impl Jobs {
     /// Start a provisioning job off-thread, one per server name at a time.
     /// Returns the job id, or `None` if that name is already being created.
-    pub fn start_server_create(
-        &self,
-        params: ServerCreateParams,
-        chain: CallChain,
-    ) -> Option<String> {
+    pub fn start_server_create(&self, params: ServerCreateParams) -> Option<String> {
         let name = match params.name.trim() {
             "" => format!("{}-{}", params.flavor, params.version),
             name => name.to_string(),
@@ -44,7 +40,6 @@ impl Jobs {
             prefix: "server-create",
             claim: Some(claim),
             subject: None,
-            chain,
         };
 
         Some(self.run::<ServerCreate, _>(spec, move |engine, reporter| {
@@ -74,14 +69,12 @@ impl Jobs {
         record: ServerRecord,
         params: ServerUpdateParams,
         claim: Claim,
-        chain: CallChain,
     ) -> String {
         let spec = Spec {
             id: params.id.clone(),
             prefix: "server-update",
             claim: Some(claim),
             subject: Spec::subject(EntryKind::Server, &record.id),
-            chain: chain.clone(),
         };
         let processes = self.processes.clone();
 
@@ -102,10 +95,10 @@ impl Jobs {
                     allow_downgrade: params.allow_downgrade,
                 };
                 let outcome = engine
-                    .update_server_with_pack(update, params.pack, &chain, &reporter.job())
+                    .update_server_with_pack(update, params.pack, &reporter.job())
                     .await;
                 let restarted = match stopped {
-                    true => Some(start_server(engine, &processes, &record.id, &chain).await),
+                    true => Some(start_server(engine, &processes, &record.id).await),
                     false => None,
                 };
                 if let Some(Err(error)) = &restarted {
@@ -116,7 +109,7 @@ impl Jobs {
                 done.failures = changed.failures;
                 done.server.process = processes.status(&process_id);
                 match restarted {
-                    Some(Ok((_, warnings))) => done.warnings.extend(warnings),
+                    Some(Ok(_)) => {}
                     Some(Err(error)) => done.warnings.push(WarningInfo::ServerNotRestarted {
                         server: record.name,
                         detail: error.to_string(),
@@ -136,14 +129,12 @@ impl Jobs {
         record: ServerRecord,
         params: ServerWorldImportParams,
         claim: Claim,
-        chain: CallChain,
     ) -> String {
         let spec = Spec {
             id: params.id.clone(),
             prefix: "server-world-import",
             claim: Some(claim),
             subject: Spec::subject(EntryKind::Server, &record.id),
-            chain,
         };
 
         self.run::<ServerWorldImport, _>(spec, move |engine, reporter| {

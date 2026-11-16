@@ -1,4 +1,3 @@
-use engine::CallChain;
 use proto::backup::{BackupDone, BackupKind};
 use proto::error::EntryKind;
 use proto::job::Job;
@@ -42,13 +41,7 @@ impl BackupJob {
 impl Jobs {
     /// Start a backup/restore job off-thread, holding the server's claim until
     /// it settles.
-    pub fn start_backup<C>(
-        &self,
-        job: BackupJob,
-        id: String,
-        claim: Claim,
-        chain: CallChain,
-    ) -> String
+    pub fn start_backup<C>(&self, job: BackupJob, id: String, claim: Claim) -> String
     where
         C: Job<Progress = ProvisionProgress, Done = BackupDone>,
     {
@@ -57,7 +50,6 @@ impl Jobs {
             prefix: job.id_prefix(),
             claim: Some(claim),
             subject: Spec::subject(EntryKind::Server, job.server_id()),
-            chain,
         };
 
         self.run::<C, _>(spec, move |engine, reporter| {

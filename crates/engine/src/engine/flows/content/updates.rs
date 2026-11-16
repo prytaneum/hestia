@@ -24,7 +24,6 @@ use crate::content::updates::{Latest, UpdateKey};
 use crate::content::{install, modpack};
 use crate::engine::Engine;
 use crate::minecraft::materialize::OnProgress;
-use crate::plugins::CallChain;
 
 /// One installed item asked about under its entry's game version and loaders.
 struct Probe {
@@ -187,15 +186,8 @@ impl Engine {
             return Ok(ContentDone::default());
         }
         tracing::info!(entry = %ctx.name, updates = planned.len(), "auto-updating content");
-        self.install_updates(
-            &ctx,
-            planned,
-            failures,
-            false,
-            &CallChain::default(),
-            on_progress,
-        )
-        .await
+        self.install_updates(&ctx, planned, failures, false, on_progress)
+            .await
     }
 
     /// Auto-update an instance as it launches. Items that could not move ride

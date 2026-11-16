@@ -5,7 +5,6 @@
 //! import has no entry to claim yet (that is what it creates), exactly as a
 //! modpack install that creates its entry has none.
 
-use engine::CallChain;
 use proto::error::EntryKind;
 use proto::transfer::{ExportDone, ExportFormat, ImportDone, InstanceExport, InstanceImport};
 
@@ -24,7 +23,7 @@ pub struct ExportOrder {
 }
 
 impl Jobs {
-    pub fn start_export(&self, order: ExportOrder, claim: Claim, chain: CallChain) -> String {
+    pub fn start_export(&self, order: ExportOrder, claim: Claim) -> String {
         let ExportOrder {
             id,
             instance_id,
@@ -37,7 +36,6 @@ impl Jobs {
             prefix: "instance-export",
             claim: Some(claim),
             subject: Spec::subject(EntryKind::Instance, &instance_id),
-            chain,
         };
 
         self.run::<InstanceExport, _>(spec, move |engine, reporter| {
@@ -61,19 +59,18 @@ impl Jobs {
         })
     }
 
-    pub fn start_import(&self, id: String, path: String, name: String, chain: CallChain) -> String {
+    pub fn start_import(&self, id: String, path: String, name: String) -> String {
         let spec = Spec {
             id,
             prefix: "instance-import",
             claim: None,
             subject: None,
-            chain: chain.clone(),
         };
 
         self.run::<InstanceImport, _>(spec, move |engine, reporter| {
             Box::pin(async move {
                 let import = engine
-                    .import_instance(&path, &name, &chain, &reporter.job())
+                    .import_instance(&path, &name, &reporter.job())
                     .await?;
                 // The view an import answers with is the same one
                 // `instance.list` returns, so a front-end can drop it

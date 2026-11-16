@@ -161,7 +161,6 @@ impl<'r> Channels<'r> {
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use engine::CallChain;
     use ipc::protocol::Request;
     use proto::change::ChangedEvent;
     use proto::profile::ServerProfile;
@@ -194,7 +193,6 @@ mod tests {
             conn_id: 0,
             out,
             caller: Caller::Client,
-            chain: CallChain::default(),
             changed: Changed::default(),
         };
         let response = crate::services::make_router()

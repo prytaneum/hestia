@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use engine::{CallChain, Engine, Repin};
+use engine::{Engine, Repin};
 use proto::content::{ContentAddSpec, ContentDone, ContentKind};
 use proto::error::EntryKind;
 use proto::job::{Job, JobSubject};
@@ -111,13 +111,12 @@ impl ContentJob {
     async fn run(
         self,
         engine: &Engine,
-        chain: &CallChain,
         on_progress: &engine::Job<'_>,
     ) -> anyhow::Result<ContentDone> {
         match self {
             ContentJob::Add { entry, spec } => {
                 engine
-                    .add_entry_content(entry.entry_ref(), &spec, chain, on_progress)
+                    .add_entry_content(entry.entry_ref(), &spec, on_progress)
                     .await
             }
             ContentJob::Update {
@@ -133,13 +132,12 @@ impl ContentJob {
                             kind,
                             item,
                             Path::new(&path),
-                            chain,
                         )
                         .await
                 }
                 _ => {
                     engine
-                        .update_entry_content(entry.entry_ref(), kind, &items, chain, on_progress)
+                        .update_entry_content(entry.entry_ref(), kind, &items, on_progress)
                         .await
                 }
             },
@@ -164,7 +162,6 @@ impl ContentJob {
                             version: &version,
                             source: &source,
                         },
-                        chain,
                         on_progress,
                     )
                     .await
@@ -176,13 +173,7 @@ impl ContentJob {
 impl Jobs {
     /// Start an install/update job off-thread, holding the entry's claim until
     /// it settles.
-    pub fn start_content<C>(
-        &self,
-        job: ContentJob,
-        id: String,
-        claim: Claim,
-        chain: CallChain,
-    ) -> String
+    pub fn start_content<C>(&self, job: ContentJob, id: String, claim: Claim) -> String
     where
         C: Job<Progress = ProvisionProgress, Done = ContentDone>,
     {
@@ -191,11 +182,10 @@ impl Jobs {
             prefix: job.id_prefix(),
             claim: Some(claim),
             subject: job.entry().subject(),
-            chain: chain.clone(),
         };
 
         self.run::<C, _>(spec, move |engine, reporter| {
-            Box::pin(async move { job.run(engine, &chain, &reporter.job()).await })
+            Box::pin(async move { job.run(engine, &reporter.job()).await })
         })
     }
 }

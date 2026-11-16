@@ -68,22 +68,15 @@ pub use minecraft::profile::{
     ServerRuntime,
 };
 pub use minecraft::{
-    FlavorInfo, FlavorProvider, InstallRequest, JavaInstall, Loads, Minecraft, ResolveRequest,
-    Side, REQUIRED_JAVA_MAJORS,
+    FlavorInfo, FlavorProvider, InstallRequest, JavaInstall, Loaders, Loads, Minecraft,
+    ResolveRequest, Side, BOTH_SIDES, CLIENT_ONLY, REQUIRED_JAVA_MAJORS, SERVER_ONLY,
 };
 pub use net::Network;
+pub use plugins::vouch::Policy;
 pub use plugins::{
-    approval_digest, build_task_id, check_run_effects, command_args, find_command,
-    is_official_signer, key_id_of, owner_of, pin_on_path, refuse_official_key, resolve_on_path,
-    revocation, target_triple, unregister_providers, verify_build, verify_index, Approver,
-    BeforeLaunch, BundleRefusal, CallChain, CallContext, CallError, ChainError, CommandRun,
-    Contributions, GuestError, Hook, HookOutcome, Hooks, HostCalls, Inspection, LaunchPatch,
-    Listings, LoadError, LoadedPlugin, ManagedJava, MessagesError, Mount, Origin, Participant,
-    PluginContentProvider, PluginFlavorProvider, PluginJavaProvider, PluginPack, PluginPackage,
-    PluginRecord, PluginRuntime, PluginSettings, PluginStats, Plugins, Pushed, Remote, RepoError,
-    Resolver, Roster, Seeded, SettingsError, Staged, UpdateOutcome, UpdateRequest, CANCEL_GRACE,
-    COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES, MAX_CHAIN_DEPTH,
-    MAX_DOWNLOAD_BYTES, PROVIDER_TIMEOUT, UI_TIMEOUT,
+    approval_digest, is_official_signer, key_id_of, pin_on_path, refuse_official_key,
+    resolve_on_path, revocation, target_triple, verify_build, verify_index, Listings, ManagedJava,
+    RepoError, Resolver,
 };
 #[cfg(windows)]
 pub use process::run_relay;
@@ -94,5 +87,7 @@ pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};
 pub use skins::Skins;
 pub use sync::Sync;
 pub use tasks::Schedule;
+pub use transfer::archive::Reader;
+pub use transfer::{PackProvider, Vetted};
 pub use update::Update;
 pub use usage::dir_size;

@@ -5,8 +5,6 @@
 
 use proto::plugin::{Invocation, InvocationMismatch, JavaChoiceError, Program};
 
-use super::process::ProgramError;
-
 /// What a call says about how it wants a program run.
 pub(crate) struct Call<'a> {
     pub args: &'a [String],
@@ -23,6 +21,14 @@ pub(crate) struct Call<'a> {
 pub(crate) struct Selection {
     pub invocation: Invocation,
     pub java: Option<u32>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ProgramError {
+    #[error("{0}")]
+    Denied(String),
+    #[error("{0}")]
+    Invalid(String),
 }
 
 /// The invocation of `program` that `call` fits and the Java major it runs on.

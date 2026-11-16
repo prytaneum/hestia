@@ -7,8 +7,8 @@
 //! instance is something you play, share, and move between machines, so its
 //! archive is one portable file that says what it is.
 //!
-//! Hestia's own archive is the only instance format. Every other format is a
-//! plugin's `pack` provider ([`crate::plugins::PluginPack`]), which declares the
+//! Hestia's own archive is the only built-in instance format. Every other format
+//! is a [`PackProvider`], which declares the
 //! members it reads and answers what the archive holds. [`detect`] ranks them
 //! beside hestia's own and the modpack flow receives a pack archive already
 //! open.
@@ -17,12 +17,13 @@
 //! what an archive leaves out are shared ([`exclude`]) so two exporters cannot
 //! drift on the question of what an instance's files actually are.
 
-pub(crate) mod archive;
+pub mod archive;
 pub(crate) mod contents;
 pub(crate) mod exclude;
 pub(crate) mod hestia;
-pub(crate) mod plugin;
+pub(crate) mod pack;
 pub(crate) mod pool;
+mod provider;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -41,8 +42,8 @@ use crate::instances::InstanceRecord;
 use crate::jvm::JavaSettings;
 use crate::minecraft::profile::InstanceProfile;
 use crate::minecraft::Loaders;
-use crate::plugins::PluginPack;
 use archive::{Reader, Written};
+pub use provider::{PackProvider, Vetted};
 
 /// What an archive says it is, before anything is written. Shown to whoever is
 /// about to import it, and the reason inspecting is a separate call.
@@ -85,21 +86,19 @@ pub(crate) struct Target<'a> {
 #[derive(Clone)]
 pub(crate) enum Kind {
     Hestia,
-    Plugin(Arc<PluginPack>),
+    Pack(Arc<dyn PackProvider>),
 }
 
 impl Kind {
     pub(crate) fn id(&self) -> ImportFormat {
         match self {
             Kind::Hestia => ImportFormat::Hestia,
-            Kind::Plugin(pack) => {
-                ImportFormat::Provider(Provider::new(pack.id(), &pack.info().name))
-            }
+            Kind::Pack(pack) => ImportFormat::Provider(Provider::new(pack.id(), &pack.info().name)),
         }
     }
 
     fn is_pack(&self) -> bool {
-        matches!(self, Kind::Plugin(_))
+        matches!(self, Kind::Pack(_))
     }
 }
 
@@ -121,7 +120,7 @@ pub(crate) struct Detected {
 /// config directory is a file it uses, not what the archive is. The order below
 /// only breaks a tie, so a plugin's format ranks after hestia's at equal depth,
 /// and none can claim hestia's marker.
-fn candidates(names: &[String], packs: &[Arc<PluginPack>]) -> Vec<Detected> {
+fn candidates(names: &[String], packs: &[Arc<dyn PackProvider>]) -> Vec<Detected> {
     let mut found: Vec<Detected> = shallowest(names, hestia::MANIFEST)
         .map(|prefix| Detected {
             kind: Kind::Hestia,
@@ -131,7 +130,7 @@ fn candidates(names: &[String], packs: &[Arc<PluginPack>]) -> Vec<Detected> {
         .collect();
     found.extend(packs.iter().filter_map(|pack| {
         pack.root_of(names).map(|prefix| Detected {
-            kind: Kind::Plugin(pack.clone()),
+            kind: Kind::Pack(pack.clone()),
             prefix,
         })
     }));
@@ -146,14 +145,14 @@ fn candidates(names: &[String], packs: &[Arc<PluginPack>]) -> Vec<Detected> {
 pub(crate) async fn detect(
     reader: &mut Reader,
     filename: &str,
-    packs: &[Arc<PluginPack>],
+    packs: &[Arc<dyn PackProvider>],
     packs_only: bool,
 ) -> Result<Detected> {
     for candidate in candidates(&reader.names(), packs) {
         if packs_only && !candidate.kind.is_pack() {
             continue;
         }
-        if let Kind::Plugin(pack) = &candidate.kind {
+        if let Kind::Pack(pack) = &candidate.kind {
             if !pack.claims(reader, &candidate.prefix).await {
                 tracing::debug!(pack = %pack.id(), "a pack format did not claim the archive");
                 continue;
@@ -191,7 +190,7 @@ pub(crate) struct Source<'a> {
 #[derive(Clone)]
 pub(crate) enum Exporter {
     Hestia,
-    Plugin(Arc<PluginPack>),
+    Pack(Arc<dyn PackProvider>),
 }
 
 impl Exporter {
@@ -199,14 +198,14 @@ impl Exporter {
     pub(crate) fn extension(&self) -> &str {
         match self {
             Exporter::Hestia => "hestia",
-            Exporter::Plugin(pack) => &pack.info().extension,
+            Exporter::Pack(pack) => &pack.info().extension,
         }
     }
 
     pub(crate) fn id(&self) -> &str {
         match self {
             Exporter::Hestia => "hestia",
-            Exporter::Plugin(pack) => pack.id(),
+            Exporter::Pack(pack) => pack.id(),
         }
     }
 }
@@ -221,7 +220,9 @@ pub(crate) async fn export(
 ) -> Result<(Written, Vec<WarningInfo>)> {
     match exporter {
         Exporter::Hestia => hestia::export(source, destination, job).map(|w| (w, Vec::new())),
-        Exporter::Plugin(pack) => plugin::export(source, pack, destination, loaders, job).await,
+        Exporter::Pack(pack) => {
+            pack::export(source, pack.as_ref(), destination, loaders, job).await
+        }
     }
 }
 

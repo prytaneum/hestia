@@ -36,32 +36,11 @@ pub struct Settings {
     /// Whether the launcher may reach the network at all.
     pub network: NetworkSettings,
     pub java: JavaProviderSettings,
-    /// How installed plugins are kept up to date.
-    pub plugins: PluginPolicy,
-    /// Shows and allows the plugin authoring tools: dev installs, their log
-    /// stream and the extra diagnostics. Off, the daemon refuses them.
-    pub developer: bool,
-}
-
-/// Plugin update policy, keyed `plugins.auto-update`. On, an official plugin
-/// whose update asks for nothing new is applied after each scheduled check;
-/// every other update waits for the user.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default, rename_all = "camelCase")]
-pub struct PluginPolicy {
-    pub auto_update: bool,
-}
-
-impl Default for PluginPolicy {
-    fn default() -> Self {
-        PluginPolicy { auto_update: true }
-    }
 }
 
 /// The Java distribution runtimes are installed from, keyed `java.provider`:
 /// the id of a registered Java provider, `adoptium` unless changed. It is not
-/// checked when set, because a plugin's provider is registered only while that
-/// plugin is enabled; an install naming an unregistered id fails by name.
+/// checked when set; an install naming an unregistered id fails by name.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct JavaProviderSettings {
@@ -325,58 +304,5 @@ fn kind_of(v: &Value) -> ValueKind {
         Value::String(_) => ValueKind::String,
         Value::Array(_) => ValueKind::Array,
         Value::Object(_) => ValueKind::Object,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeSet;
-
-    use proto::config::{AUTOSTART_KEY, HOME_KEY, PLUGIN_ACCESS};
-
-    use super::*;
-
-    fn leaves(prefix: &str, value: &Value, out: &mut BTreeSet<String>) {
-        match value {
-            Value::Object(map) => {
-                for (name, child) in map {
-                    let key = if prefix.is_empty() {
-                        name.clone()
-                    } else {
-                        format!("{prefix}.{name}")
-                    };
-                    leaves(&key, child, out);
-                }
-            }
-            _ => {
-                out.insert(prefix.to_string());
-            }
-        }
-    }
-
-    #[test]
-    fn every_setting_has_a_decided_plugin_access() {
-        let settings = naming::settings_to_config_keys(
-            serde_json::to_value(Settings::default()).expect("settings serialize"),
-        );
-        let mut schema = BTreeSet::new();
-        leaves("", &settings, &mut schema);
-        schema.extend([HOME_KEY, AUTOSTART_KEY].map(String::from));
-
-        let decided: BTreeSet<String> = PLUGIN_ACCESS
-            .iter()
-            .map(|(key, _)| key.to_string())
-            .collect();
-
-        let undecided: Vec<&String> = schema.difference(&decided).collect();
-        assert!(
-            undecided.is_empty(),
-            "decide the plugin access of these settings in proto::config::PLUGIN_ACCESS: {undecided:?}"
-        );
-        let stale: Vec<&String> = decided.difference(&schema).collect();
-        assert!(
-            stale.is_empty(),
-            "PLUGIN_ACCESS lists settings the schema no longer has: {stale:?}"
-        );
     }
 }

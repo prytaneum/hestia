@@ -11,6 +11,7 @@
 //! handed, already open, to the modpack flow.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use proto::content::ContentFailure;
@@ -24,10 +25,11 @@ use crate::cancel::Job;
 use crate::content::pack;
 use crate::engine::Engine;
 use crate::instances::InstanceRecord;
-use crate::plugins::CallChain;
 use crate::registry;
+use crate::roster::{RegisterError, Standing};
 use crate::schema;
 use crate::transfer::archive::{self, Reader};
+use crate::transfer::PackProvider;
 use crate::transfer::{
     self, contents, hestia, Blueprint, Descriptor, Detected, Exporter, Kind, Recipe, Source, Target,
 };
@@ -66,6 +68,17 @@ pub struct ImportOutcome {
 }
 
 impl Engine {
+    /// Adds `owner`'s pack format under `pack.id()`, which must read `<owner>.<id>`.
+    pub fn register_pack(
+        &self,
+        owner: &str,
+        standing: Standing,
+        pack: Arc<dyn PackProvider>,
+    ) -> Result<(), RegisterError> {
+        let id = pack.id().to_string();
+        self.packs.register(owner, standing, &id, pack)
+    }
+
     /// Drops every pack format `owner` registered.
     pub fn unregister_packs(&self, owner: &str) -> usize {
         self.packs.unregister(owner)
@@ -114,7 +127,7 @@ impl Engine {
             ExportFormat::Provider(provider) => self
                 .packs
                 .resolve(&provider.id, |pack| !pack.info().extension.is_empty())
-                .map(|(_, pack)| Exporter::Plugin(pack))
+                .map(|(_, pack)| Exporter::Pack(pack))
                 .map_err(|unresolved| unresolved.into_error(&provider.id)),
         }
     }
@@ -189,7 +202,7 @@ impl Engine {
         let detected = self.detect_archive(&mut reader, &path, false).await?;
         let format = detected.kind.id();
         let descriptor = match detected.kind {
-            Kind::Plugin(plugin) => plugin
+            Kind::Pack(plugin) => plugin
                 .read(&mut reader, &detected.prefix, &self.minecraft.loaders())
                 .await?
                 .read
@@ -223,7 +236,6 @@ impl Engine {
         &self,
         path: &str,
         name: &str,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<ImportOutcome> {
         let path = daemon_local_path(path)?;
@@ -232,10 +244,10 @@ impl Engine {
         let format = detected.kind.id();
         tracing::info!(path = %path.display(), format = ?format, "importing an instance");
 
-        if matches!(detected.kind, Kind::Plugin(_)) {
+        if matches!(detected.kind, Kind::Pack(_)) {
             let (archive, resolved) = self.open_pack(reader, detected).await?;
             return self
-                .import_pack(archive, resolved, &path, name, format, chain, job)
+                .import_pack(archive, resolved, &path, name, format, job)
                 .await;
         }
         let blueprint = hestia::Hestia.read(&mut reader, &detected.prefix)?;
@@ -318,7 +330,6 @@ impl Engine {
         path: &Path,
         name: &str,
         format: ImportFormat,
-        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<ImportOutcome> {
         let fetched = self.read_pack(archive, resolved, path).await?;
@@ -328,7 +339,6 @@ impl Engine {
                 &ModpackTarget::Create {
                     name: name.trim().to_string(),
                 },
-                chain,
                 job,
             )
             .await?;

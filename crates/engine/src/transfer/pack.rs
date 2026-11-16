@@ -14,12 +14,12 @@ use proto::warning::WarningInfo;
 use super::archive::{self, Member, Writer, Written};
 use super::exclude::Rules;
 use super::pool::Pooled;
+use super::provider::PackProvider;
 use super::{loader_of, pool, Source};
 use crate::cancel::Job;
 use crate::checksum;
 use crate::content::install;
 use crate::minecraft::Loaders;
-use crate::plugins::PluginPack;
 
 /// A file's size and SHA-512, in one read. Pack formats name their files by
 /// SHA-512 beside the SHA-1 hestia stores, so it is hashed on demand rather
@@ -46,7 +46,7 @@ fn pool_item(pooled: &Pooled) -> Result<PoolItem> {
 
 pub(crate) async fn export(
     source: &Source<'_>,
-    pack: &PluginPack,
+    pack: &dyn PackProvider,
     destination: &Path,
     loaders: &Loaders,
     job: &Job<'_>,
