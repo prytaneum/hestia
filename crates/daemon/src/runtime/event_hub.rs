@@ -18,6 +18,8 @@ struct Sub {
     // subscribes to every event. An entry key also covers the session keys
     // beneath it, so following an entry outlives its processes.
     filter: Option<String>,
+    /// Draws what plugins show, so a plugin question can be put to the user.
+    draws_plugins: bool,
 }
 
 /// An in-process subscriber. It runs inside `publish`, so it must only filter
@@ -37,7 +39,13 @@ impl EventHub {
         self.last_subscriber_id.fetch_add(1, Ordering::Relaxed) + 1
     }
 
-    pub fn subscribe(&self, conn_id: u64, out: UnboundedSender<String>, filter: Option<String>) {
+    pub fn subscribe(
+        &self,
+        conn_id: u64,
+        out: UnboundedSender<String>,
+        filter: Option<String>,
+        draws_plugins: bool,
+    ) {
         tracing::debug!(
             conn = conn_id,
             filter = filter.as_deref(),
@@ -47,6 +55,7 @@ impl EventHub {
             conn_id,
             out,
             filter,
+            draws_plugins,
         });
     }
 
@@ -64,6 +73,13 @@ impl EventHub {
         let mut subs = self.subs.lock().unwrap();
         subs.retain(|s| !s.out.is_closed());
         subs.iter().any(|s| s.filter.is_none())
+    }
+
+    /// Whether a connected front-end draws plugin notices, questions and links.
+    pub fn has_plugin_surface(&self) -> bool {
+        let mut subs = self.subs.lock().unwrap();
+        subs.retain(|s| !s.out.is_closed());
+        subs.iter().any(|s| s.draws_plugins)
     }
 
     pub fn unsubscribe(&self, conn_id: u64) {

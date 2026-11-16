@@ -59,7 +59,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let filter = if p.id.is_empty() { None } else { Some(p.id) };
         ctx.runtime
             .hub()
-            .subscribe(ctx.conn_id, ctx.out.clone(), filter);
+            .subscribe(ctx.conn_id, ctx.out.clone(), filter, p.draws_plugins);
         Ok(EventsSubscribeResult { subscribed: true })
     });
 }

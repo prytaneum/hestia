@@ -293,7 +293,7 @@ async fn connect(app: &AppHandle) -> Result<Arc<Client>, CallError> {
 async fn attach(app: &AppHandle, client: Client) -> Result<Arc<Client>, CallError> {
     let client = Arc::new(client);
     let emitter = app.clone();
-    let mut events = client.session().listen_subscribed(None).await?;
+    let mut events = client.session().listen_drawing_plugins().await?;
     tauri::async_runtime::spawn(async move {
         while let Some(event) = events.recv().await {
             let _ = emitter.emit(

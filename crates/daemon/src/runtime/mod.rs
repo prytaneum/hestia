@@ -11,6 +11,7 @@ mod network;
 mod ready;
 pub mod router;
 mod scheduler;
+mod surface;
 mod updates;
 
 use std::fmt;
@@ -40,6 +41,7 @@ pub use network::spawn_network_watcher;
 pub use ready::spawn_ready_watcher;
 pub use router::{error_response, require_account, Channels, Router};
 pub use scheduler::spawn_task_scheduler;
+pub use surface::Surface;
 pub use updates::spawn_update_watcher;
 
 // The supervisor key vocabulary lives in `proto::naming`: a front-end names the
@@ -162,6 +164,7 @@ pub struct Runtime {
     engine: Arc<Engine>,
     plugins: Plugins,
     hub: Arc<EventHub>,
+    surface: Arc<Surface>,
     jobs: Jobs,
     claims: Claims,
     processes: Arc<ProcessSupervisor>,
@@ -217,10 +220,12 @@ impl Runtime {
             processes.clone(),
             cancellations.clone(),
         );
+        let surface = Arc::new(Surface::new(hub.clone(), engine.data_home().to_path_buf()));
         Runtime {
             engine,
             plugins,
             hub,
+            surface,
             jobs,
             claims,
             cancellations,
@@ -301,6 +306,11 @@ impl Runtime {
 
     pub fn hub(&self) -> &EventHub {
         &self.hub
+    }
+
+    /// What plugins draw through and keep their files in; hand it to the sandbox.
+    pub fn surface(&self) -> &Arc<Surface> {
+        &self.surface
     }
 
     /// Every cancellable job in flight, whichever manager owns it.

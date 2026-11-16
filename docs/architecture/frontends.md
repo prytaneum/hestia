@@ -199,6 +199,7 @@ Every piece of feedback has one surface and one owner:
 | Inline            | feedback on the control in view, such as a routine "saved"                   |
 | Notification list | every notice of the session, and anything to come back to                    |
 | `WarningNotice`   | a degraded state that is still true                                          |
+| Plugin surface    | a plugin's notice (toast), question or link (dialog), titled with its name   |
 
 Toasts go through `lib/notify.ts`, the only module allowed to import `sonner` (a lint rule enforces it): bottom-right, at
 most three, success and info and warning expire while an error or any toast with an action stays. Each is also recorded

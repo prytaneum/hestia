@@ -97,6 +97,8 @@ What is yours sits at the top level. What the launcher can regenerate sits under
 ├── config.json          settings
 ├── accounts.json        signed-in accounts (owner-only)
 ├── plugins.json         the plugins you turned off
+├── plugins/<id>/        what Hestia keeps for a plugin: settings, secrets (owner-only)
+├── plugin-data/<id>/    the plugin's own files, its `/data`
 ├── servers/<slug>/      one directory per server
 ├── instances/<slug>/    one directory per instance
 ├── skins/               the skin library
@@ -165,18 +167,36 @@ size cap, and a checksum or a declared unhashed host, rechecked on every redirec
 hosts in `engine::net::hosts`.
 
 The kernel also holds the WASM sandbox (`runtime/`): one wasmtime engine for the daemon, a fresh store and instance per
-call, run as async calls that yield on every 10 ms epoch tick, so each call's wall-clock budget (`init`: 10 s) also
-bounds a guest waiting inside a host call, and dropping the call stops the guest. Memory is capped at 256 MiB under the
-pooling allocator. At most 4 calls per plugin and 16 overall run at once; the rest wait for a slot within their budget.
-The third trap in ten minutes is reported as `TrapLimit`, and the registry disables the plugin. WASI has no network, no
-preopen and an empty environment. Compiled components are cached under `meta/plugins/`, one entry per plugin, each
-tagged with HMAC-SHA256 under a per-install key kept outside `meta/`; an entry whose tag does not cover its source, the
-engine and its bytes is recompiled, never loaded. The API is `hestia:kernel@0.1.0` (`types`, `log`, `app`,
-`lifecycle`) in `crates/sdk/wit/kernel/`. `crates/sdk` (`hestia-sdk`, MIT OR Apache-2.0, not a default member: it
+call, run as async calls that yield on every 10 ms epoch tick, so each call's wall-clock budget (`init` 10 s, an event
+such as `settings-changed` 5 s) also bounds a guest waiting inside a host call, and dropping the call stops the guest.
+Memory is capped at 256 MiB under the pooling allocator. At most 4 calls per plugin and 16 overall run at once; the rest
+wait for a slot within their budget. The third trap in ten minutes is reported as `TrapLimit`, and the registry disables
+the plugin. WASI has no network and an empty environment. Compiled components are cached under `meta/plugins/`, one
+entry per plugin, each tagged with HMAC-SHA256 under a per-install key kept outside `meta/`; an entry whose tag does not
+cover its source, the engine and its bytes is recompiled, never loaded. The API is `hestia:kernel@0.1.0` (`types`,
+`log`, `app`, `data`, `settings`, `secrets`, `messages`, `progress`, `notify`; exports `lifecycle` and
+`settings-changed`) in `crates/sdk/wit/kernel/`. `crates/sdk` (`hestia-sdk`, MIT OR Apache-2.0, not a default member: it
 targets `wasm32-wasip2`) always carries the imports and enables one export per cargo feature; `hestia::export!` exports
 the enabled ones. A component's exports are found per interface, a missing one meaning not provided. The tests build the
-guests in `crates/kernel/tests/guest/` once per run; `examples/typescript/` builds a `lifecycle`-only plugin with `jco`
-under Bun in CI.
+guests in `crates/kernel/tests/guest/` and `guest-services/` once per run; `examples/typescript/` builds a
+`lifecycle`-only plugin with `jco` under Bun in CI.
+
+The services a plugin calls reach the host through the `Services` trait the sandbox is given (`with_services`); the
+defaults provide nothing, so `settings` answers `unsupported` and `confirm` is declined. `/data` is the only WASI
+preopen and holds the plugin's own files (`<data_home>/plugin-data/<id>/`); settings and secrets are schema documents in
+`<data_home>/plugins/<id>/`, apart from `/data` so no link in it reaches them, read once and kept in memory per plugin
+(`secrets.json` owner-only, an unreadable file set aside). An id is lowercase letters, digits and `-`, never a name
+Windows reserves (`kernel::id`). The grant, not `secrets`, refuses a plugin the user did not grant it. `data.try-lock`
+takes a named lock that lasts until `unlock` or the end of the call, however it ends. `messages` renders at most 16
+arguments into 4 KiB. `notify`, `confirm` and `open-url` never draw anything themselves: the daemon publishes
+`plugin.notice`, `plugin.question` (answered by `plugin.answer`, which names the plugin, and withdrawn by
+`plugin.question.closed`) and `plugin.link`, and the desktop draws each with the plugin's name. A call allows five
+notices, one question and one link; only a call a person started may ask (`settings-changed` is one), its budget pauses
+while the person decides, and the sandbox declines after two minutes. `open-url` takes what the network policy allows
+for a URL nobody granted. Only a front-end that subscribes as drawing plugins (`events.subscribe` with `drawsPlugins`,
+the desktop) is asked; with none connected a question is declined and a link refused. Progress counts only in a job, and
+`cancelled` is the call's own. `Sandbox::change_setting` stores a value the user changed and then calls
+`settings-changed`; `Sandbox::store_secret` stores one the user entered.
 
 ## Subsystem pages
 

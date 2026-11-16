@@ -205,11 +205,26 @@ impl Session {
     /// [`listen`](Self::listen), then subscribe on the daemon. The listener is
     /// registered first so no event sent after the subscription is missed.
     pub async fn listen_subscribed(&self, scope: Option<&str>) -> Result<Listener, IpcError> {
+        self.subscribe(scope, false).await
+    }
+
+    /// Every event, as a front-end that draws what plugins show: the daemon
+    /// asks the user plugin questions only while one of these is connected.
+    pub async fn listen_drawing_plugins(&self) -> Result<Listener, IpcError> {
+        self.subscribe(None, true).await
+    }
+
+    async fn subscribe(
+        &self,
+        scope: Option<&str>,
+        draws_plugins: bool,
+    ) -> Result<Listener, IpcError> {
         use proto::events::{EventsSubscribe, EventsSubscribeParams};
 
         let listener = self.listen(scope);
         self.call::<EventsSubscribe>(&EventsSubscribeParams {
             id: scope.unwrap_or_default().to_string(),
+            draws_plugins,
         })
         .await?;
         Ok(listener)

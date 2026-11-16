@@ -11,6 +11,10 @@ pub struct EventsSubscribeParams {
     /// Empty subscribes to every event.
     #[serde(default)]
     pub id: String,
+    /// The subscriber draws what plugins show (notices, questions, links), so
+    /// the daemon may ask the user through it.
+    #[serde(default)]
+    pub draws_plugins: bool,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

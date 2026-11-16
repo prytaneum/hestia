@@ -347,7 +347,7 @@ mod tests {
         let engine = Arc::new(engine::Engine::new(Some(home.path())));
         let hub = Arc::new(crate::runtime::EventHub::default());
         let (tx, events) = tokio::sync::mpsc::unbounded_channel();
-        hub.subscribe(1, tx, None);
+        hub.subscribe(1, tx, None, false);
         let processes = engine.processes().clone();
         Harness {
             jobs: Jobs::new(
