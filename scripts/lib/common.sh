@@ -25,8 +25,7 @@ die() {
 # The tool is *run*, not merely located: Windows ships an App Execution Alias
 # for `python` that sits on PATH, satisfies `command -v`, and then prints an
 # advert for the Microsoft Store instead of running anything. Several version
-# flags are tried because there is no one spelling every tool answers —
-# minisign wants `-v` and exits 2 on `--version`.
+# flags are tried because there is no one spelling every tool answers.
 require() {
   local tool="$1" hint="${2:-}" flag
   if command -v "$tool" > /dev/null 2>&1; then

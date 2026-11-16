@@ -28,8 +28,6 @@ bundle() {
     macos) targets="app,dmg" ;;
     *) targets="deb,rpm,appimage" ;;
   esac
-  # Signatures are minisign, applied to the finished artifacts by
-  # scripts/sign.sh — the bundler never signs anything.
   (cd crates/desktop && cargo tauri build --bundles "$targets")
   if [ "$os" = linux ]; then
     unbundle_host_libraries

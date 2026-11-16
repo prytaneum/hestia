@@ -26,9 +26,8 @@ jobs:
       - uses: actions/checkout@v7
 
       # A prerelease tag carries a semver prerelease suffix (v1.3.0-beta.1).
-      # This decides three things at once: which feed the release lands on, that
-      # GitHub must not promote it to `releases/latest`, and the channel stamped
-      # into the binaries so a beta build looks for betas.
+      # This decides two things at once: that GitHub must not promote it to
+      # `releases/latest`, and the channel stamped into the binaries.
       - name: Decide the channel
         id: channel
         shell: bash
@@ -77,38 +76,6 @@ jobs:
           fi
           printf '%s\n' "$notes"
 
-      - name: The update signing key is configured
-        if: github.ref_type == 'tag'
-        env:
-          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
-        run: |
-          if [ -z "${RELEASE_SIGNING_KEY:-}" ]; then
-            echo "::error::RELEASE_SIGNING_KEY is not set. See docs/packaging.md#signing."
-            exit 1
-          fi
-
-      # A stable release nobody is told about is not a release: the feed is what
-      # every installed copy polls, so a missing token fails here rather than
-      # after the installers are already public. A beta is let through without
-      # one — a prerelease is handed to testers as a download, and the feed it
-      # will be served from may not exist yet.
-      - name: The update feed is configured
-        if: github.ref_type == 'tag'
-        env:
-          FEED_URL: ${{ vars.UPDATE_FEED_URL }}
-          FEED_TOKEN: ${{ secrets.UPDATE_FEED_TOKEN }}
-          CHANNEL: ${{ steps.channel.outputs.channel }}
-        run: |
-          set -euo pipefail
-          if [ -n "${FEED_URL:-}" ] && [ -n "${FEED_TOKEN:-}" ]; then
-            exit 0
-          fi
-          if [ "$CHANNEL" = stable ]; then
-            echo "::error::UPDATE_FEED_URL (variable) and UPDATE_FEED_TOKEN (secret) must both be set for a stable release. See docs/update-feed.md."
-            exit 1
-          fi
-          echo "::warning::no feed credentials — this beta ships as a download only, and no installed copy will be offered it."
-
   # ci.yml runs on branch pushes, not tags; without this a tag publishes code
   # that fmt, clippy and the test suites never saw.
   gate:
@@ -116,7 +83,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   # Builds beside the gate rather than after it: nothing here is public until
-  # `manifest`, which waits on both. The installers and the portable archive
+  # `publish`, which waits on both. The installers and the portable archive
   # are separate compiles of the whole tree (scripts/package.sh), so each gets
   # its own runner instead of queueing behind the other.
   package:
@@ -174,28 +141,6 @@ jobs:
           HESTIA_CHANNEL: ${{ needs.preflight.outputs.channel }}
         run: scripts/package.sh ${{ matrix.part }}
 
-      # Every artifact the updater may hand back is signed here, by us — the
-      # bundler signs nothing, and it never signed deb or rpm at all.
-      - name: Sign the artifacts
-        if: startsWith(github.ref, 'refs/tags/') && matrix.part == 'bundle'
-        shell: bash
-        env:
-          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
-          RELEASE_SIGNING_KEY_PASSWORD: ${{ secrets.RELEASE_SIGNING_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [ "$RUNNER_OS" = Windows ]; then
-            choco install minisign --no-progress -y
-          else
-            sudo apt-get install -y --no-install-recommends minisign
-          fi
-          shopt -s nullglob
-          scripts/sign.sh \
-            target/release/bundle/nsis/*-setup.exe \
-            target/release/bundle/appimage/*.AppImage \
-            target/release/bundle/deb/*.deb \
-            target/release/bundle/rpm/*.rpm
-
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -203,34 +148,22 @@ jobs:
           if-no-files-found: error
           path: |
             target/release/bundle/deb/*.deb
-            target/release/bundle/deb/*.sig
             target/release/bundle/rpm/*.rpm
-            target/release/bundle/rpm/*.sig
             target/release/bundle/appimage/*.AppImage
-            target/release/bundle/appimage/*.sig
             target/release/bundle/nsis/*-setup.exe
-            target/release/bundle/nsis/*.sig
             target/package/*.tar.gz
             target/package/*.zip
 
   # The only job that makes anything public, and it needs the gate and every
   # platform's build — so a tag publishes all of a release or none of it, and
   # never code the checks did not pass.
-  #
-  # It composes `latest.json` from both platforms' signed installers and
-  # publishes it to the feed API for this tag's channel. The Release keeps a
-  # copy purely as provenance — nothing reads it, since the feed is the record
-  # of what is current (docs/update-feed.md).
-  manifest:
+  publish:
     needs: [preflight, gate, package]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      # The manifest's notes come from CHANGELOG.md — the same section the build
-      # compiles in and shows after an upgrade, so what the updater offers and
-      # what the app then displays cannot disagree.
       - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v8
@@ -238,56 +171,16 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Compose latest.json
+      - name: Compose the release notes
         shell: bash
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          channel="${{ needs.preflight.outputs.channel }}"
-          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
-          notes="$(awk -v want="## $version" '
+          awk -v want="## $version" '
             $0 == want { grab = 1; next }
             grab && /^## / { exit }
             grab { print }
-          ' CHANGELOG.md)"
-          manifest="$(jq -n --arg v "$version" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --arg n "$notes" --arg c "$channel" \
-            '{version: $v, notes: $n, channel: $c, pub_date: $d, platforms: {}}')"
-          # A platform's default entry is what a build asks for when it has no
-          # more specific format: the NSIS setup, the AppImage. `formats` holds
-          # the rest, and a build predating the map simply never reads it.
-          add() {
-            local target="$1" file="$2"
-            if [ ! -f "$file" ] || [ ! -f "$file.sig" ]; then
-              echo "no signed artifact for $target" >&2
-              return 0
-            fi
-            manifest="$(jq --arg t "$target" \
-              --arg url "$base/$(basename "$file")" \
-              --arg sig "$(cat "$file.sig")" \
-              '.platforms[$t] = {url: $url, signature: $sig}' <<<"$manifest")"
-          }
-          add_format() {
-            local target="$1" format="$2" file="$3"
-            if [ ! -f "$file" ] || [ ! -f "$file.sig" ]; then
-              echo "no signed $format artifact for $target" >&2
-              return 0
-            fi
-            manifest="$(jq --arg t "$target" --arg f "$format" \
-              --arg url "$base/$(basename "$file")" \
-              --arg sig "$(cat "$file.sig")" \
-              '.platforms[$t].formats[$f] = {url: $url, signature: $sig}' <<<"$manifest")"
-          }
-          add windows-x86_64 "$(find artifacts -name '*-setup.exe' -print -quit)"
-          add linux-x86_64 "$(find artifacts -name '*.AppImage' -print -quit)"
-          add_format linux-x86_64 deb "$(find artifacts -name '*.deb' -print -quit)"
-          add_format linux-x86_64 rpm "$(find artifacts -name '*.rpm' -print -quit)"
-          if [ "$(jq '.platforms | length' <<<"$manifest")" -eq 0 ]; then
-            echo "no signed installers found — is the RELEASE_SIGNING_KEY secret set?" >&2
-            exit 1
-          fi
-          jq . <<<"$manifest" | tee latest.json
-          printf '%s\n' "$notes" > release-notes.md
+          ' CHANGELOG.md > release-notes.md
 
       - name: Attach to GitHub Release
         uses: softprops/action-gh-release@v3
@@ -302,37 +195,3 @@ jobs:
             artifacts/**/*-setup.exe
             artifacts/**/*.tar.gz
             artifacts/**/*.zip
-            latest.json
-
-      # The publish is a PUT: the body replaces the channel's manifest, so a
-      # re-run of this job is harmless and a rollback is a re-publish of the
-      # older document. Last step of the release on purpose — it is what makes
-      # the version visible to every installed copy.
-      #
-      # UPDATE_FEED_TOKEN is an API token minted for an admin account on the feed
-      # API, presented in the header that API authenticates keys with. A browser
-      # session is refused there, so a token is the only credential CI can hold.
-      # Unset, only a beta reaches this step (preflight refuses a stable release
-      # without it), and it is skipped rather than failed.
-      - name: Publish to the feed
-        shell: bash
-        env:
-          FEED_URL: ${{ vars.UPDATE_FEED_URL }}
-          FEED_TOKEN: ${{ secrets.UPDATE_FEED_TOKEN }}
-          CHANNEL: ${{ needs.preflight.outputs.channel }}
-        run: |
-          set -euo pipefail
-          if [ -z "${FEED_URL:-}" ] || [ -z "${FEED_TOKEN:-}" ]; then
-            echo "::warning::no feed configured — the $CHANNEL channel keeps whatever it last served. latest.json is on the Release; PUT it once the feed is up."
-            exit 0
-          fi
-          code="$(curl -sS -o response.txt -w '%{http_code}' \
-            -X PUT "${FEED_URL%/}/$CHANNEL" \
-            -H "x-api-key: $FEED_TOKEN" \
-            -H 'content-type: application/json' \
-            --data-binary @latest.json)"
-          if [ "$code" != "200" ]; then
-            echo "::error::the feed refused the manifest ($code): $(cat response.txt)"
-            exit 1
-          fi
-          echo "published ${GITHUB_REF_NAME#v} to the $CHANNEL channel"
