@@ -1,11 +1,12 @@
 //! What a component asks for, read from its imports and exports, and the
 //! digest the user's approval is bound to.
 
+pub(crate) mod program;
 mod table;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use proto::plugin::{Grant, GrantedPermission, PermissionScope, ScopeKind};
+use proto::plugin::{Grant, GrantedPermission, PermissionScope, ProgramPin, ScopeKind};
 use sha2::{Digest, Sha256};
 
 use crate::manifest::Manifest;
@@ -28,6 +29,14 @@ pub enum GrantError {
     },
     #[error("'{0}' needs a scope in plugin.toml")]
     ScopeMissing(String),
+    #[error("plugin.toml gives '{0}' unhashed hosts, but only hosts take them")]
+    UnhashedNotTaken(String),
+    #[error("plugin.toml grants '{permission}' the program `{entry}`: {reason}")]
+    Program {
+        permission: String,
+        entry: String,
+        reason: String,
+    },
     #[error("plugin.toml grants '{permission}' {reason}")]
     Host {
         permission: String,
@@ -53,10 +62,14 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
     let mut requires = BTreeSet::new();
     for import in &shape.imports {
         let interface = unversioned(import);
-        if interface.starts_with("wasi:") {
+        if interface.starts_with("wasi:")
+            && !package_of(interface).is_some_and(|p| table.knows_package(p))
+        {
             continue;
         }
-        let Some(package) = package_of(interface).filter(|p| p.starts_with("hestia:")) else {
+        let Some(package) =
+            package_of(interface).filter(|p| p.starts_with("hestia:") || table.knows_package(p))
+        else {
             return Err(GrantError::UnsupportedImport(import.clone()));
         };
         let known = table.knows_package(package);
@@ -103,20 +116,30 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
                     });
                 }
                 let values = scopes.map(|s| s.values(kind)).unwrap_or_default();
+                let unhashed = scopes.map(|s| s.unhashed.as_slice()).unwrap_or_default();
                 if values.is_empty() {
                     return Err(GrantError::ScopeMissing(name.to_owned()));
                 }
+                if kind != ScopeKind::Hosts && !unhashed.is_empty() {
+                    return Err(GrantError::UnhashedNotTaken(name.to_owned()));
+                }
                 if kind == ScopeKind::Hosts {
-                    crate::vetting::Hosts::new(values, &[] as &[String]).map_err(|reason| {
+                    crate::vetting::Hosts::new(values, unhashed).map_err(|reason| {
                         GrantError::Host {
                             permission: name.to_owned(),
                             reason,
                         }
                     })?;
                 }
+                let pins = match kind {
+                    ScopeKind::Programs => pin_programs(name, values)?,
+                    _ => Vec::new(),
+                };
                 Some(PermissionScope {
                     kind,
                     values: values.to_vec(),
+                    unhashed: unhashed.to_vec(),
+                    pins,
                 })
             }
         };
@@ -134,6 +157,34 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
     })
 }
 
+/// The file each declared invocation runs, as it is now.
+fn pin_programs(permission: &str, entries: &[String]) -> Result<Vec<ProgramPin>, GrantError> {
+    let refuse = |entry: &str, reason: String| GrantError::Program {
+        permission: permission.to_owned(),
+        entry: entry.to_owned(),
+        reason,
+    };
+    let mut pins: Vec<ProgramPin> = Vec::new();
+    for entry in entries {
+        let invocation = program::Invocation::parse(entry).ok_or_else(|| {
+            refuse(
+                entry,
+                "write an absolute path, then each argument after a single space".to_owned(),
+            )
+        })?;
+        if pins.iter().any(|pin| pin.path == invocation.program) {
+            continue;
+        }
+        let sha256 = program::digest(std::path::Path::new(&invocation.program))
+            .map_err(|error| refuse(entry, format!("cannot read it: {error}")))?;
+        pins.push(ProgramPin {
+            path: invocation.program,
+            sha256,
+        });
+    }
+    Ok(pins)
+}
+
 /// Binds an approval to the package and what it reaches: the id, the exact
 /// manifest and component bytes, each permission with its scope, and the
 /// packages it requires. Hestia's own prompt text and tiers are left out, so
@@ -144,7 +195,7 @@ pub fn approval_digest(id: &str, manifest: &[u8], wasm: &[u8], grant: &Grant) ->
         hash.update((bytes.len() as u64).to_le_bytes());
         hash.update(bytes);
     };
-    field(b"hestia-approval-v2");
+    field(b"hestia-approval-v3");
     field(id.as_bytes());
     field(&Sha256::digest(manifest));
     field(&Sha256::digest(wasm));
@@ -167,6 +218,28 @@ pub fn approval_digest(id: &str, manifest: &[u8], wasm: &[u8], grant: &Grant) ->
         field(&(values.len() as u64).to_le_bytes());
         for value in values {
             field(value.as_bytes());
+        }
+        let (mut unhashed, mut pins): (Vec<&str>, Vec<(&str, &str)>) = match &permission.scope {
+            Some(scope) => (
+                scope.unhashed.iter().map(String::as_str).collect(),
+                scope
+                    .pins
+                    .iter()
+                    .map(|pin| (pin.path.as_str(), pin.sha256.as_str()))
+                    .collect(),
+            ),
+            None => Default::default(),
+        };
+        unhashed.sort_unstable();
+        field(&(unhashed.len() as u64).to_le_bytes());
+        for host in unhashed {
+            field(host.as_bytes());
+        }
+        pins.sort_unstable();
+        field(&(pins.len() as u64).to_le_bytes());
+        for (path, sha256) in pins {
+            field(path.as_bytes());
+            field(sha256.as_bytes());
         }
     }
     let mut requires: Vec<&str> = grant.requires.iter().map(String::as_str).collect();
@@ -243,5 +316,96 @@ mod tests {
         let permissions: Vec<_> = grant.permissions.iter().map(|p| &p.permission).collect();
         assert_eq!(permissions, ["secrets"]);
         assert_eq!(grant.requires, ["hestia:servers"]);
+    }
+
+    fn derived(imports: &[&str], extra: &str) -> Result<Grant, GrantError> {
+        let manifest = Manifest::parse(&format!(
+            "id = \"t\"\nname = \"t\"\nversion = \"1\"\n{extra}"
+        ))
+        .unwrap();
+        let shape = Shape {
+            imports: imports.iter().map(|s| s.to_string()).collect(),
+            exports: Vec::new(),
+        };
+        derive(&Table::kernel(), &manifest, &shape)
+    }
+
+    #[test]
+    fn network_programs_and_endpoints_each_need_their_permission_and_scope() {
+        let exe = std::env::current_exe().unwrap();
+        let exe = exe.display();
+        let http = ["wasi:http/types@0.2.6", "wasi:http/outgoing-handler@0.2.6"];
+        let hosts = |list: &str| format!("[permissions.\"network:connect\"]\nhosts = [{list}]\n");
+        let programs =
+            |entry: &str| format!("[permissions.\"process:spawn\"]\nprograms = ['{entry}']\n");
+
+        type Check = fn(&GrantError) -> bool;
+        let refused: [(&[&str], String, Check); 9] = [
+            (&http, String::new(), |e| matches!(e, GrantError::ScopeMissing(_))),
+            (&http, hosts("\"1.2.3.4\""), |e| matches!(e, GrantError::Host { .. })),
+            (&http, hosts("\"*.com\""), |e| matches!(e, GrantError::Host { .. })),
+            (
+                &["hestia:kernel/download@0.1.0"],
+                "[permissions.\"network:connect\"]\nhosts = [\"a.example\"]\nunhashed = [\"1.2.3.4\"]\n".into(),
+                |e| matches!(e, GrantError::Host { .. }),
+            ),
+            (&["wasi:http/proxy@0.2.6"], String::new(), |e| {
+                matches!(e, GrantError::UnknownInterface(_))
+            }),
+            (&["hestia:kernel/programs@0.1.0"], programs("relative/tool --x"), |e| {
+                matches!(e, GrantError::Program { .. })
+            }),
+            (&["hestia:kernel/programs@0.1.0"], programs("/no/such/program"), |e| {
+                matches!(e, GrantError::Program { .. })
+            }),
+            (&["hestia:kernel/programs@0.1.0"], programs(&format!("{exe}  --double-space")), |e| {
+                matches!(e, GrantError::Program { .. })
+            }),
+            (
+                &["hestia:kernel/programs@0.1.0"],
+                format!("[permissions.\"process:spawn\"]\nprograms = ['{exe}']\nunhashed = [\"a.example\"]\n"),
+                |e| matches!(e, GrantError::UnhashedNotTaken(_)),
+            ),
+        ];
+        for (imports, extra, expected) in refused {
+            let error = derived(imports, &extra).unwrap_err();
+            assert!(expected(&error), "{imports:?} {extra:?}: {error}");
+        }
+
+        let grant = derived(&http, &hosts("\"api.example\", \"*.cdn.example\"")).unwrap();
+        let [network] = &grant.permissions[..] else {
+            panic!("one permission, got {:?}", grant.permissions)
+        };
+        assert_eq!(network.permission, "network:connect");
+        assert_eq!(network.tier, proto::plugin::Tier::Sandboxed);
+        assert!(derived(&["wasi:io/streams@0.2.6"], "")
+            .unwrap()
+            .permissions
+            .is_empty());
+
+        let program = programs(&format!("{exe} --list"));
+        let pinned = derived(&["hestia:kernel/programs@0.1.0"], &program).unwrap();
+        let [spawn] = &pinned.permissions[..] else {
+            panic!("one permission")
+        };
+        assert_eq!(spawn.tier, proto::plugin::Tier::Unrestricted);
+        let pins = &spawn.scope.as_ref().unwrap().pins;
+        assert_eq!(pins.len(), 1);
+        assert_eq!(
+            pins[0].sha256,
+            program::digest(std::path::Path::new(&pins[0].path)).unwrap()
+        );
+
+        let mut moved = pinned.clone();
+        moved.permissions[0].scope.as_mut().unwrap().pins[0].sha256 = "0".repeat(64);
+        let digest = |grant: &Grant| approval_digest("t", b"m", b"w", grant);
+        assert_ne!(
+            digest(&pinned),
+            digest(&moved),
+            "a moved pin needs a new approval"
+        );
+        let mut widened = grant.clone();
+        widened.permissions[0].scope.as_mut().unwrap().unhashed = vec!["api.example".into()];
+        assert_ne!(digest(&grant), digest(&widened));
     }
 }

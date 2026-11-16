@@ -3,11 +3,14 @@ use std::sync::{Arc, PoisonError};
 
 use wasmtime::component::ResourceTable;
 use wasmtime_wasi::{FsPerms, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
+use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 
 use super::bindings::hestia::kernel::{app, log, types};
+use super::http::Hooks;
 use super::limits::MemoryCap;
 use super::notify::Drawn;
 use super::pause::Pause;
+use super::reach::Reach;
 use super::shared::Shared;
 use crate::api::Chain;
 
@@ -28,8 +31,8 @@ pub(super) struct Call {
     pub chain: Chain,
 }
 
-/// The store data of one call. WASI sees one preopen, `/data`, no network and
-/// an empty environment.
+/// The store data of one call. WASI sees one preopen, `/data`, no sockets and an
+/// empty environment; the network is `wasi:http` through the plugin's policy.
 pub(crate) struct State {
     pub(super) plugin: String,
     online: bool,
@@ -42,6 +45,9 @@ pub(crate) struct State {
     wasi: WasiCtx,
     table: ResourceTable,
     pub(super) memory: MemoryCap,
+    pub(super) reach: Arc<Reach>,
+    http: WasiHttpCtx,
+    hooks: Hooks,
 }
 
 impl State {
@@ -51,6 +57,7 @@ impl State {
         memory: MemoryCap,
         shared: Shared,
         call: Call,
+        reach: Arc<Reach>,
     ) -> Self {
         let mut wasi = WasiCtxBuilder::new();
         wasi.allow_tcp(false)
@@ -76,6 +83,12 @@ impl State {
             wasi: wasi.build(),
             table: ResourceTable::new(),
             memory,
+            http: WasiHttpCtx::new(),
+            hooks: Hooks {
+                plugin: plugin.to_owned(),
+                reach: reach.clone(),
+            },
+            reach,
         }
     }
 }
@@ -128,6 +141,16 @@ impl WasiView for State {
         WasiCtxView {
             ctx: &mut self.wasi,
             table: &mut self.table,
+        }
+    }
+}
+
+impl WasiHttpView for State {
+    fn http(&mut self) -> WasiHttpCtxView<'_> {
+        WasiHttpCtxView {
+            ctx: &mut self.http,
+            table: &mut self.table,
+            hooks: &mut self.hooks,
         }
     }
 }

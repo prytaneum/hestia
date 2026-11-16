@@ -484,3 +484,67 @@ async fn a_plugin_that_reaches_its_trap_limit_is_disabled_for_good() {
     restarted.restore().await;
     assert_eq!(state(&restarted, "grant-trap"), Some(PluginState::Disabled));
 }
+
+#[tokio::test]
+async fn a_plugin_reaches_only_what_it_was_granted_and_a_moved_program_loses_its_approval() {
+    let home = tempfile::tempdir().unwrap();
+    let tool = home
+        .path()
+        .join(if cfg!(windows) { "tool.exe" } else { "tool" });
+    std::fs::write(&tool, b"v1").unwrap();
+    let data = home.path().join("plugin-data/grant-reach");
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::write(data.join("tool"), tool.to_str().unwrap()).unwrap();
+    let extra = format!(
+        "[permissions.\"network:connect\"]\nhosts = [\"files.example\"]\n\
+         [permissions.\"process:spawn\"]\nprograms = ['{} --list']\n\
+         [permissions.\"ipc:connect\"]\nendpoints = ['/run/granted.sock']\n",
+        tool.display()
+    );
+    let pkg = home.path().join("pkg");
+    package(&pkg, "grant-reach", service_guest("reach"), &extra);
+    let build = || plugins(home.path(), Table::kernel(), Vec::new());
+
+    let registry = build();
+    let inspection = registry.inspect(&pkg).await.unwrap();
+    let granted: Vec<_> = inspection
+        .grant
+        .permissions
+        .iter()
+        .map(|p| (p.permission.as_str(), p.tier))
+        .collect();
+    assert_eq!(
+        granted,
+        [
+            ("ipc:connect", Tier::Unrestricted),
+            ("network:connect", Tier::Sandboxed),
+            ("process:spawn", Tier::Unrestricted),
+        ]
+    );
+    let installed = registry
+        .install(&pkg, &inspection.approval_digest)
+        .await
+        .unwrap();
+    assert_eq!(
+        installed.state,
+        PluginState::Enabled,
+        "its init saw every refusal"
+    );
+
+    let restarted = build();
+    restarted.restore().await;
+    assert_eq!(state(&restarted, "grant-reach"), Some(PluginState::Enabled));
+
+    std::fs::write(&tool, b"v2").unwrap();
+    let moved = build();
+    moved.restore().await;
+    assert_eq!(
+        state(&moved, "grant-reach"),
+        Some(PluginState::Failed),
+        "a program that is not the one approved is not run"
+    );
+    assert_ne!(
+        moved.inspect(&pkg).await.unwrap().approval_digest,
+        inspection.approval_digest
+    );
+}

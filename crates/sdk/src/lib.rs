@@ -12,7 +12,9 @@ pub mod base {
 
 /// The error a plugin returns to Hestia.
 pub use base::hestia::kernel::types::PluginError as Error;
-pub use base::hestia::kernel::{app, data, log, messages, notify, progress, secrets, settings};
+pub use base::hestia::kernel::{
+    app, data, download, ipc, log, messages, notify, programs, progress, secrets, settings,
+};
 /// The bindings generator the SDK is built with, for a guest that imports a
 /// built-in's package (`runtime_path: "hestia::wit_bindgen::rt"`).
 pub use wit_bindgen;
@@ -33,6 +35,9 @@ pub mod lifecycle {
             "hestia:kernel/messages@0.1.0": crate::base::hestia::kernel::messages,
             "hestia:kernel/progress@0.1.0": crate::base::hestia::kernel::progress,
             "hestia:kernel/notify@0.1.0": crate::base::hestia::kernel::notify,
+            "hestia:kernel/download@0.1.0": crate::base::hestia::kernel::download,
+            "hestia:kernel/programs@0.1.0": crate::base::hestia::kernel::programs,
+            "hestia:kernel/ipc@0.1.0": crate::base::hestia::kernel::ipc,
         },
         pub_export_macro: true,
         export_macro_name: "export_lifecycle",
@@ -60,6 +65,9 @@ pub mod settings_changed {
             "hestia:kernel/messages@0.1.0": crate::base::hestia::kernel::messages,
             "hestia:kernel/progress@0.1.0": crate::base::hestia::kernel::progress,
             "hestia:kernel/notify@0.1.0": crate::base::hestia::kernel::notify,
+            "hestia:kernel/download@0.1.0": crate::base::hestia::kernel::download,
+            "hestia:kernel/programs@0.1.0": crate::base::hestia::kernel::programs,
+            "hestia:kernel/ipc@0.1.0": crate::base::hestia::kernel::ipc,
         },
         pub_export_macro: true,
         export_macro_name: "export_settings_changed",

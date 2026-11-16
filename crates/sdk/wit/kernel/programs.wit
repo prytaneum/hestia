@@ -1,0 +1,20 @@
+package hestia:kernel@0.1.0;
+
+/// Permission `process:spawn`, unrestricted. Runs a program the user approved
+/// with an invocation the plugin declared: no shell, an empty environment, and
+/// `/data` as the working directory. The file must still be the one approved.
+interface programs {
+    use types.{plugin-error};
+
+    record output {
+        /// The exit code; -1 when the process was ended by a signal.
+        status: s32,
+        /// At most 1 MiB of each stream is kept.
+        stdout: list<u8>,
+        stderr: list<u8>,
+    }
+
+    /// `program` is the path declared in the manifest and `args` its declared
+    /// arguments; anything else answers `denied`.
+    run: func(program: string, args: list<string>) -> result<output, plugin-error>;
+}

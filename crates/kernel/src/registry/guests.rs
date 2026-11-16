@@ -265,7 +265,7 @@ impl Plugins {
             .await
             .map_err(PackageError::from)?;
         let loaded = sandbox
-            .link(&opened, &denials)
+            .link_granted(&opened, &denials, grant)
             .map_err(PackageError::from)?;
         Ok(Guest {
             id: manifest.id,

@@ -1,0 +1,12 @@
+package hestia:kernel@0.1.0;
+
+/// Permission `network:connect`. Every request is held to the plugin's granted
+/// hosts, https, and the size cap, on each redirect.
+interface download {
+    use types.{plugin-error};
+
+    /// Saves `url` to `path` under `/data`, returning the bytes written. A
+    /// file is written whole or not at all. With no `sha256` (64 hex digits)
+    /// the host must be one the plugin declared as serving unhashed files.
+    fetch: func(url: string, path: string, sha256: option<string>) -> result<u64, plugin-error>;
+}

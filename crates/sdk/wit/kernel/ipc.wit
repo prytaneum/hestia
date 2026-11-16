@@ -1,0 +1,11 @@
+package hestia:kernel@0.1.0;
+
+/// Permission `ipc:connect`, unrestricted. A unix socket or Windows named pipe
+/// the manifest lists by its exact path.
+interface ipc {
+    use types.{plugin-error};
+
+    /// Connects to `endpoint`, sends `request`, closes the sending side and
+    /// returns what the peer answers, at most 1 MiB.
+    request: func(endpoint: string, request: list<u8>) -> result<list<u8>, plugin-error>;
+}

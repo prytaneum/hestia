@@ -25,6 +25,8 @@ pub struct Manifest {
 #[serde(default, deny_unknown_fields)]
 pub struct Scopes {
     pub hosts: Vec<String>,
+    /// Of `hosts`, those that may serve a body nothing verifies.
+    pub unhashed: Vec<String>,
     pub paths: Vec<String>,
     pub endpoints: Vec<String>,
     pub programs: Vec<String>,
@@ -76,11 +78,14 @@ impl Manifest {
             return Err(ManifestError::Name);
         }
         if let Some((permission, _)) = manifest.permissions.iter().find(|(_, scopes)| {
-            scopes.kinds().any(|kind| {
-                let values = scopes.values(kind);
-                values.len() > SCOPE_VALUES_MAX
-                    || !values.iter().all(|v| is_plain(v, SCOPE_VALUE_MAX))
-            })
+            scopes
+                .kinds()
+                .map(|kind| scopes.values(kind))
+                .chain(std::iter::once(scopes.unhashed.as_slice()))
+                .any(|values| {
+                    values.len() > SCOPE_VALUES_MAX
+                        || !values.iter().all(|v| is_plain(v, SCOPE_VALUE_MAX))
+                })
         }) {
             return Err(ManifestError::Scope(permission.clone()));
         }

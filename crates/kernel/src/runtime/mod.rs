@@ -6,15 +6,20 @@ mod admission;
 pub(crate) mod bindings;
 mod cache;
 mod data;
+mod download;
 mod error;
 #[cfg(feature = "probe")]
 pub(crate) mod extension;
 mod host;
+mod http;
+mod ipc;
 mod limits;
 mod messages;
 mod notify;
 mod pause;
+mod programs;
 mod progress;
+mod reach;
 mod services;
 mod settings;
 mod shape;
@@ -22,12 +27,16 @@ mod shared;
 mod stub;
 mod ticker;
 
+#[cfg(test)]
+mod tests;
+
 use std::path::{Path, PathBuf};
 use std::pin::pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use proto::plugin::Grant;
 use tokio::time::{error::Elapsed, timeout_at, Instant};
 use wasmtime::component::{Component, HasSelf, InstancePre, Linker};
 use wasmtime::{Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig, Store};
@@ -45,6 +54,7 @@ use host::Call;
 pub(crate) use host::State;
 pub use limits::Limits;
 use limits::MemoryCap;
+use reach::Reach;
 pub use services::{Answer, NoticeLevel, Services};
 pub use shape::{Shape, ShapeError};
 use shared::Shared;
@@ -81,6 +91,7 @@ pub struct Sandbox {
 pub struct Loaded {
     plugin: String,
     pre: InstancePre<State>,
+    reach: Arc<Reach>,
     lifecycle: Option<lifecycle::GuestIndices>,
     settings_changed: Option<settings_changed::GuestIndices>,
 }
@@ -120,6 +131,8 @@ impl Sandbox {
         let engine = Engine::new(&engine_config(&limits)).map_err(SandboxError::Engine)?;
         let mut linker = Linker::new(&engine);
         wasmtime_wasi::p2::add_to_linker_async(&mut linker).map_err(SandboxError::Engine)?;
+        wasmtime_wasi_http::p2::add_only_http_to_linker_async(&mut linker)
+            .map_err(SandboxError::Engine)?;
         bindings::Host_::add_to_linker::<State, HasSelf<State>>(&mut linker, |state| state)
             .map_err(SandboxError::Engine)?;
         crate::api::link(&mut linker)?;
@@ -169,9 +182,29 @@ impl Sandbox {
         })
     }
 
-    /// Links `opened`, each denied import to a stub that answers `denied`. An
-    /// export that is present but malformed fails the load.
+    /// [`Sandbox::link_granted`] with a grant that reaches no host, program or
+    /// endpoint.
     pub fn link(&self, opened: &Opened, denials: &Denials) -> Result<Loaded, SandboxError> {
+        self.link_granted(opened, denials, &Grant::default())
+    }
+
+    /// Links `opened`, each denied import to a stub that answers `denied`; a
+    /// denied `wasi:` import cannot be answered and fails the load. An export
+    /// that is present but malformed fails the load. Calls reach only the
+    /// hosts, programs and endpoints `grant` lists.
+    pub fn link_granted(
+        &self,
+        opened: &Opened,
+        denials: &Denials,
+        grant: &Grant,
+    ) -> Result<Loaded, SandboxError> {
+        if let Some((import, permission)) =
+            denials.iter().find(|(name, _)| name.starts_with("wasi:"))
+        {
+            return Err(SandboxError::Load(wasmtime::format_err!(
+                "'{import}' needs '{permission}', which is not granted"
+            )));
+        }
         let mut linker = self.linker.clone();
         stub::link_denials(&mut linker, &self.engine, &opened.component, denials)?;
         let pre = linker
@@ -196,6 +229,7 @@ impl Sandbox {
         Ok(Loaded {
             plugin: opened.plugin.clone(),
             pre,
+            reach: Arc::new(Reach::of(grant)),
             lifecycle,
             settings_changed,
         })
@@ -294,7 +328,7 @@ impl Sandbox {
         };
         let _ticking = self.ticker.running();
         let pause = call.pause.clone();
-        let mut store = self.store(plugin, call);
+        let mut store = self.store(plugin, call, loaded.reach.clone());
         let outcome = {
             let mut guest = pin!(async {
                 let instance = loaded.pre.instantiate_async(&mut store).await?;
@@ -328,12 +362,12 @@ impl Sandbox {
         self.settle(plugin, outcome, store.data().memory.exceeded)
     }
 
-    fn store(&self, plugin: &str, call: Call) -> Store<State> {
+    fn store(&self, plugin: &str, call: Call, reach: Arc<Reach>) -> Store<State> {
         let online = self.online.load(Ordering::Relaxed);
         let memory = MemoryCap::new(self.limits.memory_bytes);
         let mut store = Store::new(
             &self.engine,
-            State::new(plugin, online, memory, self.shared.clone(), call),
+            State::new(plugin, online, memory, self.shared.clone(), call, reach),
         );
         store.limiter(|state| &mut state.memory);
         store.set_epoch_deadline(1);

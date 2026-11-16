@@ -68,6 +68,11 @@ sysinfo = { version = "0.40.1", default-features = false, features = ["system"] 
 tempfile = "3.24.0"
 wasmtime = { version = "50.0.1", default-features = false, features = ["std", "runtime", "cranelift", "component-model", "pooling-allocator", "async"] }
 wasmtime-wasi = { version = "50.0.1", default-features = false, features = ["p2"] }
+wasmtime-wasi-http = { version = "50.0.1", default-features = false, features = ["p2"] }
+http = "1.4.0"
+http-body = "1.0.1"
+http-body-util = "0.1.5"
+bytes = "1.11.1"
 wasmparser = { version = "0.261.0", default-features = false, features = ["std", "component-model"] }
 wit-bindgen = "0.63.0"
 

@@ -11,6 +11,9 @@ world base {
     import messages;
     import progress;
     import notify;
+    import download;
+    import programs;
+    import ipc;
 }
 
 /// One world per export; the SDK's feature of the same name enables it.
