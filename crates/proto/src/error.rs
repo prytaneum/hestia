@@ -751,6 +751,22 @@ pub enum ErrorInfo {
         plugin: String,
         detail: String,
     },
+    /// A package that cannot be installed; `detail` is its English reason.
+    PluginInvalid {
+        detail: String,
+    },
+    /// The id is installed already, or a built-in's.
+    PluginExists {
+        plugin: String,
+    },
+    /// The package no longer derives the grant the user approved.
+    PluginChanged {
+        plugin: String,
+    },
+    /// A built-in plugin ships with Hestia and cannot be removed, only disabled.
+    PluginBuiltin {
+        plugin: String,
+    },
 
     // --- protocol ---
     UnknownChannel {
@@ -1096,6 +1112,14 @@ impl fmt::Display for ErrorInfo {
             PluginBusy { plugin } => write!(f, "plugin '{plugin}' has work running"),
             PluginFailed { plugin, detail } => {
                 write!(f, "plugin '{plugin}' failed to start: {detail}")
+            }
+            PluginInvalid { detail } => write!(f, "cannot install the plugin: {detail}"),
+            PluginExists { plugin } => write!(f, "plugin '{plugin}' is already installed"),
+            PluginChanged { plugin } => {
+                write!(f, "plugin '{plugin}' changed since it was approved")
+            }
+            PluginBuiltin { plugin } => {
+                write!(f, "plugin '{plugin}' is built in and cannot be removed")
             }
             UnknownChannel { channel } => write!(f, "unknown channel: {channel}"),
             MalformedRequest { detail } => write!(f, "malformed request: {detail}"),

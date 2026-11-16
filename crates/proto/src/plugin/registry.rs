@@ -68,3 +68,32 @@ impl Contract for PluginDisable {
     type Params = PluginTarget;
     type Result = PluginInfo;
 }
+
+/// Deletes an installed plugin and its compiled cache entry. A built-in cannot
+/// be removed.
+pub struct PluginRemove;
+impl Contract for PluginRemove {
+    const CHANNEL: &'static str = "plugin.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Plugins);
+    type Params = PluginTarget;
+    type Result = Empty;
+}
+
+/// A secret the user entered for a plugin. Deliberately not `Debug`, so the
+/// value cannot reach a log line through a formatted payload.
+#[derive(Serialize, Deserialize, Default, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginSecretParams {
+    pub id: String,
+    pub key: String,
+    pub value: String,
+}
+
+/// Stores a secret for a WASM plugin that asks for the `secrets` permission.
+pub struct PluginSecretSet;
+impl Contract for PluginSecretSet {
+    const CHANNEL: &'static str = "plugin.secret.set";
+    type Params = PluginSecretParams;
+    type Result = Empty;
+}
