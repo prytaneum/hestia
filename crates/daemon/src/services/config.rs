@@ -5,15 +5,14 @@ use std::path::Path;
 
 use engine::ConfigError;
 use proto::config::{
-    plugin_may_read, plugin_may_write, plugin_view, ConfigGet, ConfigGetResult, ConfigList,
-    ConfigListResult, ConfigSet, AUTOSTART_KEY, DEVELOPER_KEY, HOME_KEY,
+    ConfigGet, ConfigGetResult, ConfigList, ConfigListResult, ConfigSet, AUTOSTART_KEY, HOME_KEY,
 };
 use proto::error::{ErrorInfo, ValueKind};
 use proto::Empty;
 use serde_json::{json, Value};
 
 use crate::autostart;
-use crate::runtime::{Caller, Channels};
+use crate::runtime::Channels;
 
 fn config_err(e: ConfigError) -> ErrorInfo {
     match e {
@@ -37,11 +36,6 @@ fn config_err(e: ConfigError) -> ErrorInfo {
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ConfigGet, _, _>(|p, ctx| async move {
-        let plugin = matches!(ctx.caller, Caller::Plugin(_));
-        if plugin && !plugin_may_read(&p.key) {
-            tracing::warn!(key = %p.key, caller = %ctx.caller, "plugin refused a closed setting");
-            return Err(ErrorInfo::ConfigKeyDenied { key: p.key });
-        }
         if p.key == HOME_KEY {
             return Ok(ConfigGetResult {
                 value: json!(ctx.runtime.engine().data_home().display().to_string()),
@@ -58,19 +52,10 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .config()
             .get(&p.key)
             .map_err(config_err)?;
-        let value = if plugin {
-            plugin_view(&p.key, value).ok_or(ErrorInfo::ConfigKeyDenied { key: p.key })?
-        } else {
-            value
-        };
         Ok(ConfigGetResult { value })
     });
 
     on.handle::<ConfigSet, _, _>(|p, ctx| async move {
-        if matches!(ctx.caller, Caller::Plugin(_)) && !plugin_may_write(&p.key) {
-            tracing::warn!(key = %p.key, caller = %ctx.caller, "plugin refused a setting it may not write");
-            return Err(ErrorInfo::ConfigKeyDenied { key: p.key });
-        }
         if p.key == HOME_KEY {
             let Value::String(dir) = p.value else {
                 return Err(ErrorInfo::ConfigTypeMismatch {
@@ -115,9 +100,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .set_config(&key, p.value)
             .map_err(config_err)?;
         tracing::info!(key = %key, "config updated");
-        if key == DEVELOPER_KEY && !ctx.runtime.plugins().developer() {
-            ctx.runtime.plugins().disable_dev_plugins().await;
-        }
         Ok(Empty {})
     });
 
@@ -129,9 +111,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 json!(ctx.runtime.engine().data_home().display().to_string()),
             );
             map.insert(AUTOSTART_KEY.into(), json!(autostart::is_enabled()));
-        }
-        if matches!(ctx.caller, Caller::Plugin(_)) {
-            entries = plugin_view("", entries).unwrap_or_else(|| json!({}));
         }
         Ok(ConfigListResult { entries })
     });

@@ -1,7 +1,6 @@
 //! Liveness, identity, daemon lifecycle, and the event subscription channel.
 
 use proto::app::{AppInfo, AppInfoResult};
-use std::time::Duration;
 
 use proto::daemon::{
     DaemonReady, DaemonReadyResult, DaemonStatus, DaemonStatusResult, DaemonStop, DaemonStopResult,
@@ -12,10 +11,6 @@ use proto::job::{JobCancel, JobCancelResult, JobList};
 use proto::Empty;
 
 use crate::runtime::Channels;
-
-/// Past a plugin's own init bound (10 s) plus its compile, and inside
-/// `DaemonReady::TIMEOUT`.
-const STARTUP_BOUND: Duration = Duration::from_secs(30);
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<Ping, _, _>(|_: Empty, _ctx| async move {
@@ -35,9 +30,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
         })
     });
 
-    on.handle::<DaemonReady, _, _>(|_: Empty, ctx| async move {
+    on.handle::<DaemonReady, _, _>(|_: Empty, _ctx| async move {
         Ok(DaemonReadyResult {
-            plugins_settled: ctx.runtime.plugins().await_startup(STARTUP_BOUND).await,
+            plugins_settled: true,
         })
     });
 
@@ -48,7 +43,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             uptime_seconds: ctx.runtime.uptime_seconds(),
             home: ctx.runtime.engine().data_home().to_path_buf(),
             log: ctx.runtime.log_path().clone(),
-            safe_mode: ctx.runtime.plugins().safe_mode(),
+            safe_mode: false,
             quarantined: engine::quarantined::all(),
         })
     });
@@ -71,9 +66,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<EventsSubscribe, _, _>(|p, ctx| async move {
         let filter = if p.id.is_empty() { None } else { Some(p.id) };
-        if let Some(id) = &filter {
-            ctx.runtime.plugins().require_developer_to_follow(id)?;
-        }
         ctx.runtime
             .hub()
             .subscribe(ctx.conn_id, ctx.out.clone(), filter);

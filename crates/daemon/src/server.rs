@@ -11,10 +11,10 @@ use tracing::Instrument;
 
 use engine::CallChain;
 
-use crate::runtime::{Caller, Changed, HandlerContext, Router, RouterHost, Runtime};
+use crate::runtime::{Caller, Changed, HandlerContext, Router, Runtime};
 use crate::services::make_router;
 
-pub async fn run_daemon(log_path: std::path::PathBuf, safe_mode: bool) -> i32 {
+pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
     let endpoint = ipc::endpoint::default_endpoint();
     let listener = match ipc::bind(&endpoint).await {
         Ok(l) => l,
@@ -24,9 +24,8 @@ pub async fn run_daemon(log_path: std::path::PathBuf, safe_mode: bool) -> i32 {
         }
     };
 
-    let runtime = Arc::new(Runtime::new(log_path, safe_mode));
+    let runtime = Arc::new(Runtime::new(log_path));
     tracing::info!(
-        safe_mode,
         version = common::app::VERSION,
         pid = std::process::id(),
         home = %runtime.engine().data_home().display(),
@@ -40,21 +39,11 @@ pub async fn run_daemon(log_path: std::path::PathBuf, safe_mode: bool) -> i32 {
     runtime.engine().reconcile_idle();
     runtime.engine().reconcile_idle_packs().await;
     crate::runtime::spawn_task_scheduler(runtime.clone());
-    crate::runtime::spawn_plugin_update_checker(runtime.clone());
     crate::runtime::spawn_metrics_sampler(runtime.clone());
     crate::runtime::spawn_network_watcher(runtime.clone());
     crate::runtime::spawn_ready_watcher(&runtime);
     crate::runtime::spawn_update_watcher(runtime.clone());
     let router = Arc::new(make_router());
-    if let Err(error) = runtime
-        .plugins()
-        .attach(Arc::new(RouterHost::new(router.clone(), &runtime)))
-    {
-        tracing::error!(%error, "plugins are unavailable");
-    }
-    let plugins = runtime.plugins().clone();
-    plugins.watch_dev();
-    tokio::spawn(async move { plugins.start().await });
 
     tracing::info!("hestiad listening on {}", endpoint.display());
     crate::tray::spawn();
@@ -63,7 +52,6 @@ pub async fn run_daemon(log_path: std::path::PathBuf, safe_mode: bool) -> i32 {
         _ = runtime.stopped() => tracing::info!("stop requested"),
         _ = shutdown_signal() => tracing::info!("signal received"),
     }
-    runtime.plugins().shutdown();
     runtime.shutdown_workloads().await;
     tracing::info!("hestiad stopped");
     0

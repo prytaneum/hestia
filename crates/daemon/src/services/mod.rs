@@ -18,7 +18,6 @@ mod java;
 mod lifecycle;
 mod modpack;
 mod net;
-mod plugin;
 mod process;
 mod screenshot;
 mod server;
@@ -56,7 +55,6 @@ pub fn make_router() -> Router {
     sync::register(&mut on);
     transfer::register(&mut on);
     update::register(&mut on);
-    plugin::register(&mut on);
 
     router
 }

@@ -2,8 +2,7 @@
 //! unknown channel or a handler failure becomes a protocol-level error response,
 //! so the caller always gets a well-formed `Response` back.
 
-use std::any::TypeId;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -11,8 +10,6 @@ use std::sync::Arc;
 use ipc::protocol::{Request, Response};
 use proto::change::{ChangedEvent, Scope};
 use proto::error::ErrorInfo;
-use proto::job::JobStarted;
-use proto::plugin::{Permission, Touched};
 use proto::Contract;
 use serde_json::Value;
 use tracing::Instrument;
@@ -53,37 +50,14 @@ fn is_polled(channel: &str) -> bool {
 type BoxFuture = Pin<Box<dyn Future<Output = Response> + Send>>;
 type Handler = Arc<dyn Fn(Request, HandlerContext) -> BoxFuture + Send + Sync>;
 
-/// How a plugin may reach a channel its contract opened to plugins.
-#[derive(Clone, Copy)]
-pub struct PluginAccess {
-    pub permission: Permission,
-    /// What a call's payload touches, for the narrowing its contract declares.
-    pub touched: fn(&Value) -> Touched,
-    /// The channel starts a job (it answers `JobStarted`), so `host.run-job`
-    /// can follow it to its end.
-    pub job: bool,
-}
-
 #[derive(Default)]
 pub struct Router {
     handlers: HashMap<String, Handler>,
-    plugin_access: HashMap<String, PluginAccess>,
-    ambient: HashSet<String>,
 }
 
 impl Router {
     pub fn on(&mut self, channel: &str, handler: Handler) {
         self.handlers.insert(channel.to_string(), handler);
-    }
-
-    /// `None` for a channel a plugin may not reach, including an unknown one.
-    pub fn plugin_access(&self, channel: &str) -> Option<PluginAccess> {
-        self.plugin_access.get(channel).copied()
-    }
-
-    /// Whether any plugin may call `channel` with no permission.
-    pub fn plugin_ambient(&self, channel: &str) -> bool {
-        self.ambient.contains(channel)
     }
 
     pub async fn route(&self, request: Request, ctx: HandlerContext) -> Response {
@@ -152,24 +126,6 @@ impl<'r> Channels<'r> {
         F: Fn(C::Params, HandlerContext) -> Fut + Send + Sync + Clone + 'static,
         Fut: Future<Output = ServiceResult<C::Result>> + Send + 'static,
     {
-        assert!(
-            !(C::AMBIENT && C::PLUGIN.is_some()),
-            "`{}` is both ambient and behind a permission",
-            C::CHANNEL
-        );
-        if C::AMBIENT {
-            self.router.ambient.insert(C::CHANNEL.to_string());
-        }
-        if let Some(permission) = C::PLUGIN {
-            self.router.plugin_access.insert(
-                C::CHANNEL.to_string(),
-                PluginAccess {
-                    permission,
-                    touched: C::touched,
-                    job: TypeId::of::<C::Result>() == TypeId::of::<JobStarted>(),
-                },
-            );
-        }
         self.router.on(
             C::CHANNEL,
             Arc::new(move |req: Request, ctx: HandlerContext| {
@@ -262,7 +218,7 @@ mod tests {
             )
             .unwrap();
         engine.servers().mark_ready(&record.id).unwrap();
-        let runtime = Arc::new(Runtime::over(engine, home.path().join("d.log"), false));
+        let runtime = Arc::new(Runtime::over(engine, home.path().join("d.log")));
         let seen = changes(&runtime);
 
         let renamed = call(
@@ -285,7 +241,7 @@ mod tests {
     async fn a_call_that_resolves_nothing_changes_the_whole_scope() {
         let home = tempfile::tempdir().unwrap();
         let engine = engine::Engine::new(Some(home.path()));
-        let runtime = Arc::new(Runtime::over(engine, home.path().join("d.log"), false));
+        let runtime = Arc::new(Runtime::over(engine, home.path().join("d.log")));
         let seen = changes(&runtime);
 
         call(
@@ -322,17 +278,5 @@ mod tests {
         ] {
             assert!(!requires_account(channel), "{channel} should be open");
         }
-    }
-
-    #[test]
-    fn an_ambient_channel_is_open_to_plugins_without_a_permission() {
-        let router = crate::services::make_router();
-        for channel in ["app.info", "host.info", "net.status"] {
-            assert!(router.plugin_ambient(channel), "{channel}");
-            assert!(router.plugin_access(channel).is_none(), "{channel}");
-        }
-        assert!(!router.plugin_ambient("server.list"));
-        assert!(!router.plugin_ambient("daemon.status"));
-        assert!(router.plugin_access("server.list").is_some());
     }
 }
