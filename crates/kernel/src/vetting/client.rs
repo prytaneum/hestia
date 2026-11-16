@@ -16,21 +16,38 @@ pub(super) fn loopback_host(url: &Url) -> Option<String> {
         .then_some(host)
 }
 
-/// The client a vetted request goes out on. A policy that lists its hosts may
-/// go through the proxy the environment names: the proxy resolves the target,
-/// so the guard cannot, but the target is a name the policy granted. A policy
-/// open to any host goes direct, so a user-supplied URL cannot reach what the
-/// proxy can see inside the network.
-pub(super) fn for_url(url: &Url, lists_hosts: bool) -> &'static Client {
+/// How a vetted request leaves the machine.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum Route {
+    /// A test's plain-http loopback server.
+    Loopback,
+    /// The environment's proxy when one is set, else direct and guarded.
+    Granted,
+    /// Direct and guarded, never through a proxy.
+    Open,
+}
+
+/// A policy that lists its hosts may go through the proxy the environment
+/// names: the proxy resolves the target, so the guard cannot, but the target is
+/// a name the policy granted. A policy open to any host goes direct, so a
+/// user-supplied URL cannot reach what the proxy can see inside the network.
+pub(super) fn route(url: &Url, lists_hosts: bool) -> Route {
     if loopback_host(url).is_some() {
-        return loopback();
+        Route::Loopback
+    } else if lists_hosts {
+        Route::Granted
+    } else {
+        Route::Open
     }
-    if lists_hosts {
-        if let Some(client) = proxied() {
-            return client;
-        }
+}
+
+/// The client a request on `route` goes out on.
+pub(super) fn client(route: Route) -> &'static Client {
+    match route {
+        Route::Loopback => loopback(),
+        Route::Granted => proxied().unwrap_or_else(direct),
+        Route::Open => direct(),
     }
-    direct()
 }
 
 fn base() -> ClientBuilder {
@@ -60,7 +77,7 @@ fn proxied() -> Option<&'static Client> {
     static CLIENT: OnceLock<Option<Client>> = OnceLock::new();
     CLIENT
         .get_or_init(|| {
-            let url = env_proxy()?;
+            let url = proxy_setting(|name| std::env::var(name).ok())?;
             let proxy = Proxy::all(url.as_str())
                 .inspect_err(|error| tracing::warn!(%error, "proxy setting ignored"))
                 .ok()?
@@ -79,10 +96,11 @@ fn proxied() -> Option<&'static Client> {
         .as_ref()
 }
 
-fn env_proxy() -> Option<Url> {
+/// The first non-empty proxy variable, as a URL; a bare `host:port` is http.
+pub(super) fn proxy_setting(var: impl Fn(&str) -> Option<String>) -> Option<Url> {
     let raw = PROXY_VARIABLES
         .iter()
-        .filter_map(|name| std::env::var(name).ok())
+        .filter_map(|name| var(name))
         .find(|value| !value.trim().is_empty())?;
     let raw = raw.trim();
     let with_scheme = if raw.contains("://") {

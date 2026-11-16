@@ -136,7 +136,8 @@ impl Policy {
     }
 
     fn builder(&self, method: Method, url: Url, limits: Limits) -> RequestBuilder {
-        let builder = client::for_url(&url, self.hosts.lists_hosts()).request(method, url);
+        let route = client::route(&url, self.hosts.lists_hosts());
+        let builder = client::client(route).request(method, url);
         match limits.time {
             Some(time) => builder.timeout(time),
             None => builder,

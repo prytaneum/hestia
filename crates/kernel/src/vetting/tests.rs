@@ -239,3 +239,48 @@ async fn the_time_cap_ends_a_request_that_never_answers() {
     };
     assert!(error.is_timeout(), "{error:?}");
 }
+
+#[test]
+fn only_a_policy_that_lists_its_hosts_may_use_the_proxy() {
+    use client::{route, Route};
+    let granted = Policy::new(Hosts::new(&["cdn.example.com"], &[]).unwrap());
+    let url = |raw: &str| Url::parse(raw).unwrap();
+    for (policy, expected) in [
+        (&granted, Route::Granted),
+        (&Policy::new(Hosts::open()), Route::Open),
+        (&Policy::new(Hosts::open_unhashed()), Route::Open),
+    ] {
+        let lists_hosts = policy.hosts.lists_hosts();
+        assert_eq!(
+            route(&url("https://cdn.example.com/a"), lists_hosts),
+            expected
+        );
+    }
+    assert_eq!(
+        route(&url("http://127.0.0.1:8080/a"), false),
+        Route::Loopback
+    );
+
+    let setting = |vars: &[(&str, &str)]| {
+        let vars: Vec<(String, String)> = vars
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        client::proxy_setting(|name| {
+            vars.iter()
+                .find(|(key, _)| key == name)
+                .map(|(_, value)| value.clone())
+        })
+        .map(|url| url.to_string())
+    };
+    assert_eq!(setting(&[]), None);
+    assert_eq!(setting(&[("HTTPS_PROXY", " ")]), None);
+    assert_eq!(
+        setting(&[
+            ("ALL_PROXY", "socks.example:1080"),
+            ("https_proxy", "proxy.corp:3128")
+        ]),
+        Some("http://proxy.corp:3128/".into()),
+        "https_proxy wins over ALL_PROXY, and a bare host:port is http"
+    );
+}
