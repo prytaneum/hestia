@@ -108,23 +108,6 @@
       "replay": "Replay tutorial",
       "reset": "The tutorial will replay as you open each page"
     },
-    "update": {
-      "available": "Version {version} is available",
-      "channel_hint": "Beta builds arrive first and can be unstable. Switching back to stable waits for the next stable release to overtake the beta you are on.",
-      "channel_label": "Release channel",
-      "check": "Check for updates",
-      "check_failed": "Couldn't check for updates",
-      "checking": "Checking…",
-      "current": "Version {version}",
-      "downloading": "Downloading…",
-      "install": "Update and restart",
-      "installing": "Updating…",
-      "manual": "This copy of Hestia updates itself elsewhere — download {version} from the release page",
-      "notes": "What's new",
-      "restart_required": "Update installed — restart Hestia to run it",
-      "title": "Updates",
-      "up_to_date": "Hestia is up to date"
-    },
     "content_updates": {
       "auto_update_description": "Apply mod, pack and shader updates as an instance launches, and to a stopped server as soon as they are found. Held items and a modpack's own content are left alone.",
       "auto_update_label": "Update content automatically",

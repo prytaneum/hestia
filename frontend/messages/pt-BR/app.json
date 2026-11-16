@@ -114,9 +114,6 @@
           "worlds": {
             "import": "Importando um mundo em {name}"
           }
-        },
-        "update": {
-          "download": "Baixando a atualização"
         }
       },
       "verb": {
@@ -157,9 +154,6 @@
           "worlds": {
             "import": "Importando um mundo"
           }
-        },
-        "update": {
-          "download": "Baixando a atualização"
         }
       }
     },

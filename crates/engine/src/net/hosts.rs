@@ -82,19 +82,6 @@ pub(crate) fn adoptium() -> Arc<Policy> {
     )
 }
 
-/// Self-update: the release feed and the artifacts it links, whose minisign
-/// signature is checked after the download.
-pub(crate) fn release() -> Arc<Policy> {
-    static POLICY: OnceLock<Arc<Policy>> = OnceLock::new();
-    let hosts = [
-        "api.hestia.prytaneum.dev",
-        "github.com",
-        "objects.githubusercontent.com",
-        "release-assets.githubusercontent.com",
-    ];
-    granted(&POLICY, &hosts, &hosts)
-}
-
 /// A page or file whose URL the user typed: any public host, and nothing to verify it by.
 pub(crate) fn typed() -> Arc<Policy> {
     static POLICY: OnceLock<Arc<Policy>> = OnceLock::new();

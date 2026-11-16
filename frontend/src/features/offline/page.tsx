@@ -36,7 +36,6 @@ export function OfflinePage() {
   const retry = () => {
     invalidate(keys.net.status());
     invalidate(keys.content.all);
-    invalidate(keys.update.all);
   };
 
   return (

@@ -108,23 +108,6 @@
       "replay": "Repetir tutorial",
       "reset": "O tutorial será repetido conforme você abrir cada página"
     },
-    "update": {
-      "available": "A versão {version} está disponível",
-      "channel_hint": "As versões beta chegam primeiro e podem ser instáveis. Ao voltar para o estável, é preciso esperar o próximo lançamento estável ultrapassar a beta em uso.",
-      "channel_label": "Canal de lançamento",
-      "check": "Verificar atualizações",
-      "check_failed": "Não foi possível verificar atualizações",
-      "checking": "Verificando…",
-      "current": "Versão {version}",
-      "downloading": "Baixando…",
-      "install": "Atualizar e reiniciar",
-      "installing": "Atualizando…",
-      "manual": "Esta cópia do Hestia se atualiza por outro caminho — baixe a versão {version} na página de lançamentos",
-      "notes": "Novidades",
-      "restart_required": "Atualização instalada — reinicie o Hestia para usá-la",
-      "title": "Atualizações",
-      "up_to_date": "O Hestia está atualizado"
-    },
     "content_updates": {
       "auto_update_description": "Aplica atualizações de mods, pacotes e shaders ao iniciar uma instância e a um servidor parado assim que forem encontradas. Itens fixados e o conteúdo do próprio modpack não são alterados.",
       "auto_update_label": "Atualizar conteúdo automaticamente",

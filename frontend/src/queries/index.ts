@@ -59,4 +59,3 @@ export * from './skins';
 export * from './sync';
 export * from './tasks';
 export * from './transfer';
-export * from './update';

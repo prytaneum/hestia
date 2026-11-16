@@ -8,7 +8,6 @@ use std::sync::Mutex;
 
 use proto::error::{ErrorInfo, ValueKind};
 use proto::naming;
-use proto::update::UpdateChannel;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -31,8 +30,6 @@ pub struct Settings {
     pub instance: InstanceSettings,
     /// Corrections applied over a modpack's own declarations.
     pub modpack: ModpackSettings,
-    /// Which release feed self-update follows.
-    pub update: UpdateSettings,
     /// Whether the launcher may reach the network at all.
     pub network: NetworkSettings,
     pub java: JavaProviderSettings,
@@ -62,24 +59,6 @@ impl Default for JavaProviderSettings {
 #[serde(default, rename_all = "camelCase")]
 pub struct NetworkSettings {
     pub offline: bool,
-}
-
-/// The self-update feed, keyed `update.channel`. It defaults to the channel
-/// this build was shipped on rather than to stable: a beta build pointed at the
-/// stable feed is stranded, since a release never outranks the prerelease that
-/// precedes it until the *next* one ships.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default, rename_all = "camelCase")]
-pub struct UpdateSettings {
-    pub channel: UpdateChannel,
-}
-
-impl Default for UpdateSettings {
-    fn default() -> Self {
-        UpdateSettings {
-            channel: UpdateChannel::parse(common::app::CHANNEL).unwrap_or_default(),
-        }
-    }
 }
 
 /// The corrections over what a modpack claims about itself, addressed by the

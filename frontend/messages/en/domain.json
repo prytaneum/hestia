@@ -94,10 +94,6 @@
         "hint": "The servers in the in-game list.",
         "label": "Multiplayer list"
       }
-    },
-    "update_channel": {
-      "beta": "Beta",
-      "stable": "Stable"
     }
   }
 }

@@ -20,7 +20,6 @@ export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export type SettingsGroup =
   | 'general'
-  | 'updates'
   | 'java-defaults'
   | 'java-runtimes'
   | 'content-updates'
@@ -89,21 +88,6 @@ const INDEX: Entry[] = [
       m['settings.tutorial.hint'],
       m['settings.tutorial.replay'],
     ),
-  },
-  {
-    id: 'update-channel',
-    tab: 'general',
-    group: 'updates',
-    text: text(
-      m['settings.update.channel_label'],
-      m['settings.update.channel_hint'],
-    ),
-  },
-  {
-    id: 'update',
-    tab: 'general',
-    group: 'updates',
-    text: text(m['settings.update.title'], m['settings.update.check']),
   },
   {
     id: 'default-memory',

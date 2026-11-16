@@ -21,7 +21,6 @@ use anyhow::Result;
 use kernel::vetting::{self, Failure, Limits, Policy, Refusal};
 use proto::error::{ErrorInfo, Service};
 use reqwest::{Method, RequestBuilder, Response};
-use serde::de::DeserializeOwned;
 
 /// The refusal as an [`ErrorInfo`] with the typed reason attached, so a caller
 /// that answers a plugin can tell a refusal from a transfer failure.
@@ -146,15 +145,6 @@ fn status_failure(service: Service, status: reqwest::StatusCode) -> anyhow::Erro
         detail: format!("HTTP {}", status.as_u16()),
     }
     .into()
-}
-
-pub async fn get_json<T: DeserializeOwned>(
-    service: Service,
-    policy: &Policy,
-    url: &str,
-) -> Result<T> {
-    let body = get_bytes(service.clone(), policy, url).await?;
-    serde_json::from_slice(&body).map_err(|error| answer::malformed(service, error))
 }
 
 pub async fn get_text(service: Service, policy: &Policy, url: &str) -> Result<String> {

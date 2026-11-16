@@ -40,7 +40,6 @@ import type { ContentVersion } from "./generated/ContentVersion";
 import type { DaemonStatusResult } from "./generated/DaemonStatusResult";
 import type { DaemonStopParams } from "./generated/DaemonStopParams";
 import type { DaemonStopResult } from "./generated/DaemonStopResult";
-import type { DownloadProgress } from "./generated/DownloadProgress";
 import type { Empty } from "./generated/Empty";
 import type { EntryConfigGetParams } from "./generated/EntryConfigGetParams";
 import type { EntryConfigListResult } from "./generated/EntryConfigListResult";
@@ -189,11 +188,6 @@ import type { SyncPackSetParams } from "./generated/SyncPackSetParams";
 import type { SyncPacksResult } from "./generated/SyncPacksResult";
 import type { SyncSource } from "./generated/SyncSource";
 import type { SyncSourcesParams } from "./generated/SyncSourcesParams";
-import type { UpdateApplyParams } from "./generated/UpdateApplyParams";
-import type { UpdateApplyResult } from "./generated/UpdateApplyResult";
-import type { UpdateCheckResult } from "./generated/UpdateCheckResult";
-import type { UpdateDone } from "./generated/UpdateDone";
-import type { UpdateDownloadParams } from "./generated/UpdateDownloadParams";
 import type { VersionQuery } from "./generated/VersionQuery";
 import type { WorldInfo } from "./generated/WorldInfo";
 import type { JobEvent } from "./generated/JobEvent";
@@ -336,9 +330,6 @@ export interface Channels {
   "sync.packs.set": { params: Partial<SyncPackSetParams>; result: SyncPacksResult };
   "sync.sources": { params: Partial<SyncSourcesParams>; result: Array<SyncSource> };
   "sync.status": { params: Empty; result: Array<InstanceSyncStatus> };
-  "update.apply": { params: Partial<UpdateApplyParams>; result: UpdateApplyResult };
-  "update.check": { params: Empty; result: UpdateCheckResult };
-  "update.download": { params: Partial<UpdateDownloadParams>; result: JobStarted };
 }
 
 export interface Jobs {
@@ -358,7 +349,6 @@ export interface Jobs {
   "server.modpack.install": { progress: ProvisionProgress; done: ModpackDone };
   "server.update": { progress: ProvisionProgress; done: ServerDone };
   "server.worlds.import": { progress: ProvisionProgress; done: WorldInfo };
-  "update.download": { progress: DownloadProgress; done: UpdateDone };
 }
 
 export type JobEvents = {
@@ -402,5 +392,4 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "skin.list": 30000,
   "skin.reset": 30000,
   "skin.update": 30000,
-  "update.apply": 300000,
 };

@@ -21,8 +21,6 @@ import {
   Setting,
   SettingsSection,
   SwitchRow,
-  UpdateChannelField,
-  UpdatePanel,
 } from '@/features/settings/components';
 import { useConfig } from '@/features/settings/use-config';
 import { type Locale, useLocale } from '@/hooks/locale';
@@ -55,101 +53,85 @@ export function GeneralTab() {
   const prefs = usePrefs();
 
   return (
-    <>
-      <SettingsSection group="general" legend={m['settings.general']()}>
-        <Setting id="language">
-          <LanguageField />
-        </Setting>
+    <SettingsSection group="general" legend={m['settings.general']()}>
+      <Setting id="language">
+        <LanguageField />
+      </Setting>
 
-        <Setting id="data-dir">
-          <Field>
-            <FieldLabel htmlFor="data-dir">
-              {m['settings.data_dir']()}
-            </FieldLabel>
-            <SavedInput
-              id="data-dir"
-              mono
-              value={entries.home ?? ''}
-              onSave={(value) =>
-                value ? moveHome.mutateAsync(value) : Promise.resolve()
-              }
-              confirm={{
-                title: m['settings.data_dir_confirm_title'](),
-                description: m['settings.data_dir_confirm_description'](),
-              }}
-            />
-            <FieldDescription>{m['settings.data_dir_hint']()}</FieldDescription>
-          </Field>
-        </Setting>
-
-        <Setting id="autostart">
-          <SwitchRow
-            id="start-at-login"
-            label={m['settings.start_at_login']()}
-            checked={entries.autostart ?? false}
-            disabled={import.meta.env.DEV}
-            onChange={(checked) => commit('autostart', checked)}
+      <Setting id="data-dir">
+        <Field>
+          <FieldLabel htmlFor="data-dir">{m['settings.data_dir']()}</FieldLabel>
+          <SavedInput
+            id="data-dir"
+            mono
+            value={entries.home ?? ''}
+            onSave={(value) =>
+              value ? moveHome.mutateAsync(value) : Promise.resolve()
+            }
+            confirm={{
+              title: m['settings.data_dir_confirm_title'](),
+              description: m['settings.data_dir_confirm_description'](),
+            }}
           />
-        </Setting>
+          <FieldDescription>{m['settings.data_dir_hint']()}</FieldDescription>
+        </Field>
+      </Setting>
 
-        <Setting id="keep-open">
-          <SwitchRow
-            id="keep-open"
-            label={m['settings.keep_open']()}
-            checked={prefs.get('keepOpen', true)}
-            onChange={(checked) => prefs.set('keepOpen', checked)}
-          />
-        </Setting>
+      <Setting id="autostart">
+        <SwitchRow
+          id="start-at-login"
+          label={m['settings.start_at_login']()}
+          checked={entries.autostart ?? false}
+          disabled={import.meta.env.DEV}
+          onChange={(checked) => commit('autostart', checked)}
+        />
+      </Setting>
 
-        <Setting id="close-action">
-          <Field>
-            <FieldLabel htmlFor="close-action">
-              {m['settings.close_action.label']()}
-            </FieldLabel>
-            <Select
-              value={prefs.get<CloseAction>(CLOSE_ACTION_KEY, 'quit')}
-              onValueChange={(value) => {
-                if (value) prefs.set(CLOSE_ACTION_KEY, value);
-              }}
-            >
-              <SelectTrigger id="close-action" className="w-full max-w-md">
-                <SelectValue>
-                  {(value: string) =>
-                    CLOSE_ACTION_LABELS[value as CloseAction]()
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start">
-                <SelectGroup>
-                  {CLOSE_ACTIONS.map((action) => (
-                    <SelectItem key={action} value={action}>
-                      {CLOSE_ACTION_LABELS[action]()}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <FieldDescription>
-              {m['settings.close_action.hint']()}
-            </FieldDescription>
-          </Field>
-        </Setting>
+      <Setting id="keep-open">
+        <SwitchRow
+          id="keep-open"
+          label={m['settings.keep_open']()}
+          checked={prefs.get('keepOpen', true)}
+          onChange={(checked) => prefs.set('keepOpen', checked)}
+        />
+      </Setting>
 
-        <Setting id="tutorial">
-          <TutorialField />
-        </Setting>
-      </SettingsSection>
+      <Setting id="close-action">
+        <Field>
+          <FieldLabel htmlFor="close-action">
+            {m['settings.close_action.label']()}
+          </FieldLabel>
+          <Select
+            value={prefs.get<CloseAction>(CLOSE_ACTION_KEY, 'quit')}
+            onValueChange={(value) => {
+              if (value) prefs.set(CLOSE_ACTION_KEY, value);
+            }}
+          >
+            <SelectTrigger id="close-action" className="w-full max-w-md">
+              <SelectValue>
+                {(value: string) => CLOSE_ACTION_LABELS[value as CloseAction]()}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectGroup>
+                {CLOSE_ACTIONS.map((action) => (
+                  <SelectItem key={action} value={action}>
+                    {CLOSE_ACTION_LABELS[action]()}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <FieldDescription>
+            {m['settings.close_action.hint']()}
+          </FieldDescription>
+        </Field>
+      </Setting>
 
-      <SettingsSection group="updates" legend={m['settings.update.title']()}>
-        <Setting id="update-channel">
-          <UpdateChannelField />
-        </Setting>
-
-        <Setting id="update">
-          <UpdatePanel />
-        </Setting>
-      </SettingsSection>
-    </>
+      <Setting id="tutorial">
+        <TutorialField />
+      </Setting>
+    </SettingsSection>
   );
 }
 

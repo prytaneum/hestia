@@ -167,10 +167,6 @@ export const keys = {
     options: () => [...keys.sync.all, 'options'] as const,
     sources: (unit: string) => [...keys.sync.all, 'sources', unit] as const,
   },
-  update: {
-    all: ['update'] as const,
-    check: () => [...keys.update.all, 'check'] as const,
-  },
 };
 
 /** The key scope of one side, for a verb that exists on both. */

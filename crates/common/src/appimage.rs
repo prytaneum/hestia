@@ -38,8 +38,8 @@ pub fn host_env() -> Option<Env> {
 }
 
 /// [`host_env`] for one of Hestia's own binaries that runs on without the shell,
-/// still told which image it came from: self-update replaces that file, and the
-/// tray relaunches the shell through it.
+/// still told which image it came from: the tray relaunches the shell through
+/// it.
 pub fn sidecar_env() -> Option<Env> {
     env(&[IMAGE])
 }

@@ -32,7 +32,6 @@ use crate::servers::Servers;
 use crate::skins::Skins;
 use crate::sync::Sync;
 use crate::transfer::PackProvider;
-use crate::update::Update;
 
 /// Everything a server create needs from the caller — the engine-side input to
 /// `provision_server` (EULA assertion and job ids are daemon concerns).
@@ -99,7 +98,6 @@ pub struct Engine {
     instances: Instances,
     skins: Skins,
     sync: Sync,
-    update: Update,
     processes: Arc<ProcessSupervisor>,
     consoles: Consoles,
 }
@@ -125,7 +123,6 @@ impl Engine {
         let skins = Skins::new(data_home.join("skins"));
         let sync = Sync::new(data_home.join("shared"));
         crate::net::store::set_root(catalogue_dir(&data_home));
-        let update = Update::new(data_home.join("updates"));
         let processes = Arc::new(ProcessSupervisor::new(data_home.join("processes")));
         let engine = Engine {
             data_home,
@@ -142,7 +139,6 @@ impl Engine {
             instances,
             skins,
             sync,
-            update,
             processes,
             consoles: Consoles::default(),
         };
@@ -263,9 +259,5 @@ impl Engine {
 
     pub fn processes(&self) -> &Arc<ProcessSupervisor> {
         &self.processes
-    }
-
-    pub fn update(&self) -> &Update {
-        &self.update
     }
 }

@@ -1,6 +1,5 @@
 /** The daemon config the settings page reads (`config.list`) and writes. */
 import { useMutation, useQuery } from '@tanstack/react-query';
-import type { UpdateChannel } from '@/api/types/update';
 
 import { configMutations, configQueries } from '@/queries/config';
 
@@ -18,7 +17,6 @@ interface ConfigEntries {
   content?: { 'auto-update'?: boolean };
   instance?: { 'multi-session'?: boolean };
   modpack?: ModpackConfig;
-  update?: { channel?: UpdateChannel };
 }
 
 /**

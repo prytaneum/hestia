@@ -11,7 +11,6 @@ mod job;
 mod modpack;
 mod server;
 mod transfer;
-mod update;
 
 pub use backup::BackupJob;
 pub use content::{ContentJob, Entry as JobEntry};

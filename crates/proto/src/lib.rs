@@ -42,7 +42,6 @@ pub mod sync;
 pub mod tasks;
 pub mod transfer;
 
-pub mod update;
 pub mod warning;
 
 pub use contract::{Contract, Empty, Topic};

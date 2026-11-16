@@ -28,7 +28,6 @@ mod server;
 mod skins;
 mod sync;
 mod transfer;
-mod update;
 mod worlds;
 
 pub use transfer::{ExportOutcome, ImportOutcome};

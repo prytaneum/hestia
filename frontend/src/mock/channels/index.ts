@@ -23,7 +23,6 @@ import { channels as skin } from './skin';
 import { channels as sync } from './sync';
 import { channels as tasks } from './tasks';
 import { channels as transfer } from './transfer';
-import { channels as update } from './update';
 
 export const channels: ChannelHandlers = {
   ...app,
@@ -45,5 +44,4 @@ export const channels: ChannelHandlers = {
   ...sync,
   ...tasks,
   ...transfer,
-  ...update,
 };

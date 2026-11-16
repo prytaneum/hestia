@@ -137,7 +137,6 @@ export function invalidationKeys(event: DaemonEvent): QueryKey[] {
 const UPSTREAM_KEYS: QueryKey[] = [
   keys.content.all,
   keys.java.all,
-  keys.update.all,
   keys.skins.all,
   [...keys.servers.all, 'versions'],
   [...keys.instances.all, 'versions'],

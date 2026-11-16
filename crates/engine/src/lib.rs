@@ -35,12 +35,10 @@ mod reclaim;
 mod registry;
 mod roster;
 mod servers;
-mod signature;
 mod skins;
 mod sync;
 mod tasks;
 mod transfer;
-mod update;
 mod usage;
 mod version;
 
@@ -84,5 +82,4 @@ pub use sync::Sync;
 pub use tasks::Schedule;
 pub use transfer::archive::Reader;
 pub use transfer::{PackProvider, Vetted};
-pub use update::Update;
 pub use usage::dir_size;

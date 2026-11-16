@@ -114,9 +114,6 @@
           "worlds": {
             "import": "Importing a world into {name}"
           }
-        },
-        "update": {
-          "download": "Downloading the update"
         }
       },
       "verb": {
@@ -157,9 +154,6 @@
           "worlds": {
             "import": "Importing a world"
           }
-        },
-        "update": {
-          "download": "Downloading the update"
         }
       }
     },

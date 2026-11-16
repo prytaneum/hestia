@@ -220,11 +220,6 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::daemon::DaemonCmd,
     },
-    /// Update Hestia itself from the release feed
-    Update {
-        #[arg(short = 'y', long, help = "Apply without the confirmation prompt")]
-        yes: bool,
-    },
 }
 
 fn main() -> ExitCode {
@@ -372,7 +367,6 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitStatus> {
         Command::Config { cmd } => commands::config::run(cmd).await,
         Command::Screenshot { cmd } => commands::screenshot::run(cmd).await,
         Command::Sync { cmd } => commands::sync::run(cmd).await,
-        Command::Update { yes } => commands::update::run(yes).await,
     }
     .map(|()| ExitStatus::Active)
 }

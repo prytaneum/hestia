@@ -25,7 +25,6 @@ mod skins;
 mod sync;
 mod tasks;
 mod transfer;
-mod update;
 
 pub use accounts::Accounts;
 pub use app::App;
@@ -49,4 +48,3 @@ pub use skins::Skins;
 pub use sync::Sync;
 pub use tasks::Tasks;
 pub use transfer::Transfer;
-pub use update::Update;

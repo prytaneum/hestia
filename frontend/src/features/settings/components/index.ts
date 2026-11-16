@@ -9,4 +9,3 @@ export {
 export { ModpackSettings } from './modpack';
 export { RuntimeList } from './runtimes';
 export { SyncSettings } from './sync';
-export { UpdateChannelField, UpdatePanel } from './update';

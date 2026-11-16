@@ -68,5 +68,4 @@ export type { ExportInput } from './transfer';
 export * as transfer from './transfer';
 export type * from './types';
 export type { Channels, Jobs, Topics } from './types/channels';
-export * as update from './update';
 export { downgradeBetween } from './version';

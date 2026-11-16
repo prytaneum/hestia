@@ -4,4 +4,4 @@ import type { Provider } from "./Provider";
 /**
  * An upstream service the daemon depends on.
  */
-export type Service = "mojang" | "microsoft" | "xbox" | "release" | { "provider": Provider } | "bedrock_versions";
+export type Service = "mojang" | "microsoft" | "xbox" | { "provider": Provider } | "bedrock_versions";

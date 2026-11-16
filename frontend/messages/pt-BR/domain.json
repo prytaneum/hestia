@@ -94,10 +94,6 @@
         "hint": "Os servidores na lista do jogo.",
         "label": "Lista multijogador"
       }
-    },
-    "update_channel": {
-      "beta": "Beta",
-      "stable": "Estável"
     }
   }
 }
