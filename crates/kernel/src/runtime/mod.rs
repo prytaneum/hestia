@@ -15,7 +15,9 @@ mod pause;
 mod progress;
 mod services;
 mod settings;
+mod shape;
 mod shared;
+mod stub;
 mod ticker;
 
 use std::path::{Path, PathBuf};
@@ -25,7 +27,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::time::{error::Elapsed, timeout_at, Instant};
-use wasmtime::component::{HasSelf, InstancePre, Linker};
+use wasmtime::component::{Component, HasSelf, InstancePre, Linker};
 use wasmtime::{Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig, Store};
 
 use admission::Admission;
@@ -36,7 +38,9 @@ use host::{Call, State};
 pub use limits::Limits;
 use limits::MemoryCap;
 pub use services::{Answer, NoticeLevel, Services};
+pub use shape::{Shape, ShapeError};
 use shared::Shared;
+pub use stub::Denials;
 use ticker::Ticker;
 
 const LIFECYCLE: &str = "hestia:kernel/lifecycle@0.1.0";
@@ -69,6 +73,12 @@ pub struct Loaded {
     pre: InstancePre<State>,
     lifecycle: Option<lifecycle::GuestIndices>,
     settings_changed: Option<settings_changed::GuestIndices>,
+}
+
+/// A compiled component that is not linked yet.
+pub struct Opened {
+    plugin: String,
+    component: Component,
 }
 
 impl Loaded {
@@ -118,36 +128,59 @@ impl Sandbox {
         self.online.store(online, Ordering::Relaxed);
     }
 
-    /// Reads and compiles `file` off the async executor, or takes it from the
-    /// cache. An export that is present but malformed fails the load.
-    pub async fn load(&self, plugin: &str, file: &Path) -> Result<Loaded, SandboxError> {
-        let (engine, cache) = (self.engine.clone(), self.cache.clone());
-        let (id, file) = (plugin.to_owned(), file.to_owned());
-        let component = tokio::task::spawn_blocking(move || {
-            let wasm = std::fs::read(&file).map_err(|error| SandboxError::Load(error.into()))?;
-            cache.component(&engine, &id, &wasm)
+    /// Compiles `wasm` off the async executor, or takes it from the cache.
+    /// The caller passes the bytes it checked, so what runs is what was
+    /// approved.
+    pub async fn open(&self, plugin: &str, wasm: Vec<u8>) -> Result<Opened, SandboxError> {
+        let (engine, cache, id) = (self.engine.clone(), self.cache.clone(), plugin.to_owned());
+        let component = tokio::task::spawn_blocking(move || cache.component(&engine, &id, &wasm))
+            .await
+            .map_err(|error| SandboxError::Load(wasmtime::format_err!("{error}")))??;
+        Ok(Opened {
+            plugin: plugin.to_owned(),
+            component,
         })
-        .await
-        .map_err(|error| SandboxError::Load(wasmtime::format_err!("{error}")))??;
-        let pre = self
-            .linker
-            .instantiate_pre(&component)
+    }
+
+    /// Links `opened`, each denied import to a stub that answers `denied`. An
+    /// export that is present but malformed fails the load.
+    pub fn link(&self, opened: &Opened, denials: &Denials) -> Result<Loaded, SandboxError> {
+        let mut linker = self.linker.clone();
+        stub::link_denials(&mut linker, &self.engine, &opened.component, denials)?;
+        let pre = linker
+            .instantiate_pre(&opened.component)
             .map_err(SandboxError::Load)?;
-        let lifecycle = match component.get_export_index(None, LIFECYCLE) {
+        let lifecycle = match opened.component.get_export_index(None, LIFECYCLE) {
             Some(_) => Some(lifecycle::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
             None => None,
         };
-        let settings_changed = match component.get_export_index(None, SETTINGS_CHANGED) {
+        let settings_changed = match opened.component.get_export_index(None, SETTINGS_CHANGED) {
             Some(_) => Some(settings_changed::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
             None => None,
         };
-        tracing::info!(plugin, lifecycle = lifecycle.is_some(), "component loaded");
+        tracing::info!(
+            plugin = opened.plugin,
+            lifecycle = lifecycle.is_some(),
+            settings_changed = settings_changed.is_some(),
+            denied = denials.len(),
+            "component loaded"
+        );
         Ok(Loaded {
-            plugin: plugin.to_owned(),
+            plugin: opened.plugin.clone(),
             pre,
             lifecycle,
             settings_changed,
         })
+    }
+
+    /// `open` and `link` with nothing denied.
+    pub async fn load(&self, plugin: &str, wasm: Vec<u8>) -> Result<Loaded, SandboxError> {
+        self.link(&self.open(plugin, wasm).await?, &Denials::new())
+    }
+
+    /// Drops the plugin's compiled cache entry.
+    pub fn forget(&self, plugin: &str) {
+        self.cache.forget(plugin);
     }
 
     /// Runs the plugin's `lifecycle.init`; a component without one succeeds.

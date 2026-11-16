@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use kernel::{Builtin, Busy, Descriptor, PluginError, Plugins};
+use kernel::{Builtin, Busy, Descriptor, PluginError, Plugins, Table};
 use proto::plugin::PluginState;
 
 type Log = Arc<Mutex<Vec<&'static str>>>;
@@ -52,6 +52,10 @@ impl Builtin for Fake {
     }
 }
 
+fn open(home: &std::path::Path, builtins: Vec<Arc<dyn Builtin>>) -> Result<Plugins, PluginError> {
+    Plugins::new(home, builtins, None, Table::kernel())
+}
+
 fn states(plugins: &Plugins) -> Vec<(String, PluginState)> {
     plugins
         .list()
@@ -60,8 +64,8 @@ fn states(plugins: &Plugins) -> Vec<(String, PluginState)> {
         .collect()
 }
 
-#[test]
-fn enable_and_disable_follow_dependencies_and_persist() {
+#[tokio::test]
+async fn enable_and_disable_follow_dependencies_and_persist() {
     let dir = tempfile::tempdir().unwrap();
     let log = Log::default();
     let build = |log: &Log| -> Vec<Arc<dyn Builtin>> {
@@ -71,24 +75,24 @@ fn enable_and_disable_follow_dependencies_and_persist() {
         ]
     };
 
-    let plugins = Plugins::new(dir.path(), build(&log)).unwrap();
+    let plugins = open(dir.path(), build(&log)).unwrap();
     assert_eq!(*log.lock().unwrap(), ["core", "extra"]);
     assert!(plugins.is_enabled("extra"));
 
-    let error = plugins.disable("core").unwrap_err();
+    let error = plugins.disable("core").await.unwrap_err();
     assert!(matches!(&error, PluginError::Required { dependents, .. } if dependents == &["extra"]));
 
-    plugins.disable("extra").unwrap();
-    plugins.disable("core").unwrap();
+    plugins.disable("extra").await.unwrap();
+    plugins.disable("core").await.unwrap();
     assert!(!plugins.is_enabled("core"));
 
     log.lock().unwrap().clear();
-    plugins.enable("extra").unwrap();
+    plugins.enable("extra").await.unwrap();
     assert_eq!(*log.lock().unwrap(), ["core", "extra"]);
 
-    plugins.disable("extra").unwrap();
+    plugins.disable("extra").await.unwrap();
     log.lock().unwrap().clear();
-    let restarted = Plugins::new(dir.path(), build(&log)).unwrap();
+    let restarted = open(dir.path(), build(&log)).unwrap();
     assert_eq!(*log.lock().unwrap(), ["core"]);
     assert_eq!(
         states(&restarted),
@@ -99,13 +103,13 @@ fn enable_and_disable_follow_dependencies_and_persist() {
     );
 
     assert!(matches!(
-        restarted.enable("nope"),
+        restarted.enable("nope").await,
         Err(PluginError::NotFound(_))
     ));
 }
 
-#[test]
-fn start_up_never_enables_what_the_user_turned_off() {
+#[tokio::test]
+async fn start_up_never_enables_what_the_user_turned_off() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("plugins.json");
     let log = Log::default();
@@ -117,7 +121,7 @@ fn start_up_never_enables_what_the_user_turned_off() {
     };
     std::fs::write(&path, r#"{"disabled":["core"]}"#).unwrap();
 
-    let plugins = Plugins::new(dir.path(), build(&log)).unwrap();
+    let plugins = open(dir.path(), build(&log)).unwrap();
     assert!(log.lock().unwrap().is_empty());
     assert_eq!(
         states(&plugins),
@@ -127,8 +131,8 @@ fn start_up_never_enables_what_the_user_turned_off() {
         ]
     );
 
-    plugins.disable("extra").unwrap();
-    let restarted = Plugins::new(dir.path(), build(&log)).unwrap();
+    plugins.disable("extra").await.unwrap();
+    let restarted = open(dir.path(), build(&log)).unwrap();
     assert!(log.lock().unwrap().is_empty());
     assert_eq!(
         states(&restarted),
@@ -139,15 +143,15 @@ fn start_up_never_enables_what_the_user_turned_off() {
     );
 }
 
-#[test]
-fn a_busy_plugin_stays_enabled_and_a_failing_one_takes_its_dependents_down() {
+#[tokio::test]
+async fn a_busy_plugin_stays_enabled_and_a_failing_one_takes_its_dependents_down() {
     let dir = tempfile::tempdir().unwrap();
     let log = Log::default();
     let busy = Arc::new(fake("busy", &[], &log));
     busy.busy.store(true, Ordering::SeqCst);
     let mut broken = fake("broken", &[], &log);
     broken.broken = true;
-    let plugins = Plugins::new(
+    let plugins = open(
         dir.path(),
         vec![
             busy,
@@ -157,7 +161,10 @@ fn a_busy_plugin_stays_enabled_and_a_failing_one_takes_its_dependents_down() {
     )
     .unwrap();
 
-    assert!(matches!(plugins.disable("busy"), Err(PluginError::Busy(_))));
+    assert!(matches!(
+        plugins.disable("busy").await,
+        Err(PluginError::Busy(_))
+    ));
     assert!(plugins.is_enabled("busy"));
     assert_eq!(
         states(&plugins),
@@ -168,6 +175,6 @@ fn a_busy_plugin_stays_enabled_and_a_failing_one_takes_its_dependents_down() {
         ]
     );
 
-    plugins.disable("broken").unwrap();
+    plugins.disable("broken").await.unwrap();
     assert_eq!(states(&plugins)[1].1, PluginState::Disabled);
 }

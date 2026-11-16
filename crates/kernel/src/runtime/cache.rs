@@ -38,9 +38,7 @@ impl Cache {
         plugin: &str,
         wasm: &[u8],
     ) -> Result<Component, SandboxError> {
-        let path = self
-            .dir
-            .join(format!("{}.cwasm", hex(&Sha256::digest(plugin))));
+        let path = self.path(plugin);
         let source = Sha256::digest(wasm);
         if let Some(compiled) = self.verified(&path, engine, &source) {
             // SAFETY: the tag proves this install's key signed these bytes as
@@ -60,6 +58,19 @@ impl Cache {
         }
         // SAFETY: produced by `precompile_component` on this engine just above.
         unsafe { Component::deserialize(engine, &compiled) }.map_err(SandboxError::Load)
+    }
+
+    pub fn forget(&self, plugin: &str) {
+        if let Err(error) = std::fs::remove_file(self.path(plugin)) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                tracing::warn!(plugin, %error, "cannot remove cached component");
+            }
+        }
+    }
+
+    fn path(&self, plugin: &str) -> PathBuf {
+        self.dir
+            .join(format!("{}.cwasm", hex(&Sha256::digest(plugin))))
     }
 
     fn verified(&self, path: &Path, engine: &Engine, source: &[u8]) -> Option<Vec<u8>> {

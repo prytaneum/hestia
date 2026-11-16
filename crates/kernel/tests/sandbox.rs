@@ -1,15 +1,17 @@
 //! The sandbox against real components built from `tests/guest/`.
 
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use futures_util::future::join_all;
 use kernel::{Answer, Limits, NoticeLevel, Sandbox, SandboxError, Services};
 use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
+
+mod fixture;
+use fixture::{guest, scratch, service_guest, wasm};
 
 static LOG: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 
@@ -28,53 +30,6 @@ impl Write for Capture {
 
 fn captured() -> String {
     String::from_utf8_lossy(&LOG.lock().unwrap()).into_owned()
-}
-
-fn scratch() -> PathBuf {
-    PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
-}
-
-/// Every guest workspace shares one target directory, so their common
-/// dependencies compile once.
-fn build(package: &str) -> PathBuf {
-    let target = scratch().join("guest");
-    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join(package)
-        .join("Cargo.toml");
-    let output = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
-        .args([
-            "build",
-            "--release",
-            "--locked",
-            "--target",
-            "wasm32-wasip2",
-            "--manifest-path",
-        ])
-        .arg(manifest)
-        .env("CARGO_TARGET_DIR", &target)
-        .output()
-        .expect("run cargo for the guest plugins");
-    assert!(
-        output.status.success(),
-        "guest plugins failed to build:\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    target.join("wasm32-wasip2/release")
-}
-
-fn guest(name: &str) -> PathBuf {
-    static BUILT: OnceLock<PathBuf> = OnceLock::new();
-    BUILT
-        .get_or_init(|| build("guest"))
-        .join(format!("{name}.wasm"))
-}
-
-fn service_guest(name: &str) -> PathBuf {
-    static BUILT: OnceLock<PathBuf> = OnceLock::new();
-    BUILT
-        .get_or_init(|| build("guest-services"))
-        .join(format!("{name}.wasm"))
 }
 
 fn cache_dir() -> PathBuf {
@@ -110,7 +65,7 @@ fn cache_entry(plugin: &str) -> PathBuf {
 async fn a_plugin_loads_logs_and_runs_init_inside_the_wasi_rule() {
     let sandbox = sandbox(Limits::default());
 
-    let hello = sandbox.load("hello", &guest("hello")).await.unwrap();
+    let hello = sandbox.load("hello", wasm(guest("hello"))).await.unwrap();
     assert!(hello.provides_lifecycle());
     sandbox.init(&hello).await.unwrap();
     assert!(captured().contains(&format!(
@@ -119,11 +74,11 @@ async fn a_plugin_loads_logs_and_runs_init_inside_the_wasi_rule() {
         common::app::VERSION
     )));
 
-    let bare = sandbox.load("bare", &guest("bare")).await.unwrap();
+    let bare = sandbox.load("bare", wasm(guest("bare"))).await.unwrap();
     assert!(!bare.provides_lifecycle());
     sandbox.init(&bare).await.unwrap();
 
-    let chatty = sandbox.load("chatty", &guest("chatty")).await.unwrap();
+    let chatty = sandbox.load("chatty", wasm(guest("chatty"))).await.unwrap();
     sandbox.init(&chatty).await.unwrap();
     let log = captured();
     assert_eq!(
@@ -133,7 +88,7 @@ async fn a_plugin_loads_logs_and_runs_init_inside_the_wasi_rule() {
     );
     assert!(log.contains("are dropped"));
 
-    let probe = sandbox.load("probe", &guest("probe")).await.unwrap();
+    let probe = sandbox.load("probe", wasm(guest("probe"))).await.unwrap();
     let outcome = sandbox.init(&probe).await;
     assert!(
         outcome.is_ok(),
@@ -144,12 +99,12 @@ async fn a_plugin_loads_logs_and_runs_init_inside_the_wasi_rule() {
 #[tokio::test]
 async fn a_cached_component_is_reused_and_a_swapped_one_is_never_run() {
     let sandbox = sandbox(Limits::default());
-    sandbox.load("cached", &guest("hello")).await.unwrap();
-    sandbox.load("other", &guest("spin")).await.unwrap();
+    sandbox.load("cached", wasm(guest("hello"))).await.unwrap();
+    sandbox.load("other", wasm(guest("spin"))).await.unwrap();
     let entry = cache_entry("cached");
     let written = std::fs::metadata(&entry).unwrap().modified().unwrap();
 
-    let again = sandbox.load("cached", &guest("hello")).await.unwrap();
+    let again = sandbox.load("cached", wasm(guest("hello"))).await.unwrap();
     assert_eq!(
         std::fs::metadata(&entry).unwrap().modified().unwrap(),
         written,
@@ -158,7 +113,7 @@ async fn a_cached_component_is_reused_and_a_swapped_one_is_never_run() {
     sandbox.init(&again).await.unwrap();
 
     std::fs::copy(cache_entry("other"), &entry).unwrap();
-    let swapped = sandbox.load("cached", &guest("hello")).await.unwrap();
+    let swapped = sandbox.load("cached", wasm(guest("hello"))).await.unwrap();
     let started = Instant::now();
     sandbox.init(&swapped).await.unwrap();
     assert!(
@@ -170,8 +125,8 @@ async fn a_cached_component_is_reused_and_a_swapped_one_is_never_run() {
 #[tokio::test]
 async fn a_call_past_its_time_budget_is_stopped_even_inside_a_host_call() {
     let sandbox = sandbox(quick());
-    let spin = sandbox.load("spin", &guest("spin")).await.unwrap();
-    let hang = sandbox.load("hang", &guest("hang")).await.unwrap();
+    let spin = sandbox.load("spin", wasm(guest("spin"))).await.unwrap();
+    let hang = sandbox.load("hang", wasm(guest("hang"))).await.unwrap();
     let started = Instant::now();
     let (spun, hung) = tokio::join!(sandbox.init(&spin), sandbox.init(&hang));
     assert!(matches!(spun, Err(SandboxError::Timeout)), "{spun:?}");
@@ -186,10 +141,10 @@ async fn a_call_past_its_time_budget_is_stopped_even_inside_a_host_call() {
 #[tokio::test]
 async fn memory_up_to_the_limit_is_granted_and_past_it_the_call_is_stopped() {
     let sandbox = sandbox(Limits::default());
-    let fit = sandbox.load("fit", &guest("fit")).await.unwrap();
+    let fit = sandbox.load("fit", wasm(guest("fit"))).await.unwrap();
     sandbox.init(&fit).await.unwrap();
 
-    let grow = sandbox.load("grow", &guest("grow")).await.unwrap();
+    let grow = sandbox.load("grow", wasm(guest("grow"))).await.unwrap();
     assert!(matches!(
         sandbox.init(&grow).await,
         Err(SandboxError::Memory)
@@ -199,7 +154,7 @@ async fn memory_up_to_the_limit_is_granted_and_past_it_the_call_is_stopped() {
 #[tokio::test]
 async fn the_third_trap_in_the_window_reports_the_trap_limit() {
     let sandbox = sandbox(Limits::default());
-    let trap = sandbox.load("trap", &guest("trap")).await.unwrap();
+    let trap = sandbox.load("trap", wasm(guest("trap"))).await.unwrap();
     for _ in 0..2 {
         assert!(matches!(
             sandbox.init(&trap).await,
@@ -217,7 +172,7 @@ async fn calls_past_the_concurrency_bounds_wait_for_a_slot() {
     async fn naps(sandbox: &Sandbox, plugins: &[&str], calls: usize) -> Duration {
         let mut loaded = Vec::new();
         for id in plugins {
-            let plugin = sandbox.load(id, &guest("nap")).await.unwrap();
+            let plugin = sandbox.load(id, wasm(guest("nap"))).await.unwrap();
             loaded.extend(std::iter::repeat_n(plugin, calls));
         }
         let started = Instant::now();
@@ -330,7 +285,10 @@ impl Services for Host {
 async fn a_plugin_keeps_files_settings_and_secrets_and_draws_only_through_the_host() {
     let host = Host::new("tour", true);
     let sandbox = sandbox_services(Limits::default(), host.clone());
-    let tour = sandbox.load("tour", &service_guest("tour")).await.unwrap();
+    let tour = sandbox
+        .load("tour", wasm(service_guest("tour")))
+        .await
+        .unwrap();
 
     host.mode("tour", "tour");
     sandbox.init(&tour).await.unwrap();
@@ -366,7 +324,10 @@ async fn a_plugin_keeps_files_settings_and_secrets_and_draws_only_through_the_ho
 
     std::fs::write(host.state("tour").join("settings.json"), "{ not json").unwrap();
     let fresh = sandbox_services(Limits::default(), host.clone());
-    let tour = fresh.load("tour", &service_guest("tour")).await.unwrap();
+    let tour = fresh
+        .load("tour", wasm(service_guest("tour")))
+        .await
+        .unwrap();
     host.mode("tour", "tour");
     fresh.init(&tour).await.unwrap();
     let aside = std::fs::read_dir(host.state("tour"))
@@ -383,7 +344,10 @@ async fn a_plugin_keeps_files_settings_and_secrets_and_draws_only_through_the_ho
 async fn a_changed_setting_reaches_the_plugin_which_may_wait_on_the_user_past_its_budget() {
     let host = Host::slow("changed", true, Duration::from_secs(30));
     let sandbox = sandbox_services(quick(), host.clone());
-    let tour = sandbox.load("tour", &service_guest("tour")).await.unwrap();
+    let tour = sandbox
+        .load("tour", wasm(service_guest("tour")))
+        .await
+        .unwrap();
     assert!(tour.provides_settings_changed());
 
     sandbox.change_setting(&tour, "volume", "9").await.unwrap();
@@ -403,7 +367,10 @@ async fn a_changed_setting_reaches_the_plugin_which_may_wait_on_the_user_past_it
 
     let declining = Host::new("declined", false);
     let sandbox = sandbox_services(Limits::default(), declining.clone());
-    let tour = sandbox.load("tour", &service_guest("tour")).await.unwrap();
+    let tour = sandbox
+        .load("tour", wasm(service_guest("tour")))
+        .await
+        .unwrap();
     assert!(matches!(
         sandbox.change_setting(&tour, "volume", "3").await,
         Err(SandboxError::Guest(_))
@@ -416,7 +383,10 @@ async fn a_changed_setting_reaches_the_plugin_which_may_wait_on_the_user_past_it
 async fn a_named_lock_excludes_other_calls_until_its_holder_ends_even_by_timeout() {
     let host = Host::new("locks", true);
     let sandbox = sandbox_services(quick(), host.clone());
-    let tour = sandbox.load("tour", &service_guest("tour")).await.unwrap();
+    let tour = sandbox
+        .load("tour", wasm(service_guest("tour")))
+        .await
+        .unwrap();
 
     host.mode("tour", "hold");
     let holding = sandbox.init(&tour);

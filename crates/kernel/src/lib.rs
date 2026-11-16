@@ -3,14 +3,20 @@
 
 mod builtin;
 mod error;
+mod grant;
 pub mod id;
+mod install;
+mod manifest;
 mod registry;
 mod runtime;
 pub mod vetting;
 
 pub use builtin::{Builtin, Busy, Descriptor};
-pub use error::PluginError;
+pub use error::{PackageError, PluginError};
+pub use grant::{denials, GrantError, Permission, Table};
+pub use manifest::ManifestError;
 pub use registry::Plugins;
 pub use runtime::{
-    Answer, GuestError, Limits, Loaded, NoticeLevel, Sandbox, SandboxError, Services,
+    Answer, Denials, GuestError, Limits, Loaded, NoticeLevel, Opened, Sandbox, SandboxError,
+    Services, Shape, ShapeError,
 };
