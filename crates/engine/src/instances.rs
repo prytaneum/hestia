@@ -20,7 +20,7 @@ use crate::icon;
 use crate::jvm::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
 use crate::minecraft::profile::InstanceProfile;
 use crate::registry::{Entry, Store};
-use crate::schema::Document;
+use common::schema::Document;
 
 pub(crate) const DATA: &str = "data";
 

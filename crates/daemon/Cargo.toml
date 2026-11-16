@@ -19,6 +19,7 @@ engine = { workspace = true }
 proto = { workspace = true }
 ipc = { workspace = true }
 common = { workspace = true }
+kernel = { workspace = true }
 client = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

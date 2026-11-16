@@ -13,7 +13,7 @@ use proto::instance::{GameMode, QuickPlay};
 use serde::{Deserialize, Serialize};
 
 use crate::registry;
-use crate::schema::Document;
+use common::schema::Document;
 
 /// How many targets are kept, per instance and in the list across all of them —
 /// the official launcher's five slots.

@@ -78,7 +78,7 @@ impl Router {
             match self.routes.get(&request.channel) {
                 Some(Route { owner, handler }) => {
                     if let Some(owner) = owner {
-                        if !ctx.runtime.engine().plugins().is_enabled(owner) {
+                        if !ctx.runtime.plugins().is_enabled(owner) {
                             tracing::warn!(plugin = owner, "rejected: owner plugin is not enabled");
                             return error_response(ErrorInfo::PluginDisabled {
                                 plugin: owner.to_string(),

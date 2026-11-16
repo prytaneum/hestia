@@ -19,7 +19,7 @@ pub enum PluginError {
     #[error("invalid built-in set: {0}")]
     Invalid(String),
     #[error("cannot save plugin state: {0}")]
-    Save(anyhow::Error),
+    Save(common::schema::SchemaError),
 }
 
 impl From<PluginError> for ErrorInfo {

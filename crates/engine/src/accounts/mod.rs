@@ -25,7 +25,7 @@ use microsoft::{
 };
 use signing::{base64url_nopad, random_bytes, ProofKey};
 
-use crate::schema::{self, Document};
+use common::schema::{self, Document};
 
 const REFRESH_MARGIN_SECONDS: i64 = 300;
 
@@ -451,5 +451,5 @@ fn load(path: &Path) -> AccountsFile {
 // The file holds tokens, so it is written owner-only — the mode lands on the
 // temp file before the rename, so it is never briefly readable by anyone else.
 fn save(path: &Path, file: &AccountsFile) -> Result<()> {
-    schema::save_private(path, file)
+    Ok(schema::save_private(path, file)?)
 }

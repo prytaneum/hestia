@@ -22,6 +22,7 @@ loopback = []
 [dependencies]
 proto = { workspace = true }
 common = { workspace = true }
+kernel = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

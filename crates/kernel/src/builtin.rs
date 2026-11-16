@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 /// What a built-in is, known before it runs.
 #[derive(Debug, Clone, Copy)]
 pub struct Descriptor {
@@ -20,15 +18,9 @@ pub struct Busy;
 /// The registry holds its lock while it calls `enable` and `disable`, and the
 /// router reads that lock on every call to a plugin-owned channel. Both must
 /// return promptly (register or unregister, never wait on work) and must not
-/// reach `Engine::plugins()`.
+/// reach the registry.
 pub trait Builtin: Send + Sync {
     fn descriptor(&self) -> Descriptor;
     fn enable(&self) -> anyhow::Result<()>;
     fn disable(&self) -> Result<(), Busy>;
-}
-
-/// The built-ins compiled into `hestiad`. Servers, instances and content join
-/// this list as they become plugins.
-pub fn all() -> Vec<Arc<dyn Builtin>> {
-    Vec::new()
 }

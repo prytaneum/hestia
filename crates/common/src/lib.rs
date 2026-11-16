@@ -8,6 +8,7 @@ pub mod crash;
 pub mod logging;
 pub mod paths;
 pub mod process;
+pub mod schema;
 mod time;
 
 pub use logging::{init_logging, FileLog, LogGuard, LogLevel};

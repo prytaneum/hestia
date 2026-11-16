@@ -8,7 +8,7 @@ use proto::content::ContentKind;
 pub use proto::sync::SharedPack as Pack;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::{self, Document};
+use common::schema::{self, Document};
 
 const FILE: &str = "packs.json";
 
@@ -28,7 +28,7 @@ impl Library {
     }
 
     pub fn save(&self, dir: &Path) -> Result<()> {
-        schema::save(&dir.join(FILE), self)
+        Ok(schema::save(&dir.join(FILE), self)?)
     }
 
     pub fn of(&self, kind: ContentKind) -> Vec<Pack> {

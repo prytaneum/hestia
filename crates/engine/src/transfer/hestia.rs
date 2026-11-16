@@ -28,7 +28,7 @@ use crate::content::install;
 use crate::instances::InstanceRecord;
 use crate::minecraft::profile::InstanceProfile;
 use crate::registry;
-use crate::schema::{self, Document};
+use common::schema::{self, Document};
 
 pub(crate) const MANIFEST: &str = "hestia.instance.json";
 
@@ -52,7 +52,7 @@ impl Document for Manifest {
 impl Manifest {
     fn record(&self) -> Result<InstanceRecord> {
         schema::decode::<InstanceRecord>(self.instance.clone())
-            .map_err(|e| schema::archive_error(ArchiveFormat::Hestia, e).into())
+            .map_err(|e| crate::error::archive_error(ArchiveFormat::Hestia, e).into())
     }
 }
 
@@ -116,7 +116,7 @@ fn manifest(reader: &mut Reader, prefix: &str) -> Result<Manifest> {
         invalid(ArchiveFault::ManifestMalformed)
     })?;
     schema::decode::<Manifest>(value)
-        .map_err(|e| schema::archive_error(ArchiveFormat::Hestia, e).into())
+        .map_err(|e| crate::error::archive_error(ArchiveFormat::Hestia, e).into())
 }
 
 fn invalid(reason: ArchiveFault) -> ErrorInfo {

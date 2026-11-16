@@ -8,7 +8,7 @@ use proto::sync::{SyncConfig, SyncUnit, SyncUnitConfig};
 use serde::{Deserialize, Serialize};
 
 use super::catalogue;
-use crate::schema::{self, Document};
+use common::schema::{self, Document};
 
 const FILE: &str = "sync.json";
 
@@ -36,7 +36,7 @@ impl Catalogue {
     }
 
     pub fn save(&self, dir: &Path) -> Result<()> {
-        schema::save(&dir.join(FILE), self)
+        Ok(schema::save(&dir.join(FILE), self)?)
     }
 
     pub fn enabled(&self, unit: SyncUnit) -> bool {

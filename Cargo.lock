@@ -775,8 +775,10 @@ dependencies = [
  "flexi_logger",
  "husky-rs",
  "libc",
+ "serde",
  "serde_json",
  "tempfile",
+ "thiserror 2.0.21",
  "tracing",
  "tracing-subscriber",
 ]
@@ -1056,6 +1058,7 @@ dependencies = [
  "common",
  "engine",
  "ipc",
+ "kernel",
  "libc",
  "proto",
  "serde",
@@ -1446,6 +1449,7 @@ dependencies = [
  "getrandom 0.4.3",
  "image",
  "junction",
+ "kernel",
  "libc",
  "minisign-verify",
  "p256",
@@ -2787,6 +2791,19 @@ dependencies = [
  "hashbrown 0.17.1",
  "portable-atomic",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "kernel"
+version = "1.0.0-beta.3"
+dependencies = [
+ "anyhow",
+ "common",
+ "proto",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tracing",
 ]
 
 [[package]]

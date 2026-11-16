@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use engine::{Builtin, Busy, Descriptor, PluginError, Plugins};
+use kernel::{Builtin, Busy, Descriptor, PluginError, Plugins};
 use proto::plugin::PluginState;
 
 type Log = Arc<Mutex<Vec<&'static str>>>;
@@ -63,7 +63,6 @@ fn states(plugins: &Plugins) -> Vec<(String, PluginState)> {
 #[test]
 fn enable_and_disable_follow_dependencies_and_persist() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("plugins.json");
     let log = Log::default();
     let build = |log: &Log| -> Vec<Arc<dyn Builtin>> {
         vec![
@@ -72,7 +71,7 @@ fn enable_and_disable_follow_dependencies_and_persist() {
         ]
     };
 
-    let plugins = Plugins::new(path.clone(), build(&log)).unwrap();
+    let plugins = Plugins::new(dir.path(), build(&log)).unwrap();
     assert_eq!(*log.lock().unwrap(), ["core", "extra"]);
     assert!(plugins.is_enabled("extra"));
 
@@ -89,7 +88,7 @@ fn enable_and_disable_follow_dependencies_and_persist() {
 
     plugins.disable("extra").unwrap();
     log.lock().unwrap().clear();
-    let restarted = Plugins::new(path, build(&log)).unwrap();
+    let restarted = Plugins::new(dir.path(), build(&log)).unwrap();
     assert_eq!(*log.lock().unwrap(), ["core"]);
     assert_eq!(
         states(&restarted),
@@ -118,7 +117,7 @@ fn start_up_never_enables_what_the_user_turned_off() {
     };
     std::fs::write(&path, r#"{"disabled":["core"]}"#).unwrap();
 
-    let plugins = Plugins::new(path.clone(), build(&log)).unwrap();
+    let plugins = Plugins::new(dir.path(), build(&log)).unwrap();
     assert!(log.lock().unwrap().is_empty());
     assert_eq!(
         states(&plugins),
@@ -129,7 +128,7 @@ fn start_up_never_enables_what_the_user_turned_off() {
     );
 
     plugins.disable("extra").unwrap();
-    let restarted = Plugins::new(path, build(&log)).unwrap();
+    let restarted = Plugins::new(dir.path(), build(&log)).unwrap();
     assert!(log.lock().unwrap().is_empty());
     assert_eq!(
         states(&restarted),
@@ -149,7 +148,7 @@ fn a_busy_plugin_stays_enabled_and_a_failing_one_takes_its_dependents_down() {
     let mut broken = fake("broken", &[], &log);
     broken.broken = true;
     let plugins = Plugins::new(
-        dir.path().join("plugins.json"),
+        dir.path(),
         vec![
             busy,
             Arc::new(broken),

@@ -30,9 +30,9 @@ flowchart LR
 
 ## runtime/
 
-`Runtime` holds the `Engine`, the `EventHub`, the job managers and the stop `Notify`. A handler receives a
-`HandlerContext { runtime, conn_id, out }`: collaborators through `ctx.runtime.*()` and the outbound channel for
-streaming.
+`Runtime` holds the `Engine`, the plugin registry, the `EventHub`, the job managers and the stop `Notify`. A handler
+receives a `HandlerContext { runtime, conn_id, out }`: collaborators through `ctx.runtime.*()` and the outbound channel
+for streaming.
 
 ### Router
 
@@ -46,7 +46,7 @@ The router also enforces the account gate: the whole `instance.*` surface (and t
 `guards::entry_for` applies the same gate by the target in the payload.
 
 The router also gates by owner: a contract that sets `const OWNER` is answered with `plugin_disabled` while that plugin
-is not enabled in the engine's registry. The kernel's own channels have no owner.
+is not enabled in the runtime's plugin registry. The kernel's own channels have no owner.
 
 ### Job managers
 

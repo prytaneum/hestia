@@ -26,7 +26,7 @@ use crate::minecraft::profile::{ServerProfile, ServerRuntime};
 use crate::process::{Outcome, ProcessSupervisor, Task};
 use crate::properties;
 use crate::registry::{self, Entry, Store};
-use crate::schema::Document;
+use common::schema::Document;
 
 // The key set the server's own pristine generation run emitted — the schema
 // `config_set` validates against, kept beside the record because it describes

@@ -40,7 +40,7 @@ Reclaim is not recursive: each subsystem knows the one directory its artifacts l
 ## Persisted documents
 
 Every user-owned file (settings, accounts, an entry record, a content index, the skin library) is a `schema::Document`
-carrying a top-level `schemaVersion`, read and written through `engine::schema`.
+carrying a top-level `schemaVersion`, read and written through `common::schema`.
 
 | Concern                            | How                                                                           |
 |------------------------------------|-------------------------------------------------------------------------------|
@@ -173,7 +173,7 @@ The install shape picks the artifact and the installer: a package asks the manif
 and accepts nothing else. The `portable` feature short-circuits to unmanaged. The channel (`update.channel`) is the last
 segment of the feed URL (`.../updates/stable`, `.../beta`).
 
-## Provider seams and the plugin registry
+## Provider seams
 
 Flavors (`FlavorProvider`), content sources (`ContentProvider`), Java distributions (`JavaProvider`) and pack formats
 (`PackProvider`) are traits held in a runtime-mutable `Roster` (`roster.rs`); only the built-ins are registered: vanilla
@@ -181,11 +181,8 @@ Java and Bedrock, Adoptium, and Hestia's own archive. No content source is built
 `vouch::Policy` (granted hosts, checksums, redirects); the built-ins hand none, so their downloads take the plain path.
 Flavors, content sources, pack formats and Java distributions beyond the built-ins return with the new plugin system.
 
-Beside them sits the registry (`registry.rs`, `builtin.rs`): built-ins implement `Builtin` (a descriptor with `provides`
-and `requires`, plus `enable` and `disable`) and are enabled in dependency order. Disabling is refused while an enabled
-plugin requires it or it has work running. The disabled ids persist in `plugins.json`; start-up never enables what the
-user turned off, so a plugin whose requirement is off stays `failed`. `plugins::all()` lists the compiled-in built-ins
-and is empty until servers, instances and content become plugins; tests pass their own to `Plugins::new`.
+The registry is not the engine's: it lives in the [kernel](../architecture.md#the-kernel). The engine only lists the
+built-ins it compiles in (`engine::builtins()`, empty until servers, instances and content become plugins).
 
 ## Accounts and skins
 

@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use crate::jvm::{normalize_memory, parse_jvm_args, JavaSettings};
 use crate::keys::invalid;
-use crate::schema::{self, Document};
+use common::schema::{self, Document};
 
 /// The config schema. A setting is a typed field with its default; a nested
 /// struct becomes a sub-object. The reserved keys (home, autostart) are routed
@@ -194,7 +194,7 @@ pub enum ConfigError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
-    Save(anyhow::Error),
+    Save(common::schema::SchemaError),
 }
 
 pub struct Config {

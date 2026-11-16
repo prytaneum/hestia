@@ -5,6 +5,7 @@
 
 mod accounts;
 mod backup;
+mod builtin;
 mod cache;
 mod cancel;
 mod checksum;
@@ -26,14 +27,13 @@ mod jvm;
 mod keys;
 mod minecraft;
 mod net;
-mod plugins;
 mod process;
 mod properties;
+pub mod quarantine;
 mod recent;
 mod reclaim;
 mod registry;
 mod roster;
-mod schema;
 mod servers;
 mod signature;
 mod skins;
@@ -46,6 +46,7 @@ mod version;
 mod vouch;
 
 pub use accounts::{Accounts, LoginChallenge, ReauthRequired};
+pub use builtin::builtins;
 pub use cache::{Cache, CacheEntry, CacheUsage};
 pub use cancel::{is_cancelled, Cancel, Cancelled, Job};
 pub use config::{Config, ConfigError, Settings};
@@ -73,12 +74,10 @@ pub use minecraft::{
     ResolveRequest, Side, BOTH_SIDES, CLIENT_ONLY, REQUIRED_JAVA_MAJORS, SERVER_ONLY,
 };
 pub use net::Network;
-pub use plugins::{Builtin, Busy, Descriptor, PluginError, Plugins};
 #[cfg(windows)]
 pub use process::run_relay;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError, StdinError};
 pub use roster::{RegisterError, Standing};
-pub use schema::notices as quarantined;
 pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};
 pub use skins::Skins;
 pub use sync::Sync;

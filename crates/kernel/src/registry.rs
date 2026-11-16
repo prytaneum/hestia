@@ -1,13 +1,13 @@
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use proto::plugin::{PluginInfo, PluginKind, PluginState};
 use serde::{Deserialize, Serialize};
 
-use super::builtin::Builtin;
-use super::error::PluginError;
-use crate::schema::{self, Document};
+use crate::builtin::Builtin;
+use crate::error::PluginError;
+use common::schema::{self, Document};
 
 const FILE: &str = "plugins.json";
 
@@ -42,8 +42,9 @@ pub struct Plugins {
 
 impl Plugins {
     /// Orders `builtins` by their requirements and enables each one the user
-    /// has not disabled.
-    pub fn new(path: PathBuf, builtins: Vec<Arc<dyn Builtin>>) -> Result<Self, PluginError> {
+    /// has not disabled. The registry keeps its state in `data_home`.
+    pub fn new(data_home: &Path, builtins: Vec<Arc<dyn Builtin>>) -> Result<Self, PluginError> {
+        let path = data_home.join(FILE);
         let ordered = order(builtins)?;
         let disabled: HashSet<String> = schema::load::<Saved>(&path)
             .map(|saved| saved.disabled.into_iter().collect())

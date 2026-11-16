@@ -26,3 +26,26 @@ pub fn error_info(error: anyhow::Error) -> ErrorInfo {
         }
     }
 }
+
+/// The refusal an archive's schema failure becomes: a document from a newer
+/// build is unsupported, anything else is a malformed manifest.
+pub(crate) fn archive_error(
+    format: proto::error::ArchiveFormat,
+    error: common::schema::SchemaError,
+) -> ErrorInfo {
+    use common::schema::SchemaError;
+    use proto::error::ArchiveFault;
+    match error {
+        SchemaError::FromTheFuture { found, .. } => ErrorInfo::ArchiveTooNew {
+            format,
+            schema: found,
+        },
+        other => {
+            tracing::warn!(error = %other, "an archive manifest cannot be decoded");
+            ErrorInfo::ArchiveInvalid {
+                format,
+                reason: ArchiveFault::ManifestMalformed,
+            }
+        }
+    }
+}

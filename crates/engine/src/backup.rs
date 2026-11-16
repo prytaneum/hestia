@@ -17,7 +17,7 @@ use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
 use serde::{Deserialize, Serialize};
 
 use crate::hold::Truncation;
-use crate::schema::{self, Document};
+use common::schema::{self, Document};
 
 const BACKUPS: &str = "backups";
 const EXTENSION: &str = ".tar.gz";
@@ -477,7 +477,7 @@ fn check_manifest(text: &str) -> Result<()> {
         malformed()
     })?;
     schema::decode::<Manifest>(value)
-        .map_err(|e| schema::archive_error(ArchiveFormat::Backup, e))?;
+        .map_err(|e| crate::error::archive_error(ArchiveFormat::Backup, e))?;
     Ok(())
 }
 

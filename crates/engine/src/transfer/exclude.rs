@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::content::install;
-use crate::schema::Document;
+use common::schema::Document;
 
 /// Names skipped wherever they appear: OS turds, the world lock (transient
 /// state, never data), and partial files.

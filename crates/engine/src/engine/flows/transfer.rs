@@ -27,7 +27,6 @@ use crate::engine::Engine;
 use crate::instances::InstanceRecord;
 use crate::registry;
 use crate::roster::{RegisterError, Standing};
-use crate::schema;
 use crate::transfer::archive::{self, Reader};
 use crate::transfer::PackProvider;
 use crate::transfer::{
@@ -36,19 +35,6 @@ use crate::transfer::{
 
 /// Where an export with no destination lands, under the data home.
 const EXPORTS: &str = "exports";
-
-/// Documents set aside since `mark` that belong to this entry — scoped by path
-/// so a concurrent operation's quarantine is not reported as this import's.
-fn quarantined_under(mark: schema::notices::Mark, entry_dir: &Path) -> Vec<WarningInfo> {
-    let prefix = entry_dir.display().to_string();
-    schema::notices::since(mark)
-        .into_iter()
-        .filter(|warning| match warning {
-            WarningInfo::DocumentQuarantined { path, .. } => path.starts_with(&prefix),
-            _ => false,
-        })
-        .collect()
-}
 
 /// What an export produced.
 pub struct ExportOutcome {
@@ -273,11 +259,11 @@ impl Engine {
             "instance imported"
         );
 
-        let mark = schema::notices::mark();
+        let mark = crate::quarantine::mark();
         crate::content::validate(&entry_dir);
         let restored = self.restore_tracked_content(&entry_dir, job).await;
         let mut warnings = self.unwind_on_failure(&record, restored)?;
-        warnings.extend(quarantined_under(mark, &entry_dir));
+        warnings.extend(crate::quarantine::since_under(mark, &entry_dir));
 
         Ok(ImportOutcome {
             format,

@@ -44,9 +44,10 @@ One cargo workspace under `crates/*`. An arrow is a dependency; a missing arrow 
 flowchart TD
     client --> proto & ipc & common
     ipc --> common
-    engine --> proto & common
+    kernel --> proto & common
+    engine --> proto & common & kernel
     cli --> client & common & proto
-    daemon --> engine & proto & ipc & common & client
+    daemon --> engine & kernel & proto & ipc & common & client
     tray --> client & common & ipc
     desktop -.->|"webview to bridge"| client
 ```
@@ -55,10 +56,11 @@ flowchart TD
 |-----------|---------------------------------------------------------------------------------------------------|
 | `proto`   | wire contracts and domain types (serde), shared verbatim by both sides                            |
 | `ipc`     | transport (socket or pipe) and the JSON envelope; reads `common` only to scope the endpoint       |
-| `common`  | identity, paths, logging, crash reports ([below](#cross-cutting-code))                            |
+| `common`  | identity, paths, logging, crash reports, document schema ([below](#cross-cutting-code))           |
+| `kernel`  | the plugin registry and `Builtin`; knows no launcher logic ([below](#the-kernel))                 |
 | `client`  | typed SDK, one facade per domain over a `Session`; re-exports `proto`                             |
-| `engine`  | the launcher core; knows no socket                                                                |
-| `daemon`  | `hestiad`: router, services, job managers, autostart; also links `client` so `hestiad ping` works |
+| `engine`  | the launcher core; knows no socket; lists the built-in plugins it compiles in                     |
+| `daemon`  | `hestiad`: router, services, job managers, the plugin registry, autostart; links `client` (ping)  |
 | `cli`     | `hestia`                                                                                          |
 | `desktop` | Tauri shell; the UI is the root `frontend/`                                                       |
 | `tray`    | `hestia-tray`                                                                                     |
@@ -126,6 +128,7 @@ The socket lives elsewhere: the runtime directory is ephemeral and per session, 
 | `time`     | local-time stamps for logs and reports; backup archives are named in UTC                                    |
 | `appimage` | `image()`, `host_env()`, `sidecar_env()`: the AppImage launcher's environment, undone where it matters      |
 | `atomic`   | write-through-a-temp-and-rename                                                                             |
+| `schema`   | `Document`, `load`/`save` with the `schemaVersion` stamp, quarantine of unreadable files and its notices    |
 
 `install_scope` names the anchor of a portable or debug build. `ipc` scopes the daemon endpoint with it. A build using
 the per-user directory answers `None`.
@@ -145,6 +148,15 @@ contents.
 **Crash reports.** Every binary gets the panic hook from `init_logging`. A panic is logged and written to
 `<data_home>/logs/crashes/` with message, location, backtrace, platform and the tail of the live log. All binaries share
 that directory. Release builds use `panic = "abort"` and `strip = true`, so release backtraces are bare addresses.
+
+## The kernel
+
+`crates/kernel` holds the plugin registry. A built-in implements `Builtin` (a descriptor with `provides` and `requires`,
+plus `enable` and `disable`) and is enabled in dependency order. Disabling is refused while an enabled plugin requires
+it or it has work running. The disabled ids persist in `plugins.json`; start-up never enables what the user turned off,
+so a plugin whose requirement is off stays `failed`. The kernel depends on `proto` and `common` only, so it cannot reach
+the launcher. `hestiad`'s runtime builds the registry from `engine::builtins()` and the router consults it for owner
+gates.
 
 ## Subsystem pages
 

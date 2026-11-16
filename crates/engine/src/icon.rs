@@ -15,7 +15,7 @@ use proto::error::ErrorInfo;
 use proto::icon::{EntryIcon, IconBackground, IconGenerator};
 
 use crate::net;
-use crate::schema::{self, Document};
+use common::schema::{self, Document};
 
 const STEM: &str = "icon";
 /// What an icon may be, and the extension each is stored under — in the order
@@ -31,7 +31,11 @@ pub(crate) const MAX_BYTES: u64 = MAX_MEGABYTES * 1024 * 1024;
 const MAX_SYMBOL_LEN: usize = 64;
 const FETCH_TIMEOUT: Duration = Duration::from_secs(20);
 
-impl Document for IconGenerator {
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+struct Sidecar(IconGenerator);
+
+impl Document for Sidecar {
     const NAME: &'static str = "icon.json";
 }
 
@@ -44,8 +48,9 @@ pub(crate) fn read(entry_dir: &Path) -> Option<EntryIcon> {
     let revision = modified
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as u64);
-    let generator =
-        schema::load::<IconGenerator>(&entry_dir.join(IconGenerator::NAME)).filter(well_formed);
+    let generator = schema::load::<Sidecar>(&entry_dir.join(Sidecar::NAME))
+        .map(|sidecar| sidecar.0)
+        .filter(well_formed);
     Some(EntryIcon {
         path,
         revision,
@@ -72,9 +77,9 @@ pub(crate) fn write(
     for stale in stored(entry_dir).filter(|path| *path != target) {
         remove(&stale)?;
     }
-    let sidecar = entry_dir.join(IconGenerator::NAME);
+    let sidecar = entry_dir.join(Sidecar::NAME);
     match generator {
-        Some(generator) => schema::save(&sidecar, generator)?,
+        Some(generator) => schema::save(&sidecar, &Sidecar(generator.clone()))?,
         None if sidecar.exists() => remove(&sidecar)?,
         None => {}
     }
@@ -205,7 +210,7 @@ mod tests {
         assert_eq!(picked.path, dir.path().join("icon.gif"));
         assert_eq!(picked.generator, None);
         assert!(!dir.path().join("icon.png").exists());
-        assert!(!dir.path().join(IconGenerator::NAME).exists());
+        assert!(!dir.path().join(Sidecar::NAME).exists());
     }
 
     #[test]
@@ -233,7 +238,7 @@ mod tests {
             },
             symbol: "grass_block".to_string(),
         };
-        schema::save(&dir.path().join(IconGenerator::NAME), &hostile).unwrap();
+        schema::save(&dir.path().join(Sidecar::NAME), &Sidecar(hostile.clone())).unwrap();
         assert_eq!(read(dir.path()).unwrap().generator, None);
         assert!(write(dir.path(), PNG, Some(&hostile)).is_err());
     }

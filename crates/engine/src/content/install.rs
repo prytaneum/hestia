@@ -20,7 +20,7 @@ use sha1::Sha1;
 use super::bedrock;
 use crate::checksum;
 use crate::registry;
-use crate::schema::{self, Document};
+use common::schema::{self, Document};
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]

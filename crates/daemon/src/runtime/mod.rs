@@ -20,6 +20,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use engine::{Engine, InstanceRecord, ProcessIo, ServerRecord};
+use kernel::Plugins;
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
 use proto::process::{ProcessInfo, ProcessSpec};
@@ -159,6 +160,7 @@ pub fn instance_info(
 
 pub struct Runtime {
     engine: Arc<Engine>,
+    plugins: Plugins,
     hub: Arc<EventHub>,
     jobs: Jobs,
     claims: Claims,
@@ -178,6 +180,9 @@ impl Runtime {
     /// Build over a given engine, the seam a test crosses to use a temporary
     /// data home.
     pub fn over(engine: Engine, log_path: PathBuf) -> Self {
+        let plugins = Plugins::new(engine.data_home(), engine::builtins()).expect(
+            "engine::builtins() must list unique ids whose requirements exist and do not cycle",
+        );
         let engine = Arc::new(engine);
         let hub = Arc::new(EventHub::default());
         // One registry for every cancellable job, keyed by job id — what
@@ -214,6 +219,7 @@ impl Runtime {
         );
         Runtime {
             engine,
+            plugins,
             hub,
             jobs,
             claims,
@@ -287,6 +293,10 @@ impl Runtime {
 
     pub fn engine(&self) -> &Engine {
         &self.engine
+    }
+
+    pub fn plugins(&self) -> &Plugins {
+        &self.plugins
     }
 
     pub fn hub(&self) -> &EventHub {

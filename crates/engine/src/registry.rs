@@ -12,7 +12,7 @@ use anyhow::{bail, Context, Result};
 use proto::error::{EntryKind, ErrorInfo};
 use uuid::Uuid;
 
-use crate::schema::{self, Document};
+use common::schema::{self, Document};
 
 /// A stable, opaque entry id (UUIDv7 hex): the entry's internal key — process
 /// key, port/in-flight claims, process records — never a path component, so a
@@ -67,7 +67,7 @@ pub(crate) fn read_record<T: Document>(dir: &Path) -> Option<T> {
 }
 
 pub(crate) fn write_record<T: Document>(dir: &Path, record: &T) -> Result<()> {
-    schema::save(&record_path::<T>(dir), record)
+    Ok(schema::save(&record_path::<T>(dir), record)?)
 }
 
 /// Every record under `dir` (one subdirectory per entry, skipping any that has

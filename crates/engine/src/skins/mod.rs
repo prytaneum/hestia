@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 
 use self::mojang::Profile;
 use crate::registry;
-use crate::schema::Document;
+use common::schema::Document;
 
 // Absorbs bursts of skin.list reads; Mojang's profile API rate-limits hard.
 const PROFILE_TTL: Duration = Duration::from_secs(30);

@@ -31,10 +31,10 @@ use serde::Serialize;
 use serde_json::Value;
 
 /// The stamped field, on the document's top-level object.
-pub(crate) const FIELD: &str = "schemaVersion";
+pub const FIELD: &str = "schemaVersion";
 
 /// The version an unstamped document is read as.
-pub(crate) const BASELINE: u32 = 1;
+const BASELINE: u32 = 1;
 
 /// The suffix a document that could not be read is renamed with.
 const ASIDE: &str = "unreadable";
@@ -43,7 +43,7 @@ const ASIDE: &str = "unreadable";
 ///
 /// Implementors serialize to a JSON **object** — that is where the stamp goes —
 /// and tolerate unknown fields, which serde's derive does by default.
-pub(crate) trait Document: Serialize + DeserializeOwned {
+pub trait Document: Serialize + DeserializeOwned {
     /// What this document is called, for logs, warnings and the name of a
     /// quarantined copy. Its file name where it has a fixed one.
     const NAME: &'static str;
@@ -53,7 +53,7 @@ pub(crate) trait Document: Serialize + DeserializeOwned {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum SchemaError {
+pub enum SchemaError {
     #[error(
         "{document} was written by a newer hestia (schema {found}; this build reads up to \
          {supported})"
@@ -78,35 +78,19 @@ pub(crate) enum SchemaError {
     },
     #[error("{document} does not serialize to a JSON object, so it cannot be stamped")]
     NotAnObject { document: &'static str },
-}
-
-/// The refusal an archive's schema failure becomes: a document from a newer
-/// build is unsupported, anything else is a malformed manifest.
-pub(crate) fn archive_error(
-    format: proto::error::ArchiveFormat,
-    error: SchemaError,
-) -> proto::error::ErrorInfo {
-    use proto::error::{ArchiveFault, ErrorInfo};
-    match error {
-        SchemaError::FromTheFuture { found, .. } => ErrorInfo::ArchiveTooNew {
-            format,
-            schema: found,
-        },
-        other => {
-            tracing::warn!(error = %other, "an archive manifest cannot be decoded");
-            ErrorInfo::ArchiveInvalid {
-                format,
-                reason: ArchiveFault::ManifestMalformed,
-            }
-        }
-    }
+    #[error("cannot write {document} at {path}: {source}")]
+    Write {
+        document: &'static str,
+        path: PathBuf,
+        source: std::io::Error,
+    },
 }
 
 /// Decode a stored JSON value, refusing one from a newer build. Pure: no file is
 /// read, written or set aside, so a caller that owns a document from somewhere
 /// other than the data home — an archive — applies its own policy to the
 /// failure.
-pub(crate) fn decode<T: Document>(mut value: Value) -> Result<T, SchemaError> {
+pub fn decode<T: Document>(mut value: Value) -> Result<T, SchemaError> {
     let stored = stamp::<T>(&value)?;
     if stored > T::VERSION {
         return Err(SchemaError::FromTheFuture {
@@ -128,7 +112,7 @@ pub(crate) fn decode<T: Document>(mut value: Value) -> Result<T, SchemaError> {
 }
 
 /// Serialize a document and stamp it with the schema this build writes.
-pub(crate) fn encode<T: Document>(document: &T) -> Result<Value, SchemaError> {
+pub fn encode<T: Document>(document: &T) -> Result<Value, SchemaError> {
     let mut value = serde_json::to_value(document).map_err(|source| SchemaError::Invalid {
         document: T::NAME,
         version: T::VERSION,
@@ -147,7 +131,7 @@ pub(crate) fn encode<T: Document>(document: &T) -> Result<Value, SchemaError> {
 /// build — is renamed aside rather than treated as absent, because the caller's
 /// next write would otherwise land on top of it. The quarantine is recorded as a
 /// [`notices`] warning so somebody other than the log finds out.
-pub(crate) fn load<T: Document>(path: &Path) -> Option<T> {
+pub fn load<T: Document>(path: &Path) -> Option<T> {
     let text = match std::fs::read_to_string(path) {
         Ok(text) => text,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
@@ -181,31 +165,35 @@ pub(crate) fn load<T: Document>(path: &Path) -> Option<T> {
 /// Write a document, stamped, through a temp file renamed into place — so a
 /// failure or a crash leaves the previous version intact rather than a
 /// half-written one.
-pub(crate) fn save<T: Document>(path: &Path, document: &T) -> anyhow::Result<()> {
-    write(path, document, common::atomic::write)
+pub fn save<T: Document>(path: &Path, document: &T) -> Result<(), SchemaError> {
+    write(path, document, crate::atomic::write)
 }
 
 /// [`save`], owner-only where permissions exist. For anything holding a token.
-pub(crate) fn save_private<T: Document>(path: &Path, document: &T) -> anyhow::Result<()> {
-    write(path, document, common::atomic::write_private)
+pub fn save_private<T: Document>(path: &Path, document: &T) -> Result<(), SchemaError> {
+    write(path, document, crate::atomic::write_private)
 }
 
 fn write<T: Document>(
     path: &Path,
     document: &T,
     commit: fn(&Path, &[u8]) -> std::io::Result<()>,
-) -> anyhow::Result<()> {
-    use anyhow::Context;
-
+) -> Result<(), SchemaError> {
+    let failed = |source| SchemaError::Write {
+        document: T::NAME,
+        path: path.to_path_buf(),
+        source,
+    };
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("cannot create {}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(failed)?;
     }
     let value = encode(document)?;
-    let text = serde_json::to_string_pretty(&value).context("the document serializes")?;
-
-    commit(path, format!("{text}\n").as_bytes())
-        .with_context(|| format!("cannot write {} at {}", T::NAME, path.display()))
+    let text = serde_json::to_string_pretty(&value).map_err(|source| SchemaError::Invalid {
+        document: T::NAME,
+        version: T::VERSION,
+        source,
+    })?;
+    commit(path, format!("{text}\n").as_bytes()).map_err(failed)
 }
 
 fn stamp<T: Document>(value: &Value) -> Result<u32, SchemaError> {
@@ -234,7 +222,7 @@ fn set_aside<T: Document>(path: &Path, error: SchemaError) -> Option<T> {
                 kept = %destination.display(),
                 "{error}; it was set aside and this build is starting from defaults"
             );
-            notices::record(proto::warning::WarningInfo::DocumentQuarantined {
+            notices::record(notices::Quarantine {
                 document: T::NAME.to_string(),
                 path: destination.display().to_string(),
                 detail: error.to_string(),
@@ -245,7 +233,7 @@ fn set_aside<T: Document>(path: &Path, error: SchemaError) -> Option<T> {
                 path = %path.display(),
                 "{error}; it could not be set aside either ({e})"
             );
-            notices::record(proto::warning::WarningInfo::DocumentQuarantined {
+            notices::record(notices::Quarantine {
                 document: T::NAME.to_string(),
                 path: path.display().to_string(),
                 detail: error.to_string(),
@@ -265,7 +253,7 @@ fn aside_named(path: &Path, tag: &str) -> PathBuf {
 /// quarantines of the same file within a second must not overwrite each other,
 /// which would defeat the point of keeping them.
 fn aside_path(path: &Path) -> PathBuf {
-    let stamp = common::utc_stamp(common::now_unix());
+    let stamp = crate::utc_stamp(crate::now_unix());
     let first = aside_named(path, &format!("{ASIDE}-{stamp}"));
     if !first.exists() {
         return first;
@@ -388,10 +376,7 @@ mod tests {
 
         let mine: Vec<_> = notices::since(mark)
             .into_iter()
-            .filter(|w| {
-                matches!(w, proto::warning::WarningInfo::DocumentQuarantined { path, .. }
-                if path.starts_with(&dir.path().display().to_string()))
-            })
+            .filter(|q| q.path.starts_with(&dir.path().display().to_string()))
             .collect();
         assert_eq!(mine.len(), 1, "got {mine:?}");
     }

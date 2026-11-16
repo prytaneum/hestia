@@ -19,7 +19,14 @@
 
 use std::sync::{Mutex, OnceLock};
 
-use proto::warning::WarningInfo;
+/// A document set aside because this build could not read it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Quarantine {
+    pub document: String,
+    /// Where it was set aside to, or where it still is if the rename failed.
+    pub path: String,
+    pub detail: String,
+}
 
 /// How many are kept. A data home full of unreadable files must not grow this
 /// without bound; the oldest are dropped, and the log still has all of them.
@@ -32,7 +39,7 @@ pub struct Mark(u64);
 
 struct Sink {
     next: u64,
-    entries: Vec<(u64, WarningInfo)>,
+    entries: Vec<(u64, Quarantine)>,
 }
 
 fn sink() -> &'static Mutex<Sink> {
@@ -45,11 +52,11 @@ fn sink() -> &'static Mutex<Sink> {
     })
 }
 
-pub(crate) fn record(warning: WarningInfo) {
+pub fn record(quarantine: Quarantine) {
     let mut sink = sink().lock().unwrap();
     let seq = sink.next;
     sink.next += 1;
-    sink.entries.push((seq, warning));
+    sink.entries.push((seq, quarantine));
     if sink.entries.len() > LIMIT {
         sink.entries.remove(0);
     }
@@ -61,24 +68,24 @@ pub fn mark() -> Mark {
 }
 
 /// Everything recorded since `mark` — what one operation produced.
-pub fn since(mark: Mark) -> Vec<WarningInfo> {
+pub fn since(mark: Mark) -> Vec<Quarantine> {
     sink()
         .lock()
         .unwrap()
         .entries
         .iter()
         .filter(|(seq, _)| *seq >= mark.0)
-        .map(|(_, warning)| warning.clone())
+        .map(|(_, quarantine)| quarantine.clone())
         .collect()
 }
 
 /// Everything this daemon has quarantined since it started.
-pub fn all() -> Vec<WarningInfo> {
+pub fn all() -> Vec<Quarantine> {
     sink()
         .lock()
         .unwrap()
         .entries
         .iter()
-        .map(|(_, warning)| warning.clone())
+        .map(|(_, quarantine)| quarantine.clone())
         .collect()
 }
