@@ -33,6 +33,15 @@ pub struct Settings {
     /// Whether the launcher may reach the network at all.
     pub network: NetworkSettings,
     pub java: JavaProviderSettings,
+    pub plugins: PluginSettings,
+}
+
+/// Plugin trust, keyed `plugins.developer`. Developer mode lets a plugin be
+/// installed from a directory, which no repository signature vouches for.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginSettings {
+    pub developer: bool,
 }
 
 /// The Java distribution runtimes are installed from, keyed `java.provider`:

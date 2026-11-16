@@ -376,12 +376,19 @@ async fn an_installed_plugin_survives_restarts_and_removal_takes_its_cache() {
     package(&pkg, "grant-keep", guest("hello"), "");
     let approved = registry.inspect(&pkg).await.unwrap().approval_digest;
     assert!(matches!(
-        registry.install(&pkg, "stale").await,
+        registry.install(&pkg, "stale", true).await,
         Err(PluginError::Changed(_))
     ));
+    assert!(
+        matches!(
+            registry.install(&pkg, &approved, false).await,
+            Err(PluginError::DeveloperMode)
+        ),
+        "a directory installs only in developer mode"
+    );
     let (first, second) = tokio::join!(
-        registry.install(&pkg, &approved),
-        registry.install(&pkg, &approved)
+        registry.install(&pkg, &approved, true),
+        registry.install(&pkg, &approved, true)
     );
     let installed: Vec<_> = [first, second].into_iter().filter_map(Result::ok).collect();
     assert_eq!(installed.len(), 1, "one of two racing installs wins");
@@ -392,7 +399,7 @@ async fn an_installed_plugin_survives_restarts_and_removal_takes_its_cache() {
     package(&pkg, "core", guest("hello"), "");
     let digest = registry.inspect(&pkg).await.unwrap().approval_digest;
     assert!(matches!(
-        registry.install(&pkg, &digest).await,
+        registry.install(&pkg, &digest, true).await,
         Err(PluginError::Exists(_))
     ));
     assert!(matches!(
@@ -465,7 +472,7 @@ async fn a_secret_is_stored_only_for_a_plugin_that_asks_for_it() {
         std::fs::write(data.join("mode"), "free").unwrap();
         let inspection = registry.inspect(&pkg).await.unwrap();
         registry
-            .install(&pkg, &inspection.approval_digest)
+            .install(&pkg, &inspection.approval_digest, true)
             .await
             .unwrap();
     }
@@ -490,7 +497,7 @@ async fn a_plugin_that_reaches_its_trap_limit_is_disabled_for_good() {
 
     package(&pkg, "grant-trap", guest("trap"), "");
     let approved = registry.inspect(&pkg).await.unwrap().approval_digest;
-    let installed = registry.install(&pkg, &approved).await.unwrap();
+    let installed = registry.install(&pkg, &approved, true).await.unwrap();
     assert_eq!(installed.state, PluginState::Failed);
     assert!(matches!(
         registry.enable("grant-trap").await,
@@ -544,7 +551,7 @@ async fn a_plugin_reaches_only_what_it_was_granted_and_a_moved_program_loses_its
     );
     assert!(inspection.grant.requires.is_empty());
     let installed = registry
-        .install(&pkg, &inspection.approval_digest)
+        .install(&pkg, &inspection.approval_digest, true)
         .await
         .unwrap();
     assert_eq!(
@@ -601,7 +608,7 @@ async fn a_wasi_http_plugin_installs_without_requiring_a_package() {
     let inspection = registry.inspect(&pkg).await.unwrap();
     assert!(inspection.grant.requires.is_empty());
     let installed = registry
-        .install(&pkg, &inspection.approval_digest)
+        .install(&pkg, &inspection.approval_digest, true)
         .await
         .unwrap();
     assert_eq!(installed.state, PluginState::Enabled);

@@ -284,6 +284,49 @@ pub fn approval_digest(id: &str, manifest: &[u8], wasm: &[u8], grant: &Grant) ->
         .collect()
 }
 
+/// Whether `new` asks for anything `old` did not: a permission, a scope entry
+/// (a host, an endpoint, a host served without checksum, or a program whose
+/// path, arguments or digest pin differ) or a required package. Dropping or narrowing never widens.
+pub fn widens(old: &Grant, new: &Grant) -> bool {
+    let asked = |grant: &'_ Grant, permission: &str| {
+        grant
+            .permissions
+            .iter()
+            .find(|granted| granted.permission == permission)
+            .map(|granted| granted.scope.clone())
+    };
+    let more_packages = new
+        .requires
+        .iter()
+        .any(|package| !old.requires.contains(package));
+    more_packages
+        || new
+            .permissions
+            .iter()
+            .any(|granted| match asked(old, &granted.permission) {
+                None => true,
+                Some(before) => match (&granted.scope, before) {
+                    (None, _) => false,
+                    (Some(_), None) => true,
+                    (Some(now), Some(before)) => {
+                        now.kind != before.kind
+                            || now
+                                .values
+                                .iter()
+                                .any(|value| !before.values.contains(value))
+                            || now
+                                .unhashed
+                                .iter()
+                                .any(|host| !before.unhashed.contains(host))
+                            || now
+                                .programs
+                                .iter()
+                                .any(|program| !before.programs.contains(program))
+                    }
+                },
+            })
+}
+
 /// Each import that needs a permission the grant lacks, to that permission.
 pub fn denials(table: &Table, shape: &Shape, granted: &[&str]) -> Denials {
     shape
@@ -572,5 +615,81 @@ mod tests {
         for (mut grant, case) in refused {
             assert!(pin(&mut grant, &reserved).is_err(), "{case}");
         }
+    }
+
+    #[test]
+    fn anything_the_user_would_approve_again_widens_a_grant() {
+        use proto::plugin::{GrantedPermission, PermissionScope, Program};
+
+        let program = |args: &[&str], sha256: &str| Program {
+            path: "/usr/bin/tool".into(),
+            args: args.iter().map(|arg| arg.to_string()).collect(),
+            sha256: sha256.into(),
+        };
+        let grant = |kind, values: &[&str], unhashed: &[&str], programs: Vec<Program>| Grant {
+            permissions: vec![GrantedPermission {
+                permission: "p".into(),
+                scope: Some(PermissionScope {
+                    kind,
+                    values: values.iter().map(|value| value.to_string()).collect(),
+                    unhashed: unhashed.iter().map(|host| host.to_string()).collect(),
+                    programs,
+                }),
+                ..GrantedPermission::default()
+            }],
+            ..Grant::default()
+        };
+        let before = grant(
+            ScopeKind::Hosts,
+            &["a.example"],
+            &[],
+            vec![program(&[], "aa")],
+        );
+        let widened = [
+            (
+                grant(
+                    ScopeKind::Hosts,
+                    &["a.example", "b.example"],
+                    &[],
+                    vec![program(&[], "aa")],
+                ),
+                "a new host or endpoint",
+            ),
+            (
+                grant(
+                    ScopeKind::Hosts,
+                    &["a.example"],
+                    &["a.example"],
+                    vec![program(&[], "aa")],
+                ),
+                "a host that may now serve unchecked files",
+            ),
+            (
+                grant(
+                    ScopeKind::Hosts,
+                    &["a.example"],
+                    &[],
+                    vec![program(&[], "bb")],
+                ),
+                "a program with another digest",
+            ),
+            (
+                grant(
+                    ScopeKind::Hosts,
+                    &["a.example"],
+                    &[],
+                    vec![program(&["-x"], "aa")],
+                ),
+                "a program with other arguments",
+            ),
+        ];
+        for (new, case) in widened {
+            assert!(widens(&before, &new), "{case}");
+        }
+        assert!(!widens(&before, &before.clone()));
+        assert!(!widens(
+            &before,
+            &grant(ScopeKind::Hosts, &[], &[], Vec::new())
+        ));
     }
 }

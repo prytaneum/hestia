@@ -12,6 +12,18 @@ pub enum PluginKind {
     Wasm,
 }
 
+/// How a plugin got here: with Hestia, from a directory in developer mode, or
+/// from a repository whose signed index vouched for it.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum PluginSource {
+    #[default]
+    Builtin,
+    Dev,
+    Repository,
+}
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
@@ -29,6 +41,7 @@ pub struct PluginInfo {
     pub id: String,
     pub name: String,
     pub kind: PluginKind,
+    pub source: PluginSource,
     pub version: String,
     pub state: PluginState,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -772,6 +772,11 @@ pub enum ErrorInfo {
     JobCancelled {
         channel: String,
     },
+    /// A repository, its signed index or a package of it was refused; `detail`
+    /// is the English reason.
+    PluginUntrusted {
+        detail: String,
+    },
 
     // --- protocol ---
     UnknownChannel {
@@ -1120,6 +1125,7 @@ impl fmt::Display for ErrorInfo {
                 write!(f, "plugin '{plugin}' failed to start: {detail}")
             }
             PluginInvalid { detail } => write!(f, "cannot install the plugin: {detail}"),
+            PluginUntrusted { detail } => write!(f, "plugin not trusted: {detail}"),
             PluginExists { plugin } => write!(f, "plugin '{plugin}' is already installed"),
             PluginChanged { plugin } => {
                 write!(f, "plugin '{plugin}' changed since it was approved")

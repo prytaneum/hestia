@@ -63,4 +63,86 @@ impl Plugin<'_> {
             .await
             .map(|_| ())
     }
+
+    pub async fn repositories(&self) -> Result<Vec<proto::plugin::RepositoryInfo>, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginRepoList>(&proto::Empty {})
+            .await
+    }
+
+    pub async fn add_repository(
+        &self,
+        id: &str,
+        url: &str,
+        key: &str,
+    ) -> Result<proto::plugin::RepositoryInfo, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginRepoAdd>(&proto::plugin::PluginRepoAddParams {
+                id: id.into(),
+                url: url.into(),
+                key: key.into(),
+            })
+            .await
+    }
+
+    pub async fn remove_repository(&self, id: &str) -> Result<(), IpcError> {
+        self.session
+            .call::<proto::plugin::PluginRepoRemove>(&proto::plugin::PluginTarget { id: id.into() })
+            .await
+            .map(|_| ())
+    }
+
+    pub async fn inspect_release(
+        &self,
+        release: &proto::plugin::PluginReleaseParams,
+    ) -> Result<proto::plugin::Inspection, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginInspectRelease>(release)
+            .await
+    }
+
+    pub async fn install_release(
+        &self,
+        release: proto::plugin::PluginReleaseParams,
+        approval_digest: &str,
+    ) -> Result<proto::plugin::PluginInfo, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginInstallRelease>(
+                &proto::plugin::PluginInstallReleaseParams {
+                    release,
+                    approval_digest: approval_digest.into(),
+                },
+            )
+            .await
+    }
+
+    pub async fn updates(&self) -> Result<proto::plugin::PluginUpdatesResult, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginUpdates>(&proto::Empty {})
+            .await
+    }
+
+    pub async fn inspect_update(
+        &self,
+        id: &str,
+    ) -> Result<proto::plugin::UpdateInspection, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginUpdateInspect>(&proto::plugin::PluginTarget {
+                id: id.into(),
+            })
+            .await
+    }
+
+    pub async fn update(
+        &self,
+        id: &str,
+        approval_digest: &str,
+    ) -> Result<proto::plugin::PluginInfo, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginUpdateApply>(&proto::plugin::PluginUpdateApplyParams {
+                id: id.into(),
+                approval_digest: approval_digest.into(),
+            })
+            .await
+    }
 }

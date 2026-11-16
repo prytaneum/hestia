@@ -2,7 +2,9 @@
 
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
-use proto::plugin::{Inspection, PermissionScope, PluginState, Tier};
+use proto::plugin::{
+    Inspection, PermissionScope, PluginReleaseParams, PluginSource, PluginState, Tier,
+};
 
 use crate::ui::{self, View};
 
@@ -14,12 +16,38 @@ pub enum PluginCmd {
     Enable { id: String },
     /// Disable a plugin; refused while another enabled plugin requires it
     Disable { id: String },
-    /// Install a plugin from a directory holding plugin.toml and plugin.wasm
+    /// Install a plugin from a directory holding plugin.toml and plugin.wasm;
+    /// needs `plugins.developer`
     Add {
         path: String,
         /// Approve what it asks for without prompting
         #[arg(long)]
         yes: bool,
+    },
+    /// Install a plugin from a repository you added
+    Get {
+        repository: String,
+        id: String,
+        /// A version other than the newest
+        #[arg(long)]
+        version: Option<String>,
+        /// Approve what it asks for without prompting
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Check every repository for newer versions of what is installed
+    Updates,
+    /// Update a plugin; one that asks for more than you approved shows it first
+    Update {
+        id: String,
+        /// Approve a widened update without prompting
+        #[arg(long)]
+        yes: bool,
+    },
+    /// The repositories plugins come from
+    Repo {
+        #[command(subcommand)]
+        cmd: RepoCmd,
     },
     /// Delete an installed plugin
     Remove { id: String },
@@ -28,6 +56,23 @@ pub enum PluginCmd {
         #[command(subcommand)]
         cmd: SecretCmd,
     },
+}
+
+#[derive(Subcommand)]
+pub enum RepoCmd {
+    /// Every repository and the key pinned for it
+    List,
+    /// Add a repository; its index must verify under the key you give
+    Add {
+        id: String,
+        /// Where the signed index is; its signature is the same URL plus `.minisig`
+        url: String,
+        /// The minisign public key the repository signs with
+        #[arg(long)]
+        key: String,
+    },
+    /// Forget a repository; what it installed stays but no longer updates
+    Remove { id: String },
 }
 
 #[derive(Subcommand)]
@@ -77,6 +122,14 @@ fn scope_text(scope: &PermissionScope) -> String {
     hosts.chain(programs).collect::<Vec<_>>().join(", ")
 }
 
+fn source_name(source: PluginSource) -> &'static str {
+    match source {
+        PluginSource::Builtin => "built in",
+        PluginSource::Dev => "dev",
+        PluginSource::Repository => "repository",
+    }
+}
+
 fn show_grant(inspection: &Inspection) -> Result<()> {
     ui::show(View::detail([
         ("Plugin", format!("{} ({})", inspection.name, inspection.id)),
@@ -118,6 +171,16 @@ fn show_grant(inspection: &Inspection) -> Result<()> {
     Ok(())
 }
 
+fn approve(question: &str, yes: bool) -> Result<()> {
+    if !yes
+        && !ui::confirm(question, "approve", "cancel")
+            .context("pass --yes to approve without a prompt")?
+    {
+        bail!("cancelled");
+    }
+    Ok(())
+}
+
 pub async fn run(cmd: PluginCmd) -> Result<()> {
     let client = super::connect().await?;
     match cmd {
@@ -134,13 +197,14 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                         p.name,
                         p.version,
                         state_name(p.state).to_string(),
+                        source_name(p.source).to_string(),
                         p.requires.join(", "),
                     ]
                 })
                 .collect();
             ui::show(View::table(
                 "plugins",
-                ["ID", "NAME", "VERSION", "STATE", "REQUIRES"],
+                ["ID", "NAME", "VERSION", "STATE", "SOURCE", "REQUIRES"],
                 rows,
             ))?;
         }
@@ -159,12 +223,7 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                 .into_owned();
             let inspection = client.plugin().inspect(&path).await?;
             show_grant(&inspection)?;
-            if !yes
-                && !ui::confirm("Install it with these permissions?", "install", "cancel")
-                    .context("pass --yes to approve without a prompt")?
-            {
-                bail!("cancelled");
-            }
+            approve("Install it with these permissions?", yes)?;
             let plugin = client
                 .plugin()
                 .install(&path, &inspection.approval_digest)
@@ -175,6 +234,97 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                 state_name(plugin.state)
             )))?;
         }
+        PluginCmd::Get {
+            repository,
+            id,
+            version,
+            yes,
+        } => {
+            let release = PluginReleaseParams {
+                repository,
+                id,
+                version,
+            };
+            let inspection = client.plugin().inspect_release(&release).await?;
+            show_grant(&inspection)?;
+            approve("Install it with these permissions?", yes)?;
+            let plugin = client
+                .plugin()
+                .install_release(release, &inspection.approval_digest)
+                .await?;
+            ui::show(View::line(format!(
+                "installed {} {} ({})",
+                plugin.id,
+                plugin.version,
+                state_name(plugin.state)
+            )))?;
+        }
+        PluginCmd::Updates => {
+            let found = client.plugin().updates().await?;
+            for failure in &found.failed {
+                ui::show(View::note(format!(
+                    "{}: not checked: {}",
+                    failure.repository, failure.detail
+                )))?;
+            }
+            if found.updates.is_empty() {
+                return ui::show(View::note("every plugin is up to date"));
+            }
+            let rows = found
+                .updates
+                .into_iter()
+                .map(|u| vec![u.id, u.repository, u.installed, u.available])
+                .collect();
+            ui::show(View::table(
+                "updates",
+                ["ID", "REPOSITORY", "INSTALLED", "AVAILABLE"],
+                rows,
+            ))?;
+        }
+        PluginCmd::Update { id, yes } => {
+            let update = client.plugin().inspect_update(&id).await?;
+            if update.widened {
+                ui::show(View::note(format!(
+                    "{} {} asks for more than you approved for {}",
+                    id, update.inspection.version, update.installed
+                )))?;
+                show_grant(&update.inspection)?;
+                approve("Update with these permissions?", yes)?;
+            }
+            let plugin = client
+                .plugin()
+                .update(&id, &update.inspection.approval_digest)
+                .await?;
+            ui::show(View::line(format!(
+                "updated {} to {} ({})",
+                plugin.id,
+                plugin.version,
+                state_name(plugin.state)
+            )))?;
+        }
+        PluginCmd::Repo { cmd } => match cmd {
+            RepoCmd::List => {
+                let rows = client
+                    .plugin()
+                    .repositories()
+                    .await?
+                    .into_iter()
+                    .map(|r| vec![r.id, r.url, r.signer])
+                    .collect();
+                ui::show(View::table("repositories", ["ID", "URL", "SIGNER"], rows))?;
+            }
+            RepoCmd::Add { id, url, key } => {
+                let repository = client.plugin().add_repository(&id, &url, &key).await?;
+                ui::show(View::line(format!(
+                    "added {} (signer {})",
+                    repository.id, repository.signer
+                )))?;
+            }
+            RepoCmd::Remove { id } => {
+                client.plugin().remove_repository(&id).await?;
+                ui::show(View::line(format!("removed {id}")))?;
+            }
+        },
         PluginCmd::Remove { id } => {
             client.plugin().remove(&id).await?;
             ui::show(View::line(format!("removed {id}")))?;

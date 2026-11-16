@@ -62,12 +62,12 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
 
     plugins.disable("probe").await.unwrap();
     assert!(matches!(
-        plugins.install(&pkg, &inspection.approval_digest).await,
+        plugins.install(&pkg, &inspection.approval_digest, true).await,
         Err(PluginError::Package(PackageError::Unprovided(package))) if package == "hestia:probe"
     ));
     plugins.enable("probe").await.unwrap();
     let installed = plugins
-        .install(&pkg, &inspection.approval_digest)
+        .install(&pkg, &inspection.approval_digest, true)
         .await
         .unwrap();
     assert_eq!(installed.state, PluginState::Enabled);

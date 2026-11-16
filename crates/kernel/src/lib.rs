@@ -10,6 +10,7 @@ mod install;
 mod manifest;
 mod registry;
 mod runtime;
+mod trust;
 pub mod vetting;
 
 #[cfg(feature = "probe")]
@@ -25,3 +26,4 @@ pub use runtime::{
     Answer, Denials, GuestError, Limits, Loaded, NoticeLevel, Opened, Sandbox, SandboxError,
     Services, Shape, ShapeError,
 };
+pub use trust::TrustError;

@@ -3,6 +3,7 @@ use proto::error::{ErrorInfo, IoOp};
 use crate::grant::GrantError;
 use crate::manifest::ManifestError;
 use crate::runtime::{SandboxError, ShapeError};
+use crate::trust::TrustError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PluginError {
@@ -26,6 +27,20 @@ pub enum PluginError {
     Exists(String),
     #[error("plugin '{0}' changed since it was approved")]
     Changed(String),
+    #[error("installing from a directory needs developer mode: `hestia config set plugins.developer true`")]
+    DeveloperMode,
+    #[error(transparent)]
+    Trust(#[from] TrustError),
+    #[error("no repository '{0}'")]
+    UnknownRepository(String),
+    #[error("repository '{0}' is already added")]
+    RepositoryExists(String),
+    #[error("repository '{repository}' lists no release of '{id}'")]
+    NoRelease { repository: String, id: String },
+    #[error("plugin '{0}' was not installed from a repository")]
+    NotFromRepository(String),
+    #[error("plugin '{0}' is up to date")]
+    UpToDate(String),
     #[error("plugin '{0}' is built in and cannot be removed")]
     Builtin(String),
     #[error("cannot store the secret: {0}")]
@@ -93,6 +108,18 @@ impl From<PluginError> for ErrorInfo {
             PluginError::Changed(plugin) => ErrorInfo::PluginChanged { plugin },
             PluginError::Builtin(plugin) => ErrorInfo::PluginBuiltin { plugin },
             PluginError::Io { operation, detail } => ErrorInfo::Io { operation, detail },
+            PluginError::Trust(TrustError::Fetch(detail)) => ErrorInfo::DownloadFailed { detail },
+            PluginError::Trust(reason) => ErrorInfo::PluginUntrusted {
+                detail: reason.to_string(),
+            },
+            reason @ (PluginError::DeveloperMode
+            | PluginError::UnknownRepository(_)
+            | PluginError::RepositoryExists(_)
+            | PluginError::NoRelease { .. }
+            | PluginError::NotFromRepository(_)
+            | PluginError::UpToDate(_)) => ErrorInfo::PluginInvalid {
+                detail: reason.to_string(),
+            },
             PluginError::Secret(detail) => ErrorInfo::MalformedRequest { detail },
             other => ErrorInfo::Internal {
                 detail: other.to_string(),

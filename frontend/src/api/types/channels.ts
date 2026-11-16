@@ -122,13 +122,18 @@ import type { PingResult } from "./generated/PingResult";
 import type { PluginAnswerParams } from "./generated/PluginAnswerParams";
 import type { PluginInfo } from "./generated/PluginInfo";
 import type { PluginInstallParams } from "./generated/PluginInstallParams";
+import type { PluginInstallReleaseParams } from "./generated/PluginInstallReleaseParams";
 import type { PluginLink } from "./generated/PluginLink";
 import type { PluginNotice } from "./generated/PluginNotice";
 import type { PluginPackage } from "./generated/PluginPackage";
 import type { PluginQuestion } from "./generated/PluginQuestion";
 import type { PluginQuestionClosed } from "./generated/PluginQuestionClosed";
+import type { PluginReleaseParams } from "./generated/PluginReleaseParams";
+import type { PluginRepoAddParams } from "./generated/PluginRepoAddParams";
 import type { PluginSecretParams } from "./generated/PluginSecretParams";
 import type { PluginTarget } from "./generated/PluginTarget";
+import type { PluginUpdateApplyParams } from "./generated/PluginUpdateApplyParams";
+import type { PluginUpdatesResult } from "./generated/PluginUpdatesResult";
 import type { ProcessExitEvent } from "./generated/ProcessExitEvent";
 import type { ProcessInfo } from "./generated/ProcessInfo";
 import type { ProcessLogLine } from "./generated/ProcessLogLine";
@@ -142,6 +147,7 @@ import type { ProcessStartedEvent } from "./generated/ProcessStartedEvent";
 import type { ProjectParams } from "./generated/ProjectParams";
 import type { ProvisionProgress } from "./generated/ProvisionProgress";
 import type { RecentPlay } from "./generated/RecentPlay";
+import type { RepositoryInfo } from "./generated/RepositoryInfo";
 import type { ResolveUrlParams } from "./generated/ResolveUrlParams";
 import type { ResolvedUrl } from "./generated/ResolvedUrl";
 import type { ScreenshotDeleteParams } from "./generated/ScreenshotDeleteParams";
@@ -197,6 +203,7 @@ import type { SyncPackSetParams } from "./generated/SyncPackSetParams";
 import type { SyncPacksResult } from "./generated/SyncPacksResult";
 import type { SyncSource } from "./generated/SyncSource";
 import type { SyncSourcesParams } from "./generated/SyncSourcesParams";
+import type { UpdateInspection } from "./generated/UpdateInspection";
 import type { VersionQuery } from "./generated/VersionQuery";
 import type { WorldInfo } from "./generated/WorldInfo";
 import type { JobEvent } from "./generated/JobEvent";
@@ -287,8 +294,16 @@ export interface Channels {
   "plugin.inspect": { params: Partial<PluginPackage>; result: Inspection };
   "plugin.install": { params: Partial<PluginInstallParams>; result: PluginInfo };
   "plugin.list": { params: Empty; result: Array<PluginInfo> };
+  "plugin.release.inspect": { params: Partial<PluginReleaseParams>; result: Inspection };
+  "plugin.release.install": { params: Omit<Partial<PluginInstallReleaseParams>, "release"> & { "release"?: Partial<PluginReleaseParams> }; result: PluginInfo };
   "plugin.remove": { params: Partial<PluginTarget>; result: Empty };
+  "plugin.repo.add": { params: Partial<PluginRepoAddParams>; result: RepositoryInfo };
+  "plugin.repo.list": { params: Empty; result: Array<RepositoryInfo> };
+  "plugin.repo.remove": { params: Partial<PluginTarget>; result: Empty };
   "plugin.secret.set": { params: Partial<PluginSecretParams>; result: Empty };
+  "plugin.update": { params: Partial<PluginUpdateApplyParams>; result: PluginInfo };
+  "plugin.update.inspect": { params: Partial<PluginTarget>; result: UpdateInspection };
+  "plugin.updates": { params: Empty; result: PluginUpdatesResult };
   "process.list": { params: Empty; result: Array<ProcessInfo> };
   "process.logs": { params: Partial<ProcessLogsParams>; result: Array<ProcessLogLine> };
   "process.start": { params: Partial<ProcessSpec>; result: ProcessStartResult };
@@ -400,6 +415,12 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "modpack.preview_update": 120000,
   "plugin.inspect": 60000,
   "plugin.install": 60000,
+  "plugin.release.inspect": 300000,
+  "plugin.release.install": 300000,
+  "plugin.repo.add": 60000,
+  "plugin.update": 300000,
+  "plugin.update.inspect": 300000,
+  "plugin.updates": 300000,
   "server.files.compress": 600000,
   "server.files.copy": 600000,
   "server.files.extract": 600000,

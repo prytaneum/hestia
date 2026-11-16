@@ -1,11 +1,12 @@
 //! Installed packages on disk: `<data_home>/plugins/<id>/` holds `plugin.toml`,
-//! `plugin.wasm` and the digest the user approved.
+//! `plugin.wasm` and the record of what the user approved and where it came from.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use common::schema::{self, Document};
 use proto::error::IoOp;
+use proto::plugin::{Grant, PluginSource};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{PackageError, PluginError};
@@ -14,9 +15,10 @@ use crate::runtime::Shape;
 
 const MANIFEST: &str = "plugin.toml";
 const COMPONENT: &str = "plugin.wasm";
-const MANIFEST_MAX: u64 = 64 << 10;
-const COMPONENT_MAX: u64 = 64 << 20;
+pub(crate) const MANIFEST_MAX: u64 = 64 << 10;
+pub(crate) const COMPONENT_MAX: u64 = 64 << 20;
 const STAGING: &str = ".staging";
+const PREVIOUS: &str = ".previous";
 
 /// A package read from a directory; nothing of it has run or been compiled.
 pub(crate) struct Package {
@@ -28,10 +30,15 @@ pub(crate) struct Package {
 
 impl Package {
     pub fn read(dir: &Path) -> Result<Self, PackageError> {
-        let manifest_bytes = read_bounded(&dir.join(MANIFEST), MANIFEST_MAX)?;
+        Package::new(
+            read_bounded(&dir.join(MANIFEST), MANIFEST_MAX)?,
+            read_bounded(&dir.join(COMPONENT), COMPONENT_MAX)?,
+        )
+    }
+
+    pub fn new(manifest_bytes: Vec<u8>, wasm: Vec<u8>) -> Result<Self, PackageError> {
         let text = std::str::from_utf8(&manifest_bytes).map_err(|_| PackageError::NotUtf8)?;
         let manifest = Manifest::parse(text)?;
-        let wasm = read_bounded(&dir.join(COMPONENT), COMPONENT_MAX)?;
         let shape = Shape::read(&wasm)?;
         Ok(Package {
             manifest,
@@ -73,10 +80,37 @@ fn read_bounded(path: &Path, max: u64) -> Result<Vec<u8>, PackageError> {
     Ok(bytes)
 }
 
-#[derive(Serialize, Deserialize, Default)]
+/// Where an installed package came from. A repository install is held to the
+/// key that signed it for every update.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub(crate) enum Source {
+    #[default]
+    Dev,
+    Repository {
+        repository: String,
+        signer: String,
+    },
+}
+
+impl Source {
+    pub fn public(&self) -> PluginSource {
+        match self {
+            Source::Dev => PluginSource::Dev,
+            Source::Repository { .. } => PluginSource::Repository,
+        }
+    }
+}
+
+/// What the user approved: the digest, the grant it covered (what an update is
+/// compared with), where the package came from, and why it was revoked, if so.
+#[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(default, rename_all = "camelCase")]
-struct Approval {
-    digest: String,
+pub(crate) struct Approval {
+    pub digest: String,
+    pub grant: Grant,
+    pub source: Source,
+    pub revoked: Option<String>,
 }
 
 impl Document for Approval {
@@ -125,6 +159,16 @@ impl Store {
                 }
                 continue;
             }
+            if let Some(id) = name.strip_suffix(PREVIOUS) {
+                tracing::warn!(
+                    plugin = id,
+                    "an update never finished; restoring the version it replaced"
+                );
+                if let Err(error) = self.rollback(id) {
+                    tracing::warn!(plugin = id, %error, "cannot restore the previous version");
+                }
+                continue;
+            }
             if crate::id::is_valid(&name) {
                 ids.push(name);
             }
@@ -133,13 +177,51 @@ impl Store {
         ids
     }
 
-    pub fn approved(&self, id: &str) -> Option<String> {
-        schema::load::<Approval>(&self.dir(id).join(Approval::NAME)).map(|a| a.digest)
+    pub fn record(&self, id: &str) -> Option<Approval> {
+        schema::load::<Approval>(&self.dir(id).join(Approval::NAME))
     }
 
     /// Staged beside the final directory and renamed into place, so a crash
     /// leaves no half-installed plugin. The caller serialises installs.
-    pub fn save(&self, package: &Package, digest: &str) -> Result<(), PluginError> {
+    pub fn save(&self, package: &Package, record: &Approval) -> Result<(), PluginError> {
+        let staging = self.stage(package, record)?;
+        std::fs::rename(&staging, self.dir(&package.manifest.id))
+            .map_err(|e| PluginError::io(IoOp::Move, e))
+    }
+
+    /// Puts `package` in place of the installed version, which waits beside it
+    /// until [`Store::commit`] or [`Store::rollback`].
+    pub fn swap(&self, package: &Package, record: &Approval) -> Result<(), PluginError> {
+        let id = &package.manifest.id;
+        let (current, previous) = (self.dir(id), self.root.join(format!("{id}{PREVIOUS}")));
+        let staging = self.stage(package, record)?;
+        let _ = std::fs::remove_dir_all(&previous);
+        std::fs::rename(&current, &previous).map_err(|e| PluginError::io(IoOp::Move, e))?;
+        std::fs::rename(&staging, &current).map_err(|error| {
+            let _ = std::fs::rename(&previous, &current);
+            PluginError::io(IoOp::Move, error)
+        })
+    }
+
+    pub fn commit(&self, id: &str) {
+        let _ = std::fs::remove_dir_all(self.root.join(format!("{id}{PREVIOUS}")));
+    }
+
+    /// Brings back the version a [`Store::swap`] set aside.
+    pub fn rollback(&self, id: &str) -> Result<(), PluginError> {
+        let previous = self.root.join(format!("{id}{PREVIOUS}"));
+        let _ = std::fs::remove_dir_all(self.dir(id));
+        std::fs::rename(&previous, self.dir(id)).map_err(|e| PluginError::io(IoOp::Move, e))
+    }
+
+    /// Marks the installed version revoked, which keeps it from ever starting.
+    pub fn revoke(&self, id: &str, reason: &str) -> Result<(), PluginError> {
+        let mut record = self.record(id).unwrap_or_default();
+        record.revoked = Some(reason.to_owned());
+        schema::save(&self.dir(id).join(Approval::NAME), &record).map_err(PluginError::Save)
+    }
+
+    fn stage(&self, package: &Package, record: &Approval) -> Result<PathBuf, PluginError> {
         let id = &package.manifest.id;
         let staging = self.root.join(format!("{id}{STAGING}"));
         let _ = std::fs::remove_dir_all(&staging);
@@ -149,14 +231,8 @@ impl Store {
         };
         write(MANIFEST, &package.manifest_bytes)?;
         write(COMPONENT, &package.wasm)?;
-        schema::save(
-            &staging.join(Approval::NAME),
-            &Approval {
-                digest: digest.to_owned(),
-            },
-        )
-        .map_err(PluginError::Save)?;
-        std::fs::rename(&staging, self.dir(id)).map_err(|e| PluginError::io(IoOp::Move, e))
+        schema::save(&staging.join(Approval::NAME), record).map_err(PluginError::Save)?;
+        Ok(staging)
     }
 
     pub fn remove(&self, id: &str) -> Result<(), PluginError> {

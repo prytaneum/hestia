@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use proto::plugin::{PluginInfo, PluginKind, PluginState};
+use proto::plugin::{PluginInfo, PluginKind, PluginSource, PluginState};
 use serde::{Deserialize, Serialize};
 
 use crate::builtin::{Builtin, Busy};
@@ -10,10 +10,12 @@ use crate::error::PluginError;
 use crate::grant::{Reserved, Table};
 use crate::install::{sandbox_root, Store};
 use crate::runtime::Sandbox;
+use crate::trust::{Repositories, Signer, OFFICIAL_KEYS};
 use common::schema::{self, Document};
 use guests::Guest;
 
 mod guests;
+mod releases;
 
 const FILE: &str = "plugins.json";
 
@@ -100,6 +102,8 @@ pub struct Plugins {
     table: Table,
     store: Store,
     reserved: Arc<Reserved>,
+    repositories: Repositories,
+    official: Vec<Signer>,
 }
 
 impl Plugins {
@@ -159,6 +163,11 @@ impl Plugins {
                 directories: vec![sandbox_root(data_home)],
                 ..Reserved::default()
             }),
+            repositories: Repositories::new(data_home),
+            official: OFFICIAL_KEYS
+                .iter()
+                .filter_map(|key| Signer::parse(key).ok())
+                .collect(),
         })
     }
 
@@ -170,6 +179,15 @@ impl Plugins {
         reserved.programs = programs;
         reserved.endpoints = endpoints;
         self
+    }
+
+    /// Replaces the keys that stand for Hestia, which no repository may pin.
+    pub fn with_official_keys(mut self, keys: &[&str]) -> Result<Self, PluginError> {
+        self.official = keys
+            .iter()
+            .map(|key| Signer::parse(key))
+            .collect::<Result<_, _>>()?;
+        Ok(self)
     }
 
     /// Every package's interfaces and permissions: the kernel's and those of
@@ -275,6 +293,7 @@ fn info(slot: &Slot) -> PluginInfo {
                 id: descriptor.id.to_string(),
                 name: descriptor.name.to_string(),
                 kind: PluginKind::Builtin,
+                source: PluginSource::Builtin,
                 version: common::app::VERSION.to_string(),
                 state: slot.state,
                 provides: descriptor.provides.map(str::to_string),
@@ -289,6 +308,7 @@ fn info(slot: &Slot) -> PluginInfo {
             id: guest.id.clone(),
             name: guest.name.clone(),
             kind: PluginKind::Wasm,
+            source: guest.source.public(),
             version: guest.version.clone(),
             state: slot.state,
             provides: None,
