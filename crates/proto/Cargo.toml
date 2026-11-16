@@ -25,7 +25,3 @@ default = ["suffix", "pattern"]
 suffix = ["dep:psl"]
 pattern = ["dep:regex"]
 ts = ["dep:ts-rs"]
-
-[[test]]
-name = "plugin_api"
-required-features = ["ts"]
