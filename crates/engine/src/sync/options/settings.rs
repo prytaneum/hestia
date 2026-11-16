@@ -4,6 +4,8 @@
 use super::keys;
 
 pub const MODERN: (u64, u64, u64) = (9999, 0, 0);
+/// The oldest spelling the catalogue knows, which a version from before 1.0 reads as.
+pub const OLDEST: (u64, u64, u64) = (1, 0, 0);
 
 const KEYBIND_PREFIX: &str = "key_";
 

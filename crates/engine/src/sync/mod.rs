@@ -721,6 +721,21 @@ mod tests {
         assert!(warnings
             .iter()
             .any(|warning| matches!(warning, WarningInfo::SyncUnitUnsupported { .. })));
+
+        let beta_dir = base.path().join("beta");
+        let beta = Pass {
+            game_version: "b1.7.3".to_string(),
+            ..pass("beta", &beta_dir)
+        };
+        let unsupported = sharing(&shared)
+            .apply(&beta)
+            .into_iter()
+            .filter(|warning| matches!(warning, WarningInfo::SyncUnitUnsupported { .. }))
+            .count();
+        assert_eq!(
+            unsupported, 2,
+            "a version from before 1.0 holds neither hotbars nor the command history"
+        );
     }
 
     #[test]

@@ -30,7 +30,13 @@ pub fn merge(
     let mut stored_doc = stored_doc.unwrap_or_default();
     let mut local_doc = local_doc.unwrap_or_default();
     let base_doc = Document::read(baseline).ok().flatten().unwrap_or_default();
-    let version = crate::version::parse(game_version).unwrap_or(settings::MODERN);
+    let version = crate::version::parse(game_version).unwrap_or(
+        if crate::version::predates_releases(game_version) {
+            settings::OLDEST
+        } else {
+            settings::MODERN
+        },
+    );
     let data_newer = reconcile::newer(data, store);
 
     let stored = canonical(&stored_doc, settings::MODERN);

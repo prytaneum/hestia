@@ -44,11 +44,15 @@ pub fn requirement(unit: SyncUnit) -> String {
     }
 }
 
-/// An id that is not a release triple is a snapshot, which is modern.
+/// An id from before releases is older than every floor; any other id that is
+/// not a release triple is a snapshot, which is modern.
 pub fn supports(unit: SyncUnit, game_version: &str) -> bool {
     let Some(floor) = requires(unit) else {
         return true;
     };
+    if crate::version::predates_releases(game_version) {
+        return false;
+    }
     crate::version::parse(game_version).is_none_or(|version| version >= floor)
 }
 
@@ -61,6 +65,7 @@ pub fn era(unit: SyncUnit, game_version: &str) -> &'static str {
     }
     match crate::version::parse(game_version) {
         Some(version) if version < COMPONENT_ITEMS_SINCE => "legacy",
+        None if crate::version::predates_releases(game_version) => "legacy",
         _ => "components",
     }
 }
