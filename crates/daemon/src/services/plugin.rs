@@ -3,14 +3,16 @@
 use std::path::Path;
 
 use proto::error::ErrorInfo;
+use proto::job::JobStarted;
 use proto::plugin::{
     PluginAnswer, PluginDisable, PluginEnable, PluginInspect, PluginInspectRelease, PluginInstall,
     PluginInstallRelease, PluginList, PluginRemove, PluginRepoAdd, PluginRepoList,
-    PluginRepoRemove, PluginSecretSet, PluginUpdateApply, PluginUpdateInspect, PluginUpdates,
+    PluginRepoRemove, PluginRun, PluginSecretSet, PluginUpdateApply, PluginUpdateInspect,
+    PluginUpdates,
 };
 use proto::Empty;
 
-use crate::runtime::Channels;
+use crate::runtime::{Caller, Channels};
 
 /// A relative path would resolve against the daemon's working directory, which
 /// is not the client's.
@@ -32,6 +34,14 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .surface()
             .answer(&p.request, &p.plugin, p.accepted);
         Ok(Empty {})
+    });
+
+    on.handle::<PluginRun, _, _>(|p, ctx| async move {
+        let person = matches!(ctx.caller, Caller::Client);
+        let id = ctx
+            .runtime
+            .start_plugin_command(&p.plugin, &p.command, &p.args, person, p.id)?;
+        Ok(JobStarted { id })
     });
 
     on.handle::<PluginEnable, _, _>(|p, ctx| async move {

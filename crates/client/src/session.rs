@@ -241,11 +241,39 @@ impl Session {
         params: &C::Params,
         on_progress: impl Fn(&C::Progress) + Send + Sync + 'static,
     ) -> Result<C::Done, IpcError> {
-        self.await_events(
+        self.run_job_as::<C>(id, params, false, on_progress, |_| {})
+            .await
+    }
+
+    /// [`run_job`](Self::run_job) as a front-end that draws what the job's
+    /// plugin shows: the notices, questions and links of this run, and only
+    /// this run, go to `on_plugin` as events the caller answers.
+    pub async fn run_job_drawing<C: Job>(
+        &self,
+        id: &str,
+        params: &C::Params,
+        on_progress: impl Fn(&C::Progress) + Send + Sync + 'static,
+        on_plugin: impl Fn(&Event) + Send + Sync + 'static,
+    ) -> Result<C::Done, IpcError> {
+        self.run_job_as::<C>(id, params, true, on_progress, on_plugin)
+            .await
+    }
+
+    async fn run_job_as<C: Job>(
+        &self,
+        id: &str,
+        params: &C::Params,
+        draws_plugins: bool,
+        on_progress: impl Fn(&C::Progress) + Send + Sync + 'static,
+        on_other: impl Fn(&Event) + Send + Sync + 'static,
+    ) -> Result<C::Done, IpcError> {
+        self.await_events_as(
             id,
+            draws_plugins,
             || async { self.call::<C>(params).await.map(|_| ()) },
             move |event: &Event| {
                 if event.topic != proto::job::TOPIC {
+                    on_other(event);
                     return None;
                 }
                 let decoded =
@@ -272,13 +300,27 @@ impl Session {
         &self,
         id: &str,
         start: F,
+        on_event: impl FnMut(&Event) -> Option<Result<T, Terminal>>,
+    ) -> Result<T, IpcError>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = Result<(), IpcError>>,
+    {
+        self.await_events_as(id, false, start, on_event).await
+    }
+
+    async fn await_events_as<T, F, Fut>(
+        &self,
+        id: &str,
+        draws_plugins: bool,
+        start: F,
         mut on_event: impl FnMut(&Event) -> Option<Result<T, Terminal>>,
     ) -> Result<T, IpcError>
     where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<(), IpcError>>,
     {
-        let mut listener = self.listen_subscribed(Some(id)).await?;
+        let mut listener = self.subscribe(Some(id), draws_plugins).await?;
         start().await?;
 
         while let Some(event) = listener.recv().await {

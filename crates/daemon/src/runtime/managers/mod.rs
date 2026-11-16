@@ -9,6 +9,7 @@ mod instance;
 mod java;
 mod job;
 mod modpack;
+mod plugin;
 mod server;
 mod transfer;
 
@@ -17,4 +18,5 @@ pub use content::{ContentJob, Entry as JobEntry};
 pub use instance::LaunchOrder;
 pub use job::Jobs;
 pub use modpack::ModpackJob;
+pub use plugin::PluginCommand;
 pub use transfer::ExportOrder;

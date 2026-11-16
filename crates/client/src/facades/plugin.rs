@@ -92,6 +92,29 @@ impl Plugin<'_> {
             .map(|_| ())
     }
 
+    /// Runs one of a plugin's commands as a job under the caller's `id`,
+    /// drawing what it shows through `on_plugin`; blocks until it settles.
+    pub async fn run(
+        &self,
+        id: &str,
+        plugin: &str,
+        command: &str,
+        args: &str,
+        on_progress: impl Fn(&proto::plugin::PluginRunProgress) + Send + Sync + 'static,
+        on_plugin: impl Fn(&ipc::protocol::Event) + Send + Sync + 'static,
+    ) -> Result<(), IpcError> {
+        let params = proto::plugin::PluginRunParams {
+            id: id.into(),
+            plugin: plugin.into(),
+            command: command.into(),
+            args: args.into(),
+        };
+        self.session
+            .run_job_drawing::<proto::plugin::PluginRun>(id, &params, on_progress, on_plugin)
+            .await
+            .map(|_| ())
+    }
+
     pub async fn inspect_release(
         &self,
         release: &proto::plugin::PluginReleaseParams,
@@ -144,5 +167,22 @@ impl Plugin<'_> {
                 approval_digest: approval_digest.into(),
             })
             .await
+    }
+
+    /// Answers a question a plugin asked; the first answer wins.
+    pub async fn answer(
+        &self,
+        request: &str,
+        plugin: &str,
+        accepted: bool,
+    ) -> Result<(), IpcError> {
+        self.session
+            .call::<proto::plugin::PluginAnswer>(&proto::plugin::PluginAnswerParams {
+                request: request.into(),
+                plugin: plugin.into(),
+                accepted,
+            })
+            .await
+            .map(|_| ())
     }
 }

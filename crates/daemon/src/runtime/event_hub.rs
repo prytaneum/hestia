@@ -82,11 +82,20 @@ impl EventHub {
         subs.iter().any(|s| s.filter.is_none())
     }
 
-    /// Whether a connected front-end draws plugin notices, questions and links.
-    pub fn has_plugin_surface(&self) -> bool {
+    /// Whether a connected front-end draws plugin notices, questions and links
+    /// for `run`, the job whose call shows them: one that takes every event, or
+    /// one following that job.
+    pub fn has_plugin_surface(&self, run: Option<&str>) -> bool {
         let mut subs = self.subs.lock().unwrap();
         subs.retain(|s| !s.out.is_closed());
-        subs.iter().any(|s| s.draws_plugins)
+        subs.iter().any(|s| {
+            s.draws_plugins
+                && match (&s.filter, run) {
+                    (None, _) => true,
+                    (Some(filter), Some(run)) => proto::naming::process_in_scope(filter, run),
+                    (Some(_), None) => false,
+                }
+        })
     }
 
     pub fn unsubscribe(&self, conn_id: u64) {

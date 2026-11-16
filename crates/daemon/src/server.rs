@@ -29,6 +29,7 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
         home = %runtime.engine().data_home().display(),
         "hestiad starting"
     );
+    runtime.surface().bind(&runtime);
     runtime.processes().recover();
     // Recovery's other half: a process can be re-adopted, but a job cannot —
     // so its leftovers (temp artifacts, a record still mid-create) are settled
@@ -38,6 +39,7 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
     runtime.engine().reconcile_idle_packs().await;
     crate::runtime::spawn_task_scheduler(runtime.clone());
     crate::runtime::spawn_metrics_sampler(runtime.clone());
+    crate::runtime::spawn_plugin_schedules(runtime.clone());
     crate::runtime::spawn_network_watcher(runtime.clone());
     // After recovery and once plugins can see the network state: each `init`
     // may take its whole budget, and clients must not wait on them.

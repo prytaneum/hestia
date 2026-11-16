@@ -13,6 +13,7 @@ mod plugins;
 mod ready;
 pub mod router;
 mod scheduler;
+mod schedules;
 mod surface;
 mod updates;
 
@@ -38,13 +39,16 @@ pub use claims::{create_key, Claim, Claims, JobKind};
 pub use engine::error_info as engine_error;
 pub use engine::{ExitObserver, ProcessSupervisor, StartError};
 pub use event_hub::EventHub;
-pub use managers::{BackupJob, ContentJob, ExportOrder, JobEntry, Jobs, LaunchOrder, ModpackJob};
+pub use managers::{
+    BackupJob, ContentJob, ExportOrder, JobEntry, Jobs, LaunchOrder, ModpackJob, PluginCommand,
+};
 pub use metrics::spawn_metrics_sampler;
 pub use network::spawn_network_watcher;
 pub use plugins::watch_plugin_repositories;
 pub use ready::spawn_ready_watcher;
 pub use router::{error_response, require_account, Channels, Router};
 pub use scheduler::spawn_task_scheduler;
+pub use schedules::spawn_plugin_schedules;
 pub use surface::Surface;
 pub use updates::spawn_update_watcher;
 
@@ -166,7 +170,7 @@ pub fn instance_info(
 
 pub struct Runtime {
     engine: Arc<Engine>,
-    plugins: Plugins,
+    plugins: Arc<Plugins>,
     sandbox: Option<Arc<Sandbox>>,
     hub: Arc<EventHub>,
     surface: Arc<Surface>,
@@ -215,12 +219,14 @@ impl Runtime {
         let own_endpoints = vec![ipc::endpoint::default_endpoint()
             .to_string_lossy()
             .into_owned()];
-        let plugins = Plugins::new(home, engine::builtins(), sandbox.clone(), Table::kernel())
-            .expect(
-                "engine::builtins() must list unique ids whose requirements exist and do not cycle",
-            )
-            .reserving(own_programs, own_endpoints)
-            .with_developer(engine.config().settings().plugins.developer);
+        let plugins = Arc::new(
+            Plugins::new(home, engine::builtins(), sandbox.clone(), Table::kernel())
+                .expect(
+                    "engine::builtins() must list unique ids whose requirements exist and do not cycle",
+                )
+                .reserving(own_programs, own_endpoints)
+                .with_developer(engine.config().settings().plugins.developer),
+        );
         let engine = Arc::new(engine);
         // One registry for every cancellable job, keyed by job id — what
         // `job.cancel` looks a running job up in, whichever manager owns it.
@@ -334,8 +340,33 @@ impl Runtime {
         &self.engine
     }
 
-    pub fn plugins(&self) -> &Plugins {
+    pub fn plugins(&self) -> &Arc<Plugins> {
         &self.plugins
+    }
+
+    /// Starts one of a plugin's commands as a job and returns its id. The
+    /// command and its arguments are checked first, so a refusal answers the
+    /// caller instead of failing a job.
+    pub fn start_plugin_command(
+        &self,
+        plugin: &str,
+        command: &str,
+        args: &str,
+        person: bool,
+        id: String,
+    ) -> Result<String, ErrorInfo> {
+        self.plugins.check_command(plugin, command, args)?;
+        Ok(self.jobs.start_plugin_command(
+            self.plugins.clone(),
+            self.surface.clone(),
+            PluginCommand {
+                id,
+                plugin: plugin.to_owned(),
+                command: command.to_owned(),
+                args: args.to_owned(),
+                person,
+            },
+        ))
     }
 
     /// Missing when the sandbox could not start; WASM plugins then never run.
@@ -402,6 +433,7 @@ impl Runtime {
     /// An OS-signal shutdown never stops workloads; only an explicit
     /// `daemon.stop` with `stop_processes` does.
     pub async fn shutdown_workloads(&self) {
+        self.plugins.stop_commands();
         if self.stop_processes.load(Ordering::SeqCst) {
             self.processes.stop_all_and_wait().await;
         }

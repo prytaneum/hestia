@@ -11,6 +11,7 @@ pub use facades::{
     Tasks, Transfer,
 };
 pub use ipc::errors::IpcError;
+pub use ipc::protocol::Event;
 
 pub mod errors {
     pub use proto::error::code::{NOT_FOUND, UNAUTHORIZED};

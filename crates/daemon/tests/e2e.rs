@@ -520,6 +520,10 @@ async fn an_instance_target_is_gated_on_an_account_but_a_server_target_is_not() 
     ));
 }
 
+#[path = "../../kernel/tests/fixture/mod.rs"]
+#[allow(dead_code)]
+mod fixture;
+
 async fn set_developer(client: &Client, on: bool) {
     client
         .config()
@@ -571,4 +575,147 @@ async fn a_plugin_installed_from_a_directory_runs_only_while_developer_mode_is_o
 
     set_developer(&client, true).await;
     assert_eq!(state().await, Some(PluginState::Enabled));
+}
+
+/// Installs the `tour` component as plugin `id` declaring `commands`, with its
+/// `/data` ready, and returns that directory.
+async fn install_tour(
+    daemon: &Daemon,
+    client: &Client,
+    id: &str,
+    commands: &[&str],
+) -> std::path::PathBuf {
+    let package = daemon.home.join(format!("pkg-{id}"));
+    std::fs::create_dir_all(&package).unwrap();
+    let declared: String = commands
+        .iter()
+        .map(|name| format!("[[commands]]\nname = \"{name}\"\n"))
+        .collect();
+    std::fs::write(
+        package.join("plugin.toml"),
+        format!("id = \"{id}\"\nname = \"{id}\"\nversion = \"0.1.0\"\n{declared}"),
+    )
+    .unwrap();
+    std::fs::copy(fixture::service_guest("tour"), package.join("plugin.wasm")).unwrap();
+    let data = kernel::sandbox_root(&daemon.home).join(id);
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::write(data.join("mode"), "free").unwrap();
+    let path = package.to_string_lossy().into_owned();
+    let inspection = client.plugin().inspect(&path).await.expect("inspect");
+    client
+        .plugin()
+        .install(&path, &inspection.approval_digest)
+        .await
+        .expect("install");
+    data
+}
+
+#[tokio::test]
+async fn a_plugin_command_runs_as_a_job_asks_its_starter_and_starts_jobs_of_its_own() {
+    use client::proto::plugin::PluginQuestion;
+
+    let (daemon, client) = spawn_daemon().await;
+    set_developer(&client, true).await;
+    let data = install_tour(&daemon, &client, "tour", &["echo", "ask", "spawn", "wait"]).await;
+    let other = install_tour(&daemon, &client, "other", &["spawn"]).await;
+
+    let refused = client
+        .plugin()
+        .run("e2e-nope", "tour", "nope", "{}", |_| {}, |_| {})
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            client::error_info(&refused),
+            ErrorInfo::PluginInvalid { .. }
+        ),
+        "an undeclared command starts no job: {refused}"
+    );
+
+    let (seen, mut drawn) = tokio::sync::mpsc::unbounded_channel();
+    let plugin = client.plugin();
+    let asking = plugin.run(
+        "e2e-ask",
+        "tour",
+        "ask",
+        "{}",
+        |_| {},
+        move |event| {
+            let _ = seen.send(event.clone());
+        },
+    );
+    let answering = async {
+        while let Some(event) = drawn.recv().await {
+            if event.topic == "plugin.question" {
+                let question: PluginQuestion = serde_json::from_value(event.payload).unwrap();
+                assert_eq!(question.id.as_deref(), Some("e2e-ask"));
+                client
+                    .plugin()
+                    .answer(&question.request, &question.plugin, true)
+                    .await
+                    .unwrap();
+                return;
+            }
+        }
+    };
+    let (asked, ()) = tokio::join!(asking, answering);
+    asked.expect("the command finishes once its starter answers");
+    let ran = std::fs::read_to_string(data.join("ran")).unwrap();
+    assert!(ran.contains("confirmed"), "{ran}");
+
+    let mut events = client.session().listen_drawing_plugins().await.unwrap();
+    client
+        .plugin()
+        .run("e2e-spawn", "tour", "spawn", "{}", |_| {}, |_| {})
+        .await
+        .expect("spawn");
+    let child = std::fs::read_to_string(data.join("spawned")).unwrap();
+    let child = child.trim();
+    assert!(child.starts_with("plugin-tour-"), "{child}");
+    loop {
+        let event = events.recv().await.expect("daemon events");
+        if event.topic == "plugin.notice" && event.payload["message"] == "job ended" {
+            break;
+        }
+    }
+    let done = std::fs::read_to_string(data.join("done")).unwrap();
+    assert_eq!(done.trim(), format!("{child} Outcome::Succeeded"));
+
+    let started = client
+        .plugin()
+        .run("e2e-other", "other", "spawn", "{}", |_| {}, |_| {})
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(client::error_info(&started), ErrorInfo::PluginFailed { plugin, .. } if plugin == "other"),
+        "a plugin starts only commands it declared itself: {started}"
+    );
+    assert!(!other.join("spawned").exists());
+
+    let mut waiting = client.session().listen_drawing_plugins().await.unwrap();
+    let plugin = client.plugin();
+    let running = plugin.run("e2e-wait", "tour", "wait", "{}", |_| {}, |_| {});
+    let interrupting = async {
+        loop {
+            let event = waiting.recv().await.expect("daemon events");
+            if event.topic == "plugin.notice" && event.payload["message"] == "waiting" {
+                break;
+            }
+        }
+        let disable = client.plugin().disable("tour").await.unwrap_err();
+        assert_eq!(
+            client::error_info(&disable),
+            ErrorInfo::PluginBusy {
+                plugin: "tour".into()
+            },
+            "a running command keeps its plugin"
+        );
+        set_developer(&client, false).await;
+    };
+    let (stopped, ()) = tokio::join!(running, interrupting);
+    let stopped = stopped.unwrap_err();
+    assert!(
+        matches!(client::error_info(&stopped), ErrorInfo::PluginFailed { plugin, .. } if plugin == "tour"),
+        "developer mode off stops what it was running: {stopped}"
+    );
 }
