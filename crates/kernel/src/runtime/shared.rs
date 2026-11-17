@@ -27,6 +27,9 @@ pub(super) struct Shared {
     /// Hestia's own endpoints, which no connection may reach however it is spelled.
     pub own: Arc<OnceLock<Reserved>>,
     pub wakeups: Arc<Wakeups>,
+    /// The notices a plugin shows across all its calls, apart from the
+    /// allowance of each call.
+    pub notices: Arc<Wakeups>,
     /// Developer mode, which every plugin log of the sandbox reads.
     pub developer: Arc<AtomicBool>,
     #[cfg(feature = "probe")]
@@ -44,6 +47,7 @@ impl Shared {
             calls: Arc::default(),
             own: Arc::default(),
             wakeups: Arc::default(),
+            notices: Arc::default(),
             developer: Arc::default(),
             #[cfg(feature = "probe")]
             events: Arc::default(),

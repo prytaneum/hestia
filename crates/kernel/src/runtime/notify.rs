@@ -8,6 +8,9 @@ use super::host::State;
 use crate::vetting::{Hosts, Policy};
 
 const NOTICES_PER_CALL: usize = 5;
+/// Across calls: a burst of this many notices, then one more every 5 seconds.
+pub(super) const BURST: f64 = 10.0;
+pub(super) const REFILL_PER_SECOND: f64 = 0.2;
 const MESSAGE_BYTES: usize = 1024;
 const URL_BYTES: usize = 2048;
 /// How long a question waits for its answer; the call's budget is paused meanwhile.
@@ -43,6 +46,9 @@ fn vetted(url: &str) -> Result<String, PluginError> {
 impl notify::Host for State {
     fn notify(&mut self, level: Level, message: String) -> Result<(), PluginError> {
         if self.drawn.notices >= NOTICES_PER_CALL {
+            return Err(PluginError::Busy);
+        }
+        if !self.shared.notices.spend(&self.plugin) {
             return Err(PluginError::Busy);
         }
         self.drawn.notices += 1;

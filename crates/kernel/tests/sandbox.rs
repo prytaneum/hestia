@@ -312,7 +312,10 @@ impl Services for Host {
 #[tokio::test]
 async fn a_plugin_keeps_files_settings_and_secrets_and_draws_only_through_the_host() {
     let host = Host::new("tour", true);
-    let sandbox = sandbox_services(Limits::default(), host.clone());
+    let sandbox = sandbox_services(
+        Limits::default().with_notice_budget(7.0, 0.001),
+        host.clone(),
+    );
     let tour = sandbox
         .load("tour", wasm(service_guest("tour")))
         .await
@@ -332,6 +335,15 @@ async fn a_plugin_keeps_files_settings_and_secrets_and_draws_only_through_the_ho
         ["url tour: https://example.com/docs".to_owned()]
     );
     assert!(host.saw("confirm").is_empty(), "no person started the call");
+    assert!(matches!(
+        sandbox.init(&tour).await,
+        Err(SandboxError::Guest(_))
+    ));
+    assert_eq!(
+        host.saw("notify tour: notice").len(),
+        7,
+        "a plugin's notices are bounded across its calls too"
+    );
 
     host.mode("tour", "secret");
     sandbox.init(&tour).await.unwrap();

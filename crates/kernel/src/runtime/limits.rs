@@ -19,6 +19,8 @@ pub struct Limits {
     #[cfg(feature = "probe")]
     pub(super) event_refill_per_second: f64,
     pub(super) cancel_grace: Duration,
+    pub(super) notice_burst: f64,
+    pub(super) notice_refill_per_second: f64,
     pub(super) memory_bytes: usize,
     pub(super) calls_per_plugin: usize,
     pub(super) calls_total: usize,
@@ -29,7 +31,7 @@ pub struct Limits {
 impl Default for Limits {
     /// 10 s for `init`, 5 s for an event such as `settings-changed`, 2 s for a
     /// hook, an hour for a command and 5 s more once its job is cancelled,
-    /// 256 MiB per memory, 4 calls per plugin and 16 overall, three traps in
+    /// 256 MiB per memory, 10 notices then one more every 5 s, 4 calls per plugin and 16 overall, three traps in
     /// ten minutes.
     fn default() -> Self {
         Limits {
@@ -43,6 +45,8 @@ impl Default for Limits {
             #[cfg(feature = "probe")]
             event_refill_per_second: super::wakeups::REFILL_PER_SECOND,
             cancel_grace: Duration::from_secs(5),
+            notice_burst: super::notify::BURST,
+            notice_refill_per_second: super::notify::REFILL_PER_SECOND,
             memory_bytes: 256 << 20,
             calls_per_plugin: 4,
             calls_total: 16,
@@ -73,6 +77,16 @@ impl Limits {
         Limits {
             event_burst: burst,
             event_refill_per_second: refill_per_second,
+            ..self
+        }
+    }
+
+    /// The notices a plugin may show at once across its calls, and how many more
+    /// it earns each second.
+    pub fn with_notice_budget(self, burst: f64, refill_per_second: f64) -> Self {
+        Limits {
+            notice_burst: burst,
+            notice_refill_per_second: refill_per_second,
             ..self
         }
     }

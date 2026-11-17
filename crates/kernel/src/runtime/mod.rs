@@ -172,6 +172,13 @@ impl Sandbox {
         let ticker =
             Ticker::start(engine.clone()).map_err(|error| SandboxError::Engine(error.into()))?;
         let shared = Shared::new(Arc::new(services::Unavailable));
+        let shared = Shared {
+            notices: Arc::new(wakeups::Wakeups::new(
+                limits.notice_burst,
+                limits.notice_refill_per_second,
+            )),
+            ..shared
+        };
         #[cfg(feature = "probe")]
         let shared = Shared {
             events: Arc::new(wakeups::Wakeups::new(

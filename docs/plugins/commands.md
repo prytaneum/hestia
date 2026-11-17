@@ -88,8 +88,8 @@ finding none is skipped.
 ## Talking to the user
 
 `notify::notify(level, message)`, `notify::confirm(message)` and `notify::open_url(url)` never draw anything themselves:
-Hestia shows each with the plugin's name, so a plugin cannot imitate Hestia's own dialogs. A call allows five notices,
-one question and one link. Only a call a person started may `confirm` (a command run from the CLI or desktop; elsewhere
+Hestia shows each with the plugin's name, so a plugin cannot imitate Hestia's own dialogs. A call allows five notices and a plugin ten across its
+calls, then one more every 5 seconds; a call allows one question and one link. Only a call a person started may `confirm` (a command run from the CLI or desktop; elsewhere
 it answers `unsupported`), and the call's budget pauses while the person decides, for up to two minutes. `open_url`
 takes an https address, which the user sees before opening.
 

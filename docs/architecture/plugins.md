@@ -299,7 +299,7 @@ takes a named lock that lasts until `unlock` or the end of the call, however it 
 arguments into 4 KiB. `notify`, `confirm` and `open-url` never draw anything themselves: the daemon publishes
 `plugin.notice`, `plugin.question` (answered by `plugin.answer`, which names the plugin, and withdrawn by
 `plugin.question.closed`) and `plugin.link`, and the desktop draws each with the plugin's name. A call allows five
-notices, one question and one link; only a call a person started may ask (`settings-changed` is one), its budget pauses
+notices and a plugin ten across its calls, then one more every 5 seconds; a call allows one question and one link; only a call a person started may ask (`settings-changed` is one), its budget pauses
 while the person decides, and the sandbox declines after two minutes. `open-url` takes what the network policy allows
 for a URL nobody granted. Only a front-end that subscribes as drawing plugins (`events.subscribe` with `drawsPlugins`,
 the desktop) is asked; with none connected a question is declined and a link refused. Progress counts only in a job, and
