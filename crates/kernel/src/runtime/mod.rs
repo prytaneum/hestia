@@ -43,7 +43,10 @@ use std::time::Duration;
 use proto::plugin::Grant;
 use tokio::time::{error::Elapsed, timeout_at, Instant};
 use wasmtime::component::{Component, HasSelf, InstancePre, Linker};
-use wasmtime::{Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig, Store};
+use wasmtime::{
+    Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig, Store,
+    WasmBacktraceDetails,
+};
 
 #[cfg(feature = "probe")]
 use crate::api::Chain;
@@ -97,6 +100,7 @@ pub struct Sandbox {
     ticker: Ticker,
     limits: Limits,
     online: Arc<AtomicBool>,
+    developer: Arc<AtomicBool>,
     shared: Shared,
 }
 
@@ -183,6 +187,7 @@ impl Sandbox {
             ticker,
             limits,
             online: Arc::new(AtomicBool::new(true)),
+            developer: Arc::new(AtomicBool::new(false)),
             shared,
         })
     }
@@ -203,6 +208,12 @@ impl Sandbox {
     /// What `app.info` reports as network status to calls that start later.
     pub fn set_online(&self, online: bool) {
         self.online.store(online, Ordering::Relaxed);
+    }
+
+    /// In developer mode a denial names the function in the plugin log and a
+    /// trap logs the guest backtrace.
+    pub fn set_developer(&self, on: bool) {
+        self.developer.store(on, Ordering::Relaxed);
     }
 
     /// Compiles `wasm` off the async executor, or takes it from the cache.
@@ -240,7 +251,13 @@ impl Sandbox {
             )));
         }
         let mut linker = self.linker.clone();
-        stub::link_denials(&mut linker, &self.engine, &opened.component, denials)?;
+        stub::link_denials(
+            &mut linker,
+            &self.engine,
+            &opened.component,
+            denials,
+            &self.developer,
+        )?;
         let pre = linker
             .instantiate_pre(&opened.component)
             .map_err(SandboxError::Load)?;
@@ -544,7 +561,12 @@ impl Sandbox {
             Ok(Ok(Err(error))) => return Err(SandboxError::Guest(error)),
             Err(_) => SandboxError::Timeout,
             Ok(Err(_)) if memory_exceeded => SandboxError::Memory,
-            Ok(Err(error)) => SandboxError::Trapped(format!("{error:#}")),
+            Ok(Err(error)) => {
+                if self.developer.load(Ordering::Relaxed) {
+                    tracing::warn!(target: "plugin", plugin, "trapped\n{error:?}");
+                }
+                SandboxError::Trapped(format!("{error:#}"))
+            }
         };
         tracing::warn!(plugin, %failure, "plugin call failed");
         if self.admission.record_trap(plugin) {
@@ -580,6 +602,7 @@ fn engine_config(limits: &Limits) -> Config {
     config
         .wasm_component_model(true)
         .epoch_interruption(true)
+        .wasm_backtrace_details(WasmBacktraceDetails::Enable)
         .allocation_strategy(InstanceAllocationStrategy::Pooling(pool));
     config
 }

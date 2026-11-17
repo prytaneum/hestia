@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use wasmtime::component::types::ComponentItem;
 use wasmtime::component::{Component, Linker, Type, Val};
@@ -13,12 +15,14 @@ pub type Denials = HashMap<String, String>;
 /// Replaces each denied import with functions that answer `denied(permission)`.
 /// Only an interface whose every item is a function returning a `result` can be
 /// denied: anything else would have to trap, and traps count toward the
-/// plugin's limit, or leave a host resource linked.
+/// plugin's limit, or leave a host resource linked. In developer mode each
+/// denial also names the function in the plugin log.
 pub(super) fn link_denials(
     linker: &mut Linker<State>,
     engine: &Engine,
     component: &Component,
     denials: &Denials,
+    developer: &Arc<AtomicBool>,
 ) -> Result<(), SandboxError> {
     linker.allow_shadowing(true);
     for (name, import) in component.component_type().imports(engine) {
@@ -43,7 +47,18 @@ pub(super) fn link_denials(
                 return Err(undeniable(function));
             }
             let permission = permission.clone();
-            stub.func_new(function, move |_, _, _, results| {
+            let developer = developer.clone();
+            let interface = name.to_owned();
+            let function_name = function.to_owned();
+            stub.func_new(function, move |context, _, _, results| {
+                if developer.load(Ordering::Relaxed) {
+                    tracing::warn!(
+                        target: "plugin",
+                        plugin = context.data().plugin.as_str(),
+                        permission,
+                        "denied: {interface}#{function_name}"
+                    );
+                }
                 let denied = Val::Variant(
                     "denied".into(),
                     Some(Box::new(Val::String(permission.clone()))),

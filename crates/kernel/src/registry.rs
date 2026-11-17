@@ -212,6 +212,9 @@ impl Plugins {
     pub fn with_developer(self, on: bool) -> Self {
         self.developer
             .store(on, std::sync::atomic::Ordering::Relaxed);
+        if let Some(sandbox) = &self.sandbox {
+            sandbox.set_developer(on);
+        }
         self
     }
 

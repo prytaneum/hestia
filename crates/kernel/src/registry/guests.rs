@@ -460,6 +460,9 @@ impl Plugins {
     pub async fn set_developer(&self, on: bool) -> Vec<String> {
         let _changing = self.changes.lock().await;
         self.developer.store(on, Ordering::Relaxed);
+        if let Some(sandbox) = &self.sandbox {
+            sandbox.set_developer(on);
+        }
         let devs: Vec<(Arc<Guest>, PluginState)> = self
             .slots()
             .iter()

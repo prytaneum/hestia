@@ -408,3 +408,38 @@ async fn a_named_lock_excludes_other_calls_until_its_holder_ends_even_by_timeout
     host.mode("tour", "free");
     sandbox.init(&tour).await.unwrap();
 }
+
+#[tokio::test]
+async fn developer_mode_logs_the_backtrace_of_a_trap_and_the_function_of_a_denial() {
+    let sandbox = sandbox(Limits::default());
+
+    let trap = sandbox.load("dev-trap", wasm(guest("trap"))).await.unwrap();
+    let _ = sandbox.init(&trap).await;
+    assert!(
+        !captured().contains("trapped\n"),
+        "quiet outside developer mode"
+    );
+    sandbox.set_developer(true);
+    let _ = sandbox.init(&trap).await;
+    let log = captured();
+    let trapped = log.split("trapped\n").nth(1).expect("trap logged");
+    assert!(trapped.contains("wasm backtrace"), "{trapped}");
+    assert!(trapped.contains("trap.wasm!"), "symbols named: {trapped}");
+
+    let host = Host::new("dev-denied", true);
+    let sandbox = sandbox_services(Limits::default(), host.clone());
+    sandbox.set_developer(true);
+    host.mode("dev-denied", "secret");
+    let tour = wasm(service_guest("tour"));
+    let denied = kernel::Denials::from([("hestia:kernel/secrets@0.1.0".into(), "secrets".into())]);
+    let opened = sandbox.open("dev-denied", tour).await.unwrap();
+    let loaded = sandbox
+        .link(&opened, &denied, &Default::default(), Default::default())
+        .unwrap();
+    let _ = sandbox.init(&loaded).await;
+    let log = captured();
+    assert!(
+        log.contains("denied: hestia:kernel/secrets@0.1.0#"),
+        "{log}"
+    );
+}
