@@ -116,7 +116,35 @@ fn package_of(interface: &str) -> Option<&str> {
 /// maps to it (a topic's export needs its read permission). A `hestia:` package
 /// other than the kernel's, imported or exported, is a requirement on the
 /// built-in providing it. Pure: a program's digest is left empty, for [`pin`] to fill.
+/// A program or endpoint written for another platform is left out, as the
+/// sandbox does not grant it here.
 pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant, GrantError> {
+    derive_for(table, manifest, shape, Platforms::Here)
+}
+
+/// [`derive`] with the programs and endpoints of every platform, the same on
+/// every machine: what a review of the plugin's reach needs. An entry that is
+/// not absolute on any platform is refused.
+pub fn derive_everywhere(
+    table: &Table,
+    manifest: &Manifest,
+    shape: &Shape,
+) -> Result<Grant, GrantError> {
+    derive_for(table, manifest, shape, Platforms::Every)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Platforms {
+    Here,
+    Every,
+}
+
+fn derive_for(
+    table: &Table,
+    manifest: &Manifest,
+    shape: &Shape,
+    platforms: Platforms,
+) -> Result<Grant, GrantError> {
     let mut needed: BTreeMap<&str, &Permission> = BTreeMap::new();
     let mut requires = BTreeSet::new();
     for import in &shape.imports {
@@ -207,6 +235,7 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
                     name,
                     kind,
                     scopes.ok_or_else(|| GrantError::ScopeMissing(name.to_owned()))?,
+                    platforms,
                 )?)
             }
         };
@@ -239,7 +268,12 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
     })
 }
 
-fn scope_of(name: &str, kind: ScopeKind, scopes: &Scopes) -> Result<PermissionScope, GrantError> {
+fn scope_of(
+    name: &str,
+    kind: ScopeKind,
+    scopes: &Scopes,
+    platforms: Platforms,
+) -> Result<PermissionScope, GrantError> {
     let unhashed = scopes.unhashed.as_slice();
     if scopes.listed(kind) == 0 {
         return Err(GrantError::ScopeMissing(name.to_owned()));
@@ -274,7 +308,7 @@ fn scope_of(name: &str, kind: ScopeKind, scopes: &Scopes) -> Result<PermissionSc
         ScopeKind::Endpoints => {
             let mut here = Vec::new();
             for entry in std::mem::take(&mut scope.values) {
-                if endpoint_here(&entry)? {
+                if endpoint_here(&entry)? || platforms == Platforms::Every {
                     here.push(entry);
                 }
             }
@@ -284,9 +318,13 @@ fn scope_of(name: &str, kind: ScopeKind, scopes: &Scopes) -> Result<PermissionSc
             for entry in scopes
                 .programs
                 .iter()
-                .filter(|e| e.os.is_none_or(|os| os.is_current()))
+                .filter(|e| platforms == Platforms::Every || e.os.is_none_or(|os| os.is_current()))
             {
-                if !Path::new(&entry.path).is_absolute() {
+                let absolute = match platforms {
+                    Platforms::Here => Path::new(&entry.path).is_absolute(),
+                    Platforms::Every => absolute_anywhere(&entry.path),
+                };
+                if !absolute {
                     return Err(GrantError::Program {
                         permission: name.to_owned(),
                         entry: entry.path.clone(),
@@ -303,6 +341,15 @@ fn scope_of(name: &str, kind: ScopeKind, scopes: &Scopes) -> Result<PermissionSc
         ScopeKind::Paths | ScopeKind::Entries => {}
     }
     Ok(scope)
+}
+
+fn absolute_anywhere(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    path.starts_with(['/', '\\'])
+        || (bytes.len() > 2
+            && bytes[0].is_ascii_alphabetic()
+            && bytes[1] == b':'
+            && matches!(bytes[2], b'/' | b'\\'))
 }
 
 const PIPE_PREFIX: &str = r"\\.\pipe\";
@@ -746,6 +793,45 @@ mod tests {
                 "a changed scope needs a new approval"
             );
         }
+    }
+
+    #[test]
+    fn the_grant_for_review_holds_every_platforms_programs_and_endpoints() {
+        let manifest = |extra: &str| {
+            Manifest::parse(&format!(
+                "id = \"t\"\nname = \"t\"\nversion = \"1\"\n{extra}"
+            ))
+            .unwrap()
+        };
+        let shape = Shape {
+            imports: vec![
+                "hestia:kernel/programs@0.1.0".into(),
+                "hestia:kernel/ipc@0.1.0".into(),
+            ],
+            exports: Vec::new(),
+        };
+        let everywhere = |extra: &str| {
+            derive_everywhere(&crate::grant::kernel_table(), &manifest(extra), &shape)
+        };
+        let both = r#"
+[permissions."process:spawn"]
+programs = [{ path = '/usr/bin/a', os = 'linux' }, { path = 'C:\a.exe', os = 'windows' }]
+[permissions."ipc:connect"]
+endpoints = ['/run/a.sock', '\\.\pipe\a']
+"#;
+        let grant = everywhere(both).unwrap();
+        let scopes: Vec<_> = grant
+            .permissions
+            .iter()
+            .map(|p| p.scope.as_ref().unwrap())
+            .collect();
+        assert_eq!(scopes[0].values, ["/run/a.sock", r"\\.\pipe\a"]);
+        let paths: Vec<_> = scopes[1].programs.iter().map(|p| &p.path[..]).collect();
+        assert_eq!(paths, ["/usr/bin/a", r"C:\a.exe"]);
+        assert!(matches!(
+            everywhere(&both.replace("/usr/bin/a", "bin/a")),
+            Err(GrantError::Program { .. })
+        ));
     }
 
     #[test]

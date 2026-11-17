@@ -63,13 +63,16 @@ pub enum Os {
 }
 
 impl Os {
+    pub fn name(self) -> &'static str {
+        match self {
+            Os::Linux => "linux",
+            Os::Windows => "windows",
+            Os::Macos => "macos",
+        }
+    }
+
     pub fn is_current(self) -> bool {
-        std::env::consts::OS
-            == match self {
-                Os::Linux => "linux",
-                Os::Windows => "windows",
-                Os::Macos => "macos",
-            }
+        std::env::consts::OS == self.name()
     }
 }
 

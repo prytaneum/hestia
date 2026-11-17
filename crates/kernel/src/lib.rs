@@ -32,10 +32,13 @@ pub use builtin::{Builtin, Busy, Descriptor};
 #[cfg(feature = "sandbox")]
 pub use error::{PackageError, PluginError};
 pub use grant::versions::check as check_versions;
-pub use grant::{denials, derive, widens, Denials, Gate, GrantError, Permission, Stability, Table};
+pub use grant::{
+    denials, derive, derive_everywhere, widens, Denials, Gate, GrantError, Permission, Stability,
+    Table,
+};
 #[cfg(feature = "sandbox")]
 pub use install::sandbox_root;
-pub use manifest::{Manifest, ManifestError};
+pub use manifest::{Manifest, ManifestError, Os, ProgramEntry};
 #[cfg(feature = "sandbox")]
 pub use registry::Plugins;
 #[cfg(feature = "sandbox")]
