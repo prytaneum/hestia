@@ -19,7 +19,7 @@ pub use api::probe;
 pub use api::{Chain, ChainError, HostCalls, Reply};
 pub use builtin::{Builtin, Busy, Descriptor};
 pub use error::{PackageError, PluginError};
-pub use grant::{denials, GrantError, Permission, Table};
+pub use grant::{denials, GrantError, Permission, Stability, Table};
 pub use install::sandbox_root;
 pub use manifest::ManifestError;
 pub use registry::Plugins;

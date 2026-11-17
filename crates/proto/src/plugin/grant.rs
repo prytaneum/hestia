@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::registry::PluginInfo;
 use crate::change::Scope;
 use crate::contract::Contract;
+use crate::warning::WarningInfo;
 
 /// What a permission reaches. `Unrestricted` runs native code or deletes data
 /// and is stated as such in the prompt.
@@ -120,6 +121,9 @@ pub struct Inspection {
     pub name: String,
     pub version: String,
     pub grant: Grant,
+    /// What the package does that will stop working, such as importing a
+    /// deprecated interface.
+    pub warnings: Vec<WarningInfo>,
     /// Absent for a package read from a directory, which nothing signs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer: Option<SignerInfo>,

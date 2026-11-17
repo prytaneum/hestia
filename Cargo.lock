@@ -3225,6 +3225,7 @@ dependencies = [
  "wasmtime-wasi",
  "wasmtime-wasi-http",
  "windows-sys 0.61.2",
+ "wit-parser 0.261.0",
  "zip",
 ]
 

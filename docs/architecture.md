@@ -164,21 +164,21 @@ what the user turned off, so a plugin whose requirement is off stays `failed`. T
 `common` only, so it cannot reach the launcher. `hestiad`'s runtime builds the registry from `engine::builtins()` and
 the router consults it for owner gates.
 
-WASM plugins sit in the same registry. A package is a directory with `plugin.toml` (identity and the scope of each
-permission that takes one) and `plugin.wasm`, each read only as a regular file under a size cap. `plugin.inspect`
-derives the **grant** from the component's top-level imports and exports without compiling it: each `hestia:kernel`
-interface maps, through the package's table, to a permission with a tier, so a manifest cannot ask for less or more than
-the code uses. Another `hestia:` package is a requirement an enabled built-in must provide; anything else but `wasi:` is
-refused, and a `wasi:` package the table lists (`wasi:http`) goes through it like any other without becoming a
-requirement. The `approval_digest` covers the id, the exact manifest and component bytes, each permission with its scope
-(its unhashed hosts and, for each program, its arguments and pinned digest), and the requirements, never Hestia's prompt
-text; `plugin.install` refuses a package that no longer derives it, and start-up recomputes it and lists a changed
-package `failed` without running it. A permission the grant lacks links as a stub whose functions answer
-`denied(<permission>)`; an interface with a function that has no error to answer with cannot be denied. Installs,
-enables, disables and removals run one at a time. The daemon runtime owns one `kernel::Sandbox` (none if it cannot
-start, and WASM plugins are then listed but never run): compiled components under `meta/plugins/`, vouched for by
-`plugins.key`; `app.info` reports online only while the network is reachable and offline mode is off; installed plugins
-start after recovery, off the accept loop; a plugin that reaches the trap limit is disabled and stays so across
+WASM plugins sit in the same registry. A package is a directory with `plugin.toml` (identity, the API version it was
+built against and the scope of each permission that takes one) and `plugin.wasm`, each read only as a regular file under
+a size cap. `plugin.inspect` derives the **grant** from the component's top-level imports and exports without compiling
+it: each `hestia:kernel` interface maps, through the package's table, to a permission with a tier, so a manifest cannot
+ask for less or more than the code uses. Another `hestia:` package is a requirement an enabled built-in must provide;
+anything else but `wasi:` is refused, and a `wasi:` package the table lists (`wasi:http`) goes through it like any other
+without becoming a requirement. The `approval_digest` covers the id, the exact manifest and component bytes, each
+permission with its scope (its unhashed hosts and, for each program, its arguments and pinned digest), and the
+requirements, never Hestia's prompt text; `plugin.install` refuses a package that no longer derives it, and start-up
+recomputes it and lists a changed package `failed` without running it. A permission the grant lacks links as a stub
+whose functions answer `denied(<permission>)`; an interface with a function that has no error to answer with cannot be
+denied. Installs, enables, disables and removals run one at a time. The daemon runtime owns one `kernel::Sandbox` (none
+if it cannot start, and WASM plugins are then listed but never run): compiled components under `meta/plugins/`, vouched
+for by `plugins.key`; `app.info` reports online only while the network is reachable and offline mode is off; installed
+plugins start after recovery, off the accept loop; a plugin that reaches the trap limit is disabled and stays so across
 restarts, and removing one deletes its cache entry.
 
 **Trust.** A WASM plugin comes from a directory (a dev install) or from a repository. A dev install is refused unless
@@ -238,6 +238,19 @@ exports `lifecycle`, `settings-changed`, `commands`, `on-schedule` and `on-job-d
 imports and enables one export per cargo feature; `hestia::export!` exports the enabled ones. A component's exports are
 found per interface, a missing one meaning not provided. The tests build the guests in `crates/kernel/tests/guest/` and
 `guest-services/` once per run; `examples/typescript/` builds a `lifecycle`-only plugin with `jco` under Bun in CI.
+
+**Version gates.** A package's WIT version is the API version; the table of each package states it, and the stability of
+an interface marked `@since`, `@unstable` or `@deprecated` (`Table::versioned`, `Table::stability`). The manifest's
+optional `api` is the version the plugin was built against: `plugin.inspect`, install and start-up refuse an `api` that
+is not the version the component imports, a `hestia:` import or export that is not on the host's `0.y` line (`0.0.z`
+exactly), is a pre-release or is later than the host's, and an interface newer than the version that names it. An
+`@unstable` interface is refused unless the package is a dev install (which runs only in developer mode); a real one
+needs `features: [...]` in the host's `bindgen!` and is then protected only by this gate. An import of a deprecated
+interface is a `PluginImportDeprecated` warning in the `Inspection`. Without `api` only the imports and exports are
+checked. Version attributes live on interfaces only. The built-in's table must state its package's version and parseable
+stabilities, or `Plugins::new` refuses it. `crates/kernel/tests/wit.rs` keeps the tables equal to the WIT and fails a
+changed WIT of the kernel or a built-in package under an unchanged version (`crates/sdk/wit/snapshot.txt`; the policy is
+in `crates/sdk/wit/README.md`).
 
 A built-in exposes a WIT package of its own through `crates/kernel/src/api/<package>/`: its table (`Builtin::table`,
 merged into the kernel's by `Plugins::new`, which refuses a row outside the package the built-in `provides`, an

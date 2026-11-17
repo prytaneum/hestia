@@ -110,6 +110,13 @@ pub enum WarningInfo {
     /// The icon a pack named could not be used, so the instance has none of its
     /// own. `detail` is operational English, shown as secondary text.
     PackIconDropped { pack: String, detail: String },
+    /// The package imports an interface of Hestia's API that is deprecated
+    /// (`deprecated_in` is the API version that deprecated it), so it will stop
+    /// working once a later API line removes it.
+    PluginImportDeprecated {
+        interface: String,
+        deprecated_in: String,
+    },
 }
 
 impl WarningInfo {
@@ -172,6 +179,10 @@ impl WarningInfo {
             }
             PackIconDropped { .. } => {
                 "the instance imported without it; pick an icon in the instance's settings"
+                    .to_string()
+            }
+            PluginImportDeprecated { .. } => {
+                "rebuild the plugin against a newer SDK before a later Hestia removes it"
                     .to_string()
             }
             DocumentQuarantined { path, .. } => format!(
@@ -257,6 +268,13 @@ impl fmt::Display for WarningInfo {
             PackIconDropped { pack, detail } => {
                 write!(f, "the {pack} pack's icon was not used: {detail}")
             }
+            PluginImportDeprecated {
+                interface,
+                deprecated_in,
+            } => write!(
+                f,
+                "the plugin imports {interface}, deprecated since API {deprecated_in}"
+            ),
             DocumentQuarantined {
                 document, detail, ..
             } => write!(

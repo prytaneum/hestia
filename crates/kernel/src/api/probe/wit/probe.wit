@@ -27,6 +27,19 @@ interface filler {
     fill: func(text: string) -> result<string, plugin-error>;
 }
 
+/// Stand-ins for the version gates: no world imports them, so the gate's tests
+/// read them from the table and the WIT, and no guest links against them.
+@unstable(feature = preview)
+interface preview {
+    peek: func() -> string;
+}
+
+@since(version = 0.1.0)
+@deprecated(version = 0.1.0)
+interface legacy {
+    peek: func() -> string;
+}
+
 world host {
     import read;
     import work;

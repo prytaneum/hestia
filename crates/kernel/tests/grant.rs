@@ -613,3 +613,37 @@ async fn a_wasi_http_plugin_installs_without_requiring_a_package() {
     restarted.restore().await;
     assert_eq!(state(&restarted, "grant-http"), Some(PluginState::Enabled));
 }
+
+#[tokio::test]
+async fn a_package_built_for_another_api_line_is_refused_at_inspect() {
+    let home = tempfile::tempdir().unwrap();
+    let plugins = plugins(home.path(), Table::kernel(), Vec::new());
+    let pkg = home.path().join("pkg");
+    for (api, accepted) in [
+        ("", true),
+        ("api = \"0.1.0\"\n", true),
+        ("api = \"0.2.0\"\n", false),
+        ("api = \"0.0.9\"\n", false),
+        ("api = \"1.0.0\"\n", false),
+        ("api = \"0.1.0-rc.1\"\n", false),
+        ("api = \"0.1.0+build\"\n", true),
+    ] {
+        package(&pkg, "ok", guest("hello"), api);
+        let inspected = plugins.inspect(&pkg).await;
+        match accepted {
+            true => assert!(inspected.unwrap().warnings.is_empty(), "{api}"),
+            false => assert!(
+                matches!(
+                    refusal(inspected),
+                    PackageError::Grant(GrantError::Api { .. })
+                ),
+                "{api}"
+            ),
+        }
+    }
+    package(&pkg, "ok", guest("hello"), "api = \"latest\"\n");
+    assert!(matches!(
+        refusal(plugins.inspect(&pkg).await),
+        PackageError::Manifest(ManifestError::Api(_))
+    ));
+}

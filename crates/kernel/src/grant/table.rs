@@ -1,5 +1,8 @@
 use proto::plugin::{ScopeKind, Tier};
 
+/// The version of `crates/sdk/wit/kernel`; the WIT snapshot test keeps the two equal.
+const KERNEL_VERSION: &str = "0.1.0";
+
 /// What the user is asked to approve for one permission.
 #[derive(Debug, Clone, Copy)]
 pub struct Permission {
@@ -8,6 +11,21 @@ pub struct Permission {
     /// The manifest scope the permission requires, if it takes one.
     pub scope: Option<ScopeKind>,
     pub prompt: &'static str,
+}
+
+/// How far an interface's contract can be relied on, as its WIT says: a plain
+/// interface is part of the package's baseline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Stability {
+    #[default]
+    Baseline,
+    /// `@since(version = ..)`, and `@deprecated(version = ..)` when it is on its way out.
+    Stable {
+        since: &'static str,
+        deprecated: Option<&'static str>,
+    },
+    /// `@unstable(feature = ..)`: it may change in any release.
+    Unstable { feature: &'static str },
 }
 
 /// What importing or exporting an interface needs.
@@ -24,6 +42,8 @@ pub enum Gate<'a> {
 pub struct Table {
     interfaces: Vec<(&'static str, Option<&'static str>)>,
     permissions: Vec<Permission>,
+    versions: Vec<(&'static str, &'static str)>,
+    stability: Vec<(&'static str, Stability)>,
 }
 
 impl Table {
@@ -36,7 +56,46 @@ impl Table {
         Table {
             interfaces,
             permissions,
+            ..Table::default()
         }
+    }
+
+    /// The version `package` is at; a plugin built against a later one is refused.
+    pub fn versioned(mut self, package: &'static str, version: &'static str) -> Self {
+        self.versions.push((package, version));
+        self
+    }
+
+    /// Marks `interface` as stable since a version, deprecated, or unstable.
+    pub fn stability(mut self, interface: &'static str, stability: Stability) -> Self {
+        self.stability.push((interface, stability));
+        self
+    }
+
+    /// The version `package` is at, if the table states one.
+    pub fn version(&self, package: &str) -> Option<&'static str> {
+        self.versions
+            .iter()
+            .find(|(name, _)| *name == package)
+            .map(|(_, version)| *version)
+    }
+
+    /// What `interface` promises; a plain one is the package's baseline.
+    pub fn stability_of(&self, interface: &str) -> Stability {
+        self.stability
+            .iter()
+            .find(|(name, _)| *name == interface)
+            .map_or(Stability::Baseline, |(_, stability)| *stability)
+    }
+
+    /// Every interface the table maps.
+    pub fn interfaces(&self) -> impl Iterator<Item = &'static str> + '_ {
+        self.interfaces.iter().map(|(name, _)| *name)
+    }
+
+    /// Every interface the table marks with a stability.
+    pub fn stabilities(&self) -> impl Iterator<Item = (&'static str, Stability)> + '_ {
+        self.stability.iter().copied()
     }
 
     /// `hestia:kernel` and the `wasi:http` that rides on `network:connect`.
@@ -95,6 +154,7 @@ impl Table {
                 },
             ],
         )
+        .versioned(super::KERNEL_PACKAGE, KERNEL_VERSION)
     }
 
     /// Adds `package`'s table. Refused when a row lies outside `package`, an
@@ -125,8 +185,42 @@ impl Table {
         {
             return Err(format!("permission '{}' is in two tables", taken.name));
         }
+        if other.version(package).is_none() {
+            return Err(format!("{package} states no version"));
+        }
+        if let Some((name, _)) = other.versions.iter().find(|(name, _)| *name != package) {
+            return Err(format!("'{name}' is not {package}"));
+        }
+        let unparsable = other
+            .versions
+            .iter()
+            .map(|(_, version)| version)
+            .chain(
+                other
+                    .stability
+                    .iter()
+                    .flat_map(|(_, stability)| match stability {
+                        Stability::Stable { since, deprecated } => {
+                            vec![since, deprecated.as_ref().unwrap_or(since)]
+                        }
+                        _ => Vec::new(),
+                    }),
+            )
+            .find(|version| semver::Version::parse(version).is_err());
+        if let Some(version) = unparsable {
+            return Err(format!("'{version}' is not a version"));
+        }
+        if let Some((name, _)) = other
+            .stability
+            .iter()
+            .find(|(name, _)| !other.interfaces.iter().any(|(held, _)| held == name))
+        {
+            return Err(format!("'{name}' is not an interface of {package}"));
+        }
         self.interfaces.extend(other.interfaces);
         self.permissions.extend(other.permissions);
+        self.versions.extend(other.versions);
+        self.stability.extend(other.stability);
         Ok(())
     }
 
@@ -184,8 +278,29 @@ mod tests {
         ];
         for (interface, needs, extra, case) in refused {
             let mut table = Table::kernel();
-            let other = Table::new(vec![(interface, needs)], extra.into_iter().collect());
+            let other = Table::new(vec![(interface, needs)], extra.into_iter().collect())
+                .versioned("hestia:probe", "0.1.0");
             assert!(table.merge("hestia:probe", other).is_err(), "{case}");
+        }
+        let read = || Table::new(vec![("hestia:probe/read", None)], vec![]);
+        for (other, case) in [
+            (read(), "no version"),
+            (read().versioned("hestia:probe", "latest"), "not a version"),
+            (
+                read().versioned("hestia:probe", "0.1.0").stability(
+                    "hestia:probe/read",
+                    Stability::Stable {
+                        since: "soon",
+                        deprecated: None,
+                    },
+                ),
+                "a since that is not a version",
+            ),
+        ] {
+            assert!(
+                Table::kernel().merge("hestia:probe", other).is_err(),
+                "{case}"
+            );
         }
         let mut table = Table::kernel();
         let probe = || {
@@ -193,6 +308,7 @@ mod tests {
                 vec![("hestia:probe/read", Some("probe:read"))],
                 vec![permission("probe:read")],
             )
+            .versioned("hestia:probe", "0.1.0")
         };
         table.merge("hestia:probe", probe()).unwrap();
         assert!(matches!(table.gate("hestia:probe/read"), Gate::Needs(_)));

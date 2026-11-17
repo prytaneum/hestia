@@ -386,6 +386,13 @@ impl Plugins {
         source: &Source,
     ) -> Result<Inspection, PluginError> {
         let manifest = &package.manifest;
+        let warnings = grant::versions::check(
+            &self.table,
+            manifest,
+            &package.shape,
+            *source == Source::Dev,
+        )
+        .map_err(PackageError::from)?;
         let mut grant =
             grant::derive(&self.table, manifest, &package.shape).map_err(PackageError::from)?;
         let reserved = self.reserved.clone();
@@ -406,6 +413,7 @@ impl Plugins {
                 source.signer(),
             ),
             signer: self.signer_info(source),
+            warnings,
             grant,
         })
     }

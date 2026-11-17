@@ -546,10 +546,10 @@ hestia plugin secret set <id> <key>   # store a secret for a plugin that asks fo
 hestia <plugin> <command> [--arg value]   # run a command the plugin declares; `hestia <plugin> --help` lists them
 ```
 
-`add` takes a directory holding `plugin.toml` (id, name, version, and the scope of each permission that takes one) and
-`plugin.wasm`. The permissions are read from the component, never declared; the prompt lists each with its tier, and the
-approval covers the exact package, so one that changes between the prompt and the install is refused. `secret set`
-reads the value from stdin when it is not a terminal.
+`add` takes a directory holding `plugin.toml` (id, name, version, optionally the `api` version it was built against, and
+the scope of each permission that takes one) and `plugin.wasm`. The permissions are read from the component, never
+declared; the prompt lists each with its tier, and the approval covers the exact package, so one that changes between
+the prompt and the install is refused. `secret set` reads the value from stdin when it is not a terminal.
 
 `add` is a dev install: it needs `hestia config set plugins.developer true`, since nothing signs a directory, and the
 plugin runs only while the setting stays on. A repository is an `index.json` and its minisign signature at the same URL

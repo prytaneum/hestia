@@ -19,6 +19,11 @@ pub struct Manifest {
     pub id: String,
     pub name: String,
     pub version: String,
+    /// The Hestia API version the plugin was built against, set by its author;
+    /// it must be the version the component imports. Without it the imports
+    /// alone are checked.
+    #[serde(default)]
+    pub api: Option<String>,
     /// The scope of each permission that takes one, by permission name.
     #[serde(default)]
     pub permissions: BTreeMap<String, Scopes>,
@@ -135,6 +140,8 @@ pub enum ManifestError {
     Scope(String),
     #[error("plugin version '{0}' must be 1-{VERSION_MAX} letters, digits or '.+-'")]
     Version(String),
+    #[error("plugin.toml api '{0}' must be a version such as 0.1.0")]
+    Api(String),
 }
 
 impl Manifest {
@@ -164,6 +171,13 @@ impl Manifest {
                 .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-'));
         if !version_ok {
             return Err(ManifestError::Version(manifest.version));
+        }
+        if let Some(api) = manifest
+            .api
+            .as_ref()
+            .filter(|api| semver::Version::parse(api).is_err())
+        {
+            return Err(ManifestError::Api(api.clone()));
         }
         Ok(manifest)
     }

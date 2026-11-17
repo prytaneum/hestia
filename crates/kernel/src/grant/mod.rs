@@ -3,6 +3,7 @@
 
 mod pin;
 mod table;
+pub(crate) mod versions;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -15,7 +16,7 @@ use crate::manifest::{Manifest, Scopes};
 use crate::runtime::{Denials, Shape};
 pub(crate) use pin::digest;
 pub use pin::{pin, Reserved};
-pub use table::{Gate, Permission, Table};
+pub use table::{Gate, Permission, Stability, Table};
 
 #[derive(Debug, thiserror::Error)]
 pub enum GrantError {
@@ -47,6 +48,22 @@ pub enum GrantError {
     },
     #[error("plugin.toml declares {0}, but the component does not export them")]
     NotExported(&'static str),
+    #[error("{what} is at API {asked}, but this Hestia provides {host}")]
+    Api {
+        what: String,
+        asked: String,
+        host: String,
+    },
+    #[error("plugin.toml says api {api}, but the component uses {import}")]
+    ApiMismatch { api: String, import: String },
+    #[error("'{interface}' is unstable ({feature}): only a plugin installed from a directory in developer mode may import it")]
+    Unstable { interface: String, feature: String },
+    #[error("'{interface}' arrived in {since}, but the plugin is built against {api}")]
+    Since {
+        interface: String,
+        since: String,
+        api: String,
+    },
     #[error("plugin.toml grants '{permission}' {reason}")]
     Host {
         permission: String,

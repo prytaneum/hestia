@@ -78,6 +78,7 @@ http-body = "1.0.1"
 http-body-util = "0.1.5"
 bytes = "1.11.1"
 wasmparser = { version = "0.261.0", default-features = false, features = ["std", "component-model"] }
+wit-parser = { version = "0.261.0", default-features = false, features = ["std"] }
 wit-bindgen = "0.63.0"
 
 # Debug info stays in per-object `.dwo` files instead of being copied into
