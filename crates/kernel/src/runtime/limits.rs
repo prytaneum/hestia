@@ -28,6 +28,7 @@ pub struct Limits {
     pub(super) calls_per_plugin: usize,
     pub(super) calls_total: usize,
     pub(super) pool_slots: usize,
+    pub(super) data_quota: u64,
     pub(super) traps_to_disable: usize,
     pub(super) trap_window: Duration,
 }
@@ -35,7 +36,7 @@ pub struct Limits {
 impl Default for Limits {
     /// 10 s for `init`, 5 s for an event such as `settings-changed`, 2 s for a
     /// hook, an hour for a command and 5 s more once its job is cancelled,
-    /// 256 MiB of memory per call, 10 notices then one more every 5 s, 4 calls per plugin and 16 overall, 16 instance slots in the host's pool, three traps in
+    /// 256 MiB of memory per call, 10 notices then one more every 5 s, 4 calls per plugin and 16 overall, 16 instance slots in the host's pool, 8 GiB of data per plugin, three traps in
     /// ten minutes.
     fn default() -> Self {
         Limits {
@@ -55,6 +56,7 @@ impl Default for Limits {
             calls_per_plugin: 4,
             calls_total: 16,
             pool_slots: 16,
+            data_quota: super::quota::DATA_QUOTA,
             traps_to_disable: 3,
             trap_window: Duration::from_secs(10 * 60),
         }
@@ -101,6 +103,14 @@ impl Limits {
     pub fn with_pool_slots(self, slots: usize) -> Self {
         Limits {
             pool_slots: slots,
+            ..self
+        }
+    }
+
+    /// How many bytes a plugin's `/data` may hold in all.
+    pub fn with_data_quota(self, bytes: u64) -> Self {
+        Limits {
+            data_quota: bytes,
             ..self
         }
     }

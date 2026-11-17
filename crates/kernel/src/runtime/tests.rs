@@ -13,6 +13,7 @@ use super::download::Staged;
 use super::host::{Call, State};
 use super::http::Hooks;
 use super::limits::MemoryCap;
+use super::quota::Quota;
 use super::reach::Reach;
 use super::shared::Shared;
 use super::Services;
@@ -525,4 +526,31 @@ async fn stored_state_that_cannot_be_read_fails_and_is_never_replaced() {
     for name in ["settings.json", "secrets.json"] {
         assert!(data.path().join("state").join(name).is_dir(), "{name}");
     }
+}
+
+#[tokio::test]
+async fn a_download_that_would_pass_the_data_quota_is_refused_and_a_replacement_is_not_counted_twice(
+) {
+    let data = tempfile::tempdir().unwrap();
+    let port = serve().await;
+    let shared = Shared {
+        quota: Arc::new(Quota::new(10)),
+        ..Shared::new(Arc::new(Data(data.path().to_owned())))
+    };
+    let mut plugin = State::new(
+        "tester",
+        true,
+        MemoryCap::new(1 << 20),
+        shared,
+        Call::default(),
+        Arc::new(reaching(&["files.example"], false)),
+    );
+    let url = format!("http://127.0.0.1:{port}/f");
+    let sha = Some(PAYLOAD_SHA256);
+
+    assert_eq!(fetch(&mut plugin, &url, "a", sha).await.unwrap(), 7);
+    let result = fetch(&mut plugin, &url, "b", sha).await;
+    assert!(matches!(result, Err(PluginError::Failed(_))), "{result:?}");
+    assert!(!data.path().join("b").exists() && !data.path().join("b.part").exists());
+    assert_eq!(fetch(&mut plugin, &url, "a", sha).await.unwrap(), 7);
 }

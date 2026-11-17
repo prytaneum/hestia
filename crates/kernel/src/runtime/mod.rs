@@ -22,6 +22,7 @@ mod pause;
 mod permissions;
 mod programs;
 mod progress;
+mod quota;
 mod reach;
 mod services;
 mod settings;
@@ -69,6 +70,7 @@ pub(crate) use host::State;
 pub use jobs::{Invocation, JobOutcome};
 pub use limits::Limits;
 use limits::MemoryCap;
+use quota::Quota;
 use reach::Reach;
 pub use services::{Answer, NoticeLevel, Services};
 use shared::Shared;
@@ -172,6 +174,7 @@ impl Sandbox {
             Ticker::start(engine.clone()).map_err(|error| SandboxError::Engine(error.into()))?;
         let shared = Shared::new(Arc::new(services::Unavailable));
         let shared = Shared {
+            quota: Arc::new(Quota::new(limits.data_quota)),
             notices: Arc::new(wakeups::Wakeups::new(
                 limits.notice_burst,
                 limits.notice_refill_per_second,
@@ -437,6 +440,13 @@ impl Sandbox {
         let Some(indices) = &loaded.on_schedule else {
             return Ok(());
         };
+        if self.shared.quota.is_over(&loaded.plugin) {
+            tracing::warn!(
+                plugin = loaded.plugin,
+                "tick refused: data is over its quota"
+            );
+            return Err(SandboxError::OverQuota(loaded.plugin.clone()));
+        }
         let budget = self.limits.event_timeout;
         self.run(
             loaded,
@@ -573,7 +583,11 @@ impl Sandbox {
                 }
             }
         };
-        self.settle(plugin, outcome, store.data().memory.exceeded)
+        let result = self.settle(plugin, outcome, store.data().memory.exceeded);
+        if let Some(data) = self.shared.services.data_dir(plugin) {
+            self.shared.quota.measure(plugin, data).await;
+        }
+        result
     }
 
     fn store(&self, plugin: &str, call: Call, reach: Arc<Reach>) -> Store<State> {

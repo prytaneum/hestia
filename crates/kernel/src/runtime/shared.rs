@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 
+use super::quota::Quota;
 use super::services::Services;
 use super::settings::Files;
 use super::wakeups::Wakeups;
@@ -22,6 +23,7 @@ pub(super) struct Shared {
     pub downloading: Downloading,
     /// Plugins whose `/data` directory exists, so a call does not create it again.
     pub mounted: Arc<Mutex<HashSet<String>>>,
+    pub quota: Arc<Quota>,
     /// The router the adapters call through; set once the daemon has one.
     pub calls: Arc<OnceLock<Arc<dyn HostCalls>>>,
     /// Hestia's own endpoints, which no connection may reach however it is spelled.
@@ -44,6 +46,7 @@ impl Shared {
             files: Arc::default(),
             downloading: Arc::default(),
             mounted: Arc::default(),
+            quota: Arc::default(),
             calls: Arc::default(),
             own: Arc::default(),
             wakeups: Arc::default(),

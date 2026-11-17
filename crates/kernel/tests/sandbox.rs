@@ -556,3 +556,36 @@ async fn a_full_pool_refuses_the_call_without_counting_a_trap_or_disabling_the_p
 
     sandbox.init(&other).await.unwrap();
 }
+
+#[tokio::test]
+async fn a_plugin_over_its_data_quota_gets_no_ticks_but_runs_on_to_free_the_space() {
+    let host = Host::new("quota", true);
+    let sandbox = sandbox_services(Limits::default().with_data_quota(64), host.clone());
+    let tour = sandbox
+        .load("tour", wasm(service_guest("tour")))
+        .await
+        .unwrap();
+    host.mode("tour", "free");
+    let ballast = host.data("tour").join("ballast");
+
+    sandbox.init(&tour).await.unwrap();
+    sandbox.tick(&tour, "first").await.unwrap();
+
+    std::fs::write(&ballast, [0u8; 100]).unwrap();
+    sandbox.init(&tour).await.unwrap();
+    let refused = sandbox.tick(&tour, "second").await;
+    assert!(
+        matches!(&refused, Err(SandboxError::OverQuota(plugin)) if plugin == "tour"),
+        "{refused:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(host.data("tour").join("ticks"))
+            .unwrap()
+            .trim(),
+        "first"
+    );
+
+    std::fs::remove_file(&ballast).unwrap();
+    sandbox.init(&tour).await.unwrap();
+    sandbox.tick(&tour, "third").await.unwrap();
+}

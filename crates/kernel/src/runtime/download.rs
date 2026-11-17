@@ -8,6 +8,7 @@ use tokio::io::AsyncWriteExt;
 use super::bindings::hestia::kernel::download;
 use super::bindings::hestia::kernel::types::PluginError;
 use super::host::State;
+use super::quota::stored;
 use super::shared::Downloading;
 use crate::vetting::{self, Failure, Limits, Refusal};
 
@@ -19,7 +20,6 @@ fn denied() -> PluginError {
 }
 
 const FORBIDDEN: [char; 8] = ['<', '>', ':', '"', '\\', '|', '?', '*'];
-const DEPTH_MAX: usize = 64;
 
 /// `path` as a place under `/data`: relative, no `..`, and every name valid on
 /// every platform the daemon runs on, so a plugin behaves the same everywhere.
@@ -129,9 +129,9 @@ impl Staged {
         Ok((staged, file.into_std()))
     }
 
-    /// How many more bytes `/data` may take before [`Limits::DATA_QUOTA`],
+    /// How many more bytes `/data` may take before `quota`,
     /// counting what the target now holds as freed. Blocking.
-    fn headroom(&self) -> std::io::Result<u64> {
+    fn headroom(&self, quota: u64) -> std::io::Result<u64> {
         let replaced = self.dir.symlink_metadata(&self.target).map_or(0, |found| {
             if found.is_file() {
                 found.len()
@@ -140,7 +140,7 @@ impl Staged {
             }
         });
         let held = stored(&self.dir, 0)?.saturating_sub(replaced);
-        Ok(Limits::DATA_QUOTA.saturating_sub(held))
+        Ok(quota.saturating_sub(held))
     }
 
     /// Renames the staging file into place. Blocking.
@@ -157,31 +157,6 @@ impl Drop for Staged {
             let _ = common::fsys::retry(|| self.dir.remove_file(&self.part));
         }
     }
-}
-
-fn stored(dir: &Dir, depth: usize) -> std::io::Result<u64> {
-    if depth > DEPTH_MAX {
-        return Err(std::io::Error::other(
-            "the data directory is nested too deeply",
-        ));
-    }
-    let mut total = 0u64;
-    for entry in dir.entries()? {
-        let entry = entry?;
-        let counted = match entry.file_type()? {
-            kind if kind.is_file() => entry.metadata().map(|found| found.len()),
-            kind if kind.is_dir() => entry
-                .open_dir()
-                .and_then(|nested| stored(&nested, depth + 1)),
-            _ => Ok(0),
-        };
-        match counted {
-            Ok(bytes) => total = total.saturating_add(bytes),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
-        }
-    }
-    Ok(total)
 }
 
 /// cap-std refuses a path that leaves the directory with a bare
@@ -297,7 +272,17 @@ impl download::Host for State {
             return Err(PluginError::Upstream(format!("HTTP {}", response.status())));
         }
         let tally = (self.shared.downloading.clone(), self.plugin.clone());
-        let written = write(response, data, target, limits, wanted.as_deref(), tally).await;
+        let quota = self.shared.quota.limit();
+        let written = write(
+            response,
+            data,
+            target,
+            limits,
+            quota,
+            wanted.as_deref(),
+            tally,
+        )
+        .await;
         if let Err(error) = &written {
             tracing::warn!(plugin, ?error, "plugin download failed");
         } else {
@@ -314,6 +299,7 @@ async fn write(
     data: PathBuf,
     target: PathBuf,
     limits: Limits,
+    quota: u64,
     wanted: Option<&str>,
     (downloading, plugin): (Downloading, String),
 ) -> Result<u64, PluginError> {
@@ -326,7 +312,7 @@ async fn write(
     }
     let (staged, file, room) = tokio::task::spawn_blocking(move || {
         let (staged, file) = Staged::create(&data, target)?;
-        let room = staged.headroom().map_err(failed)?;
+        let room = staged.headroom(quota).map_err(failed)?;
         Ok::<_, PluginError>((staged, file, room))
     })
     .await

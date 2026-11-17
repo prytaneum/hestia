@@ -19,6 +19,10 @@ pub enum SandboxError {
     /// is not the plugin's fault and is never counted as a trap.
     #[error("the host has no free instance capacity")]
     Exhausted,
+    /// The plugin ended its last call with more in `/data` than its quota
+    /// allows; nothing of it ran.
+    #[error("plugin '{0}' is over its data quota")]
+    OverQuota(String),
     #[error("call exceeded its time budget")]
     Timeout,
     #[error("call exceeded its memory limit")]

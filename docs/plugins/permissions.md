@@ -34,9 +34,9 @@ checked again on every redirect. A plugin that is offline reaches nothing (`down
 `app::info().online`).
 
 `download::fetch(url, path, sha256)` streams into `/data`: `path` is relative with no `..`, every name valid on Windows too (no `\`, `:`, `con`, `nul.txt`, trailing dot or space),
-directories are created, a fetch that would take `/data` past 8 GiB fails, the
+directories are created, a fetch that would take `/data` past 8 GiB fails (so does one while your own writes have it over), the
 file is staged as `.part` and renamed, and a link inside `/data` that leaves it is refused. Without a SHA-256 the host
-must be listed in `unhashed`; prefer the checksum.
+must be listed in `unhashed`; prefer the checksum. `/data` is measured when each call ends; while it holds more than 8 GiB the plugin gets no schedule ticks, and its other calls still run so it can delete files.
 
 ## Programs: `process:spawn`
 
