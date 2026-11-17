@@ -166,9 +166,7 @@ impl Plugins {
             .iter()
             .map(|key| Signer::parse(key))
             .collect::<Result<_, _>>()?;
-        let disabled: HashSet<String> = schema::load::<Saved>(&path)
-            .map(|saved| saved.disabled.into_iter().collect())
-            .unwrap_or_default();
+        let disabled = disabled_ids(&path).map_err(PluginError::Load)?;
         let mut slots: Vec<Slot> = ordered.into_iter().map(Slot::builtin).collect();
         for index in 0..slots.len() {
             if disabled.contains(slots[index].id()) {
@@ -352,6 +350,15 @@ impl Plugins {
             .collect();
         schema::save(&self.path, &Saved { disabled }).map_err(PluginError::Save)
     }
+}
+
+/// The ids the user turned off. A file that cannot be read fails rather than
+/// reading as empty, which would start every disabled plugin again and let the
+/// next save replace the list.
+fn disabled_ids(path: &Path) -> Result<HashSet<String>, schema::SchemaError> {
+    Ok(schema::try_load::<Saved>(path)?
+        .map(|saved| saved.disabled.into_iter().collect())
+        .unwrap_or_default())
 }
 
 fn info(slot: &Slot) -> PluginInfo {

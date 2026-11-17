@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use common::schema::{self, Document};
+use common::schema::{self, Document, SchemaError};
 use serde::{Deserialize, Serialize};
 
 use super::error::TrustError;
@@ -57,31 +57,52 @@ impl Repositories {
         }
     }
 
-    pub fn list(&self) -> Vec<Repository> {
-        schema::load::<Saved>(&self.path)
+    /// Only a missing file is an empty list. One that cannot be read is an
+    /// error, because the next `put` would otherwise replace it and forget the
+    /// pinned keys and the highest sequence seen, which replay protection rests on.
+    pub fn list(&self) -> Result<Vec<Repository>, SchemaError> {
+        Ok(schema::try_load::<Saved>(&self.path)?
             .map(|saved| saved.repositories)
-            .unwrap_or_default()
+            .unwrap_or_default())
     }
 
-    pub fn get(&self, id: &str) -> Option<Repository> {
-        self.list()
+    pub fn get(&self, id: &str) -> Result<Option<Repository>, SchemaError> {
+        Ok(self
+            .list()?
             .into_iter()
-            .find(|repository| repository.id == id)
+            .find(|repository| repository.id == id))
     }
 
-    pub fn put(&self, repository: Repository) -> Result<(), common::schema::SchemaError> {
-        let mut repositories = self.list();
+    pub fn put(&self, repository: Repository) -> Result<(), SchemaError> {
+        let mut repositories = self.list()?;
         repositories.retain(|existing| existing.id != repository.id);
         repositories.push(repository);
         schema::save(&self.path, &Saved { repositories })
     }
 
-    pub fn remove(&self, id: &str) -> Result<bool, common::schema::SchemaError> {
-        let mut repositories = self.list();
+    pub fn remove(&self, id: &str) -> Result<bool, SchemaError> {
+        let mut repositories = self.list()?;
         let before = repositories.len();
         repositories.retain(|existing| existing.id != id);
         let removed = repositories.len() != before;
         schema::save(&self.path, &Saved { repositories })?;
         Ok(removed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_repository_list_that_cannot_be_read_is_an_error_and_is_never_replaced() {
+        let home = tempfile::tempdir().unwrap();
+        let repositories = Repositories::new(home.path());
+        std::fs::create_dir(home.path().join(Saved::NAME)).unwrap();
+
+        assert!(repositories.list().is_err());
+        assert!(repositories.put(Repository::default()).is_err());
+        assert!(repositories.remove("any").is_err());
+        assert!(home.path().join(Saved::NAME).is_dir());
     }
 }

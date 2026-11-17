@@ -51,13 +51,18 @@ impl Kind {
         })
     }
 
-    /// A file this build cannot read is set aside by `schema`, never written over.
-    fn load(self, path: &Path) -> BTreeMap<String, Value> {
+    /// A file this build cannot read as a document is set aside by `schema`; one
+    /// it cannot read at all fails, so the next write never lands on top of it.
+    fn load(self, path: &Path) -> Result<BTreeMap<String, Value>, PluginError> {
         match self {
-            Kind::Settings => schema::load::<Settings>(path).map(|d| d.values),
-            Kind::Secrets => schema::load::<Secrets>(path).map(|d| d.values),
+            Kind::Settings => schema::try_load::<Settings>(path).map(|d| d.map(|d| d.values)),
+            Kind::Secrets => schema::try_load::<Secrets>(path).map(|d| d.map(|d| d.values)),
         }
-        .unwrap_or_default()
+        .map(Option::unwrap_or_default)
+        .map_err(|error| {
+            tracing::error!(%error, "plugin state not read");
+            PluginError::Failed("cannot read its stored state".into())
+        })
     }
 
     fn save(
@@ -83,12 +88,15 @@ pub(super) struct Files {
 }
 
 impl Files {
-    fn values(&self, dir: &Path, kind: Kind) -> Values {
+    fn values(&self, dir: &Path, kind: Kind) -> Result<Values, PluginError> {
         let path = kind.path(dir);
         let mut open = self.open.lock().unwrap_or_else(PoisonError::into_inner);
-        open.entry(path.clone())
-            .or_insert_with(|| Arc::new(Mutex::new(kind.load(&path))))
-            .clone()
+        if let Some(values) = open.get(&path) {
+            return Ok(values.clone());
+        }
+        let values = Arc::new(Mutex::new(kind.load(&path)?));
+        open.insert(path, values.clone());
+        Ok(values)
     }
 
     pub(super) fn forget(&self, dir: &Path) {
@@ -96,17 +104,17 @@ impl Files {
         open.retain(|path, _| path.parent() != Some(dir));
     }
 
-    fn get(&self, dir: &Path, kind: Kind, key: &str) -> Option<Value> {
-        let values = self.values(dir, kind);
+    fn get(&self, dir: &Path, kind: Kind, key: &str) -> Result<Option<Value>, PluginError> {
+        let values = self.values(dir, kind)?;
         let values = values.lock().unwrap_or_else(PoisonError::into_inner);
-        values.get(key).cloned()
+        Ok(values.get(key).cloned())
     }
 
     fn set(&self, dir: &Path, kind: Kind, key: &str, value: Value) -> Result<(), PluginError> {
         if key.is_empty() || key.len() > KEY_BYTES {
             return Err(PluginError::Invalid("key".into()));
         }
-        let values = self.values(dir, kind);
+        let values = self.values(dir, kind)?;
         let mut values = values.lock().unwrap_or_else(PoisonError::into_inner);
         if !values.contains_key(key) && values.len() >= KEYS {
             return Err(PluginError::Invalid(format!("more than {KEYS} keys")));
@@ -148,19 +156,29 @@ fn state_dir(shared: &Shared, plugin: &str) -> Result<PathBuf, PluginError> {
         .ok_or(PluginError::Unsupported)
 }
 
+/// Runs blocking file work off the async executor.
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, PluginError> + Send + 'static,
+) -> Result<T, PluginError> {
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|error| PluginError::Failed(error.to_string()))?
+}
+
 /// Stores a setting, whether the plugin or the user changed it.
-pub(super) fn save_setting(
+pub(super) async fn save_setting(
     shared: &Shared,
     plugin: &str,
     key: &str,
     value: &str,
 ) -> Result<(), PluginError> {
     let dir = state_dir(shared, plugin)?;
-    shared.files.set(&dir, Kind::Settings, key, json(value)?)
+    let (files, key, value) = (shared.files.clone(), key.to_owned(), json(value)?);
+    blocking(move || files.set(&dir, Kind::Settings, &key, value)).await
 }
 
 /// Stores a secret the user entered; the value never reaches a log.
-pub(super) fn save_secret(
+pub(super) async fn save_secret(
     shared: &Shared,
     plugin: &str,
     key: &str,
@@ -170,33 +188,41 @@ pub(super) fn save_secret(
         return Err(PluginError::Invalid("value too large".into()));
     }
     let dir = state_dir(shared, plugin)?;
-    shared
-        .files
-        .set(&dir, Kind::Secrets, key, Value::String(value.to_owned()))
+    let (files, key, value) = (shared.files.clone(), key.to_owned(), value.to_owned());
+    blocking(move || files.set(&dir, Kind::Secrets, &key, Value::String(value))).await
+}
+
+async fn load(
+    shared: &Shared,
+    plugin: &str,
+    kind: Kind,
+    key: String,
+) -> Result<Option<Value>, PluginError> {
+    let dir = state_dir(shared, plugin)?;
+    let files = shared.files.clone();
+    blocking(move || files.get(&dir, kind, &key)).await
 }
 
 impl settings::Host for State {
-    fn get(&mut self, key: String) -> Result<Option<String>, PluginError> {
-        let dir = state_dir(&self.shared, &self.plugin)?;
-        let found = self.shared.files.get(&dir, Kind::Settings, &key);
+    async fn get(&mut self, key: String) -> Result<Option<String>, PluginError> {
+        let found = load(&self.shared, &self.plugin, Kind::Settings, key).await?;
         Ok(found.map(|value| value.to_string()))
     }
 
-    fn set(&mut self, key: String, value: String) -> Result<(), PluginError> {
-        save_setting(&self.shared, &self.plugin, &key, &value)
+    async fn set(&mut self, key: String, value: String) -> Result<(), PluginError> {
+        save_setting(&self.shared, &self.plugin, &key, &value).await
     }
 }
 
 /// Linked for every plugin; one the user did not grant `secrets` reaches the
 /// grant's denied stub instead.
 impl secrets::Host for State {
-    fn get(&mut self, key: String) -> Result<Option<String>, PluginError> {
-        let dir = state_dir(&self.shared, &self.plugin)?;
-        let found = self.shared.files.get(&dir, Kind::Secrets, &key);
+    async fn get(&mut self, key: String) -> Result<Option<String>, PluginError> {
+        let found = load(&self.shared, &self.plugin, Kind::Secrets, key).await?;
         Ok(found.and_then(|value| value.as_str().map(str::to_owned)))
     }
 
-    fn set(&mut self, key: String, value: String) -> Result<(), PluginError> {
-        save_secret(&self.shared, &self.plugin, &key, &value)
+    async fn set(&mut self, key: String, value: String) -> Result<(), PluginError> {
+        save_secret(&self.shared, &self.plugin, &key, &value).await
     }
 }

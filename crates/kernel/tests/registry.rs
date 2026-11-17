@@ -178,3 +178,14 @@ async fn a_busy_plugin_stays_enabled_and_a_failing_one_takes_its_dependents_down
     plugins.disable("broken", false).await.unwrap();
     assert_eq!(states(&plugins)[1].1, PluginState::Disabled);
 }
+
+#[test]
+fn a_plugin_list_that_cannot_be_read_fails_the_start_and_is_left_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("plugins.json")).unwrap();
+
+    let opened = open(dir.path(), Vec::new());
+
+    assert!(matches!(opened, Err(PluginError::Load(_))));
+    assert!(dir.path().join("plugins.json").is_dir());
+}

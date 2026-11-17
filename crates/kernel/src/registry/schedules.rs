@@ -75,7 +75,13 @@ impl Plugins {
             return Vec::new();
         }
         let path = self.runs_path(&guest.id);
-        let mut runs = schema::load::<Runs>(&path).unwrap_or_default();
+        let mut runs = match schema::try_load::<Runs>(&path) {
+            Ok(runs) => runs.unwrap_or_default(),
+            Err(error) => {
+                tracing::error!(plugin = guest.id, %error, "schedules not checked");
+                return Vec::new();
+            }
+        };
         let before = runs.last.clone();
         let due = advance(&mut runs, &guest.schedules, now);
         if runs.last != before {

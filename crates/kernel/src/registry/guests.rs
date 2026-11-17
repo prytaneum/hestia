@@ -3,7 +3,6 @@
 //! `Plugins::changes`, so installs, enables, disables and removals never
 //! interleave.
 
-use std::collections::HashSet;
 use std::future::Future;
 use std::path::Path;
 use std::sync::atomic::Ordering;
@@ -15,7 +14,7 @@ use proto::plugin::{
 };
 
 use super::dependencies::{dependency_order, Member, Plan};
-use super::{find, info, schema, Kind, Plugins, Saved, Slot};
+use super::{disabled_ids, find, info, Kind, Plugins, Slot};
 use crate::commands::{CommandDecl, ScheduleDecl};
 use crate::entries::Entries;
 use crate::error::{PackageError, PluginError};
@@ -333,9 +332,13 @@ impl Plugins {
     /// what was approved is listed `failed` (or `disabled`, if the user turned
     /// it off) and never runs.
     pub async fn restore(&self) {
-        let disabled: HashSet<String> = schema::load::<Saved>(&self.path)
-            .map(|saved| saved.disabled.into_iter().collect())
-            .unwrap_or_default();
+        let disabled = match disabled_ids(&self.path) {
+            Ok(disabled) => disabled,
+            Err(error) => {
+                tracing::error!(%error, "installed plugins not loaded");
+                return;
+            }
+        };
         let store = self.store.clone();
         let ids = tokio::task::spawn_blocking(move || {
             // Rolls back an update that never finished, which `recover` reads.
@@ -594,7 +597,7 @@ impl Plugins {
 
     /// Stores a secret the user entered for a WASM plugin that asks for the
     /// `secrets` permission. The value never reaches a log.
-    pub fn store_secret(&self, id: &str, key: &str, value: &str) -> Result<(), PluginError> {
+    pub async fn store_secret(&self, id: &str, key: &str, value: &str) -> Result<(), PluginError> {
         let asks = {
             let slots = self.slots();
             match &slots[find(&slots, id)?].kind {
@@ -609,6 +612,7 @@ impl Plugins {
         }
         self.sandbox()?
             .store_secret(id, key, value)
+            .await
             .map_err(|error| PluginError::Secret(error.to_string()))?;
         tracing::info!(plugin = id, key, "secret stored");
         Ok(())

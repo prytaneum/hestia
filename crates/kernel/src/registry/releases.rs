@@ -38,8 +38,11 @@ async fn blocking<T: Send + 'static>(
 
 impl Plugins {
     pub fn repositories(&self) -> Vec<RepositoryInfo> {
-        self.repositories
-            .list()
+        let listed = self.repositories.list().unwrap_or_else(|error| {
+            tracing::error!(%error, "repositories not listed");
+            Vec::new()
+        });
+        listed
             .iter()
             .map(|repository| {
                 let signer = repository.signer(&self.official).map(|s| s.fingerprint());
@@ -68,7 +71,12 @@ impl Plugins {
         };
         let fetched = Fetched::index(&repository, &signer, self.policy_for).await?;
         let _changing = self.changes.lock().await;
-        if self.repositories.get(id).is_some() {
+        if self
+            .repositories
+            .get(id)
+            .map_err(PluginError::Load)?
+            .is_some()
+        {
             return Err(PluginError::RepositoryExists(id.to_owned()));
         }
         let repository = Repository {
@@ -127,7 +135,14 @@ impl Plugins {
     /// version it revokes, and lists what is newer than what is installed.
     pub async fn check_updates(&self) -> PluginUpdatesResult {
         let mut fetches = Vec::new();
-        for repository in self.repositories.list() {
+        let listed = match self.repositories.list() {
+            Ok(listed) => listed,
+            Err(error) => {
+                tracing::error!(%error, "repositories not checked");
+                return PluginUpdatesResult::default();
+            }
+        };
+        for repository in listed {
             let (asked, policy_for) = (repository.clone(), self.policy_for);
             let signer = repository.signer(&self.official);
             let fetch =
@@ -263,6 +278,7 @@ impl Plugins {
     fn repository(&self, id: &str) -> Result<Repository, PluginError> {
         self.repositories
             .get(id)
+            .map_err(PluginError::Load)?
             .ok_or_else(|| PluginError::UnknownRepository(id.to_owned()))
     }
 

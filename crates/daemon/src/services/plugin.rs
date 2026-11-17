@@ -185,6 +185,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         ctx.runtime
             .plugins()
             .store_secret(&p.id, &p.key, &p.value)
+            .await
             .map(|()| Empty {})
             .map_err(ErrorInfo::from)
     });

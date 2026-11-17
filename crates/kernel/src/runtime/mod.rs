@@ -357,6 +357,7 @@ impl Sandbox {
         value: &str,
     ) -> Result<(), SandboxError> {
         settings::save_setting(&self.shared, &loaded.plugin, key, value)
+            .await
             .map_err(SandboxError::Setting)?;
         let Some(indices) = &loaded.settings_changed else {
             return Ok(());
@@ -465,8 +466,15 @@ impl Sandbox {
     }
 
     /// Stores a secret the user entered for the plugin.
-    pub fn store_secret(&self, plugin: &str, key: &str, value: &str) -> Result<(), SandboxError> {
-        settings::save_secret(&self.shared, plugin, key, value).map_err(SandboxError::Setting)
+    pub async fn store_secret(
+        &self,
+        plugin: &str,
+        key: &str,
+        value: &str,
+    ) -> Result<(), SandboxError> {
+        settings::save_secret(&self.shared, plugin, key, value)
+            .await
+            .map_err(SandboxError::Setting)
     }
 
     /// One call under the sandbox's bounds: a slot, a fresh store, and `budget`

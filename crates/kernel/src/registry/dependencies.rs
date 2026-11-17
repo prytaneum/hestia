@@ -166,7 +166,7 @@ impl Plugins {
         let Ok(range) = VersionReq::parse(&dependency.range) else {
             return Ok(None);
         };
-        let mut repositories = self.repositories.list();
+        let mut repositories = self.repositories.list().map_err(PluginError::Load)?;
         if let Source::Repository { repository, .. } = from {
             repositories.sort_by_key(|listed| listed.id != *repository);
         }

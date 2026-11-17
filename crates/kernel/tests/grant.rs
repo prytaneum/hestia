@@ -402,12 +402,15 @@ async fn a_secret_is_stored_only_for_a_plugin_that_asks_for_it() {
 
     registry
         .store_secret("grant-asks", "token", "s3cret")
+        .await
         .unwrap();
     let secrets =
         std::fs::read_to_string(home.path().join("plugins/grant-asks/secrets.json")).unwrap();
     assert!(secrets.contains("s3cret"));
     assert!(matches!(
-        registry.store_secret("grant-quiet", "token", "s3cret"),
+        registry
+            .store_secret("grant-quiet", "token", "s3cret")
+            .await,
         Err(PluginError::Secret(_))
     ));
 }
@@ -709,7 +712,10 @@ async fn a_dev_reinstall_is_an_update_that_keeps_the_plugins_state() {
         .install(&pkg, &approved, Default::default())
         .await
         .unwrap();
-    registry.store_secret("reload", "token", "s3cret").unwrap();
+    registry
+        .store_secret("reload", "token", "s3cret")
+        .await
+        .unwrap();
     let state = home.path().join("plugins/reload");
     let schedules = std::fs::read(state.join("schedules.json")).unwrap();
 
@@ -748,14 +754,17 @@ async fn a_plugin_installed_under_a_removed_ids_name_reads_none_of_its_secrets()
         .install(&pkg, &approved, Default::default())
         .await
         .unwrap();
-    registry.store_secret("reused", "token", "s3cret").unwrap();
+    registry
+        .store_secret("reused", "token", "s3cret")
+        .await
+        .unwrap();
     registry.remove("reused").await.unwrap();
     registry
         .install(&pkg, &approved, Default::default())
         .await
         .unwrap();
 
-    registry.store_secret("reused", "other", "v").unwrap();
+    registry.store_secret("reused", "other", "v").await.unwrap();
     let secrets = std::fs::read_to_string(home.path().join("plugins/reused/secrets.json")).unwrap();
     assert!(!secrets.contains("s3cret"), "{secrets}");
 }

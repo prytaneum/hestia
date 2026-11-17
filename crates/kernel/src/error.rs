@@ -78,6 +78,8 @@ pub enum PluginError {
     Invalid(String),
     #[error("cannot save plugin state: {0}")]
     Save(common::schema::SchemaError),
+    #[error("cannot read plugin state: {0}")]
+    Load(common::schema::SchemaError),
 }
 
 /// Why a package cannot be installed or loaded.
