@@ -62,7 +62,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<PluginDisable, _, _>(|p, ctx| async move {
         ctx.runtime
             .plugins()
-            .disable(&p.id)
+            .disable(&p.id, p.cascade)
             .await
             .map_err(ErrorInfo::from)
     });

@@ -4,13 +4,17 @@
 //! interleave.
 
 use std::collections::HashSet;
+use std::future::Future;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use proto::error::IoOp;
-use proto::plugin::{Choice, EntryScope, Grant, Inspection, PluginInfo, PluginState, SignerInfo};
+use proto::plugin::{
+    Choice, Dependency, EntryScope, Grant, Inspection, PluginInfo, PluginState, SignerInfo,
+};
 
+use super::dependencies::{dependency_order, Member, Plan};
 use super::{find, info, schema, Kind, Plugins, Saved, Slot};
 use crate::commands::{CommandDecl, ScheduleDecl};
 use crate::entries::Entries;
@@ -32,6 +36,9 @@ pub(crate) struct Guest {
     granted: Vec<String>,
     /// The packages its imports need an enabled built-in to provide.
     pub requires: Vec<String>,
+    /// The ids of the built-ins that provide `requires`.
+    providers: Vec<String>,
+    pub dependencies: Vec<Dependency>,
     pub commands: Vec<CommandDecl>,
     pub schedules: Vec<ScheduleDecl>,
     /// The optional permissions the user granted.
@@ -43,6 +50,18 @@ pub(crate) struct Guest {
 }
 
 impl Guest {
+    /// The ids of every plugin it needs: those it declares and the built-ins
+    /// behind the packages it imports.
+    pub fn needs(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.dependencies.iter().map(|d| d.id.clone()).collect();
+        for provider in &self.providers {
+            if !ids.contains(provider) {
+                ids.push(provider.clone());
+            }
+        }
+        ids
+    }
+
     fn unloaded(id: &str, record: Approval) -> Self {
         Guest {
             id: id.to_owned(),
@@ -51,6 +70,8 @@ impl Guest {
             source: record.source,
             granted: Vec::new(),
             requires: Vec::new(),
+            providers: Vec::new(),
+            dependencies: record.grant.dependencies,
             commands: Vec::new(),
             schedules: Vec::new(),
             optional: record.choice.optional,
@@ -73,7 +94,7 @@ impl Plugins {
     /// Derives the grant of the package in `dir` without compiling or running
     /// any of it.
     pub async fn inspect(&self, dir: &Path) -> Result<Inspection, PluginError> {
-        self.inspection(&read(dir).await?, &Source::Dev).await
+        Ok(self.plan(&read(dir).await?, &Source::Dev).await?.inspection)
     }
 
     /// Installs the package in `dir` if it still derives `approved`, then starts
@@ -100,20 +121,115 @@ impl Plugins {
         source: Source,
         choice: Choice,
     ) -> Result<PluginInfo, PluginError> {
+        let plan = self.plan(&package, &source).await?;
         let _changing = self.changes.lock().await;
-        let inspection = self.inspection(&package, &source).await?;
+        if plan.inspection.approval_digest != approved {
+            return Err(PluginError::Changed(plan.inspection.id.clone()));
+        }
+        self.still_holds(&plan, false)?;
+        grant::check_choice(&plan.inspection.grant, &choice).map_err(PackageError::from)?;
+        let Plan {
+            inspection,
+            own,
+            members,
+        } = plan;
+        self.with_members(
+            members,
+            (&inspection.id, &own),
+            self.install_one(package, &inspection, &own, source, choice),
+        )
+        .await
+    }
+
+    /// Installs what a plan brings, then runs `top`, the caller holding
+    /// `changes`. If either fails, everything installed for this call is removed
+    /// again with its data. The plan is on disk meanwhile, so a crash is undone
+    /// at the next start.
+    pub(super) async fn with_members<T>(
+        &self,
+        members: Vec<Member>,
+        (plugin, digest): (&str, &str),
+        top: impl Future<Output = Result<T, PluginError>>,
+    ) -> Result<T, PluginError> {
+        if members.is_empty() {
+            return top.await;
+        }
+        self.store.begin(
+            plugin,
+            digest,
+            members.iter().map(|m| m.inspection.id.clone()).collect(),
+        )?;
+        let mut installed = Vec::new();
+        let outcome = match self.install_members(members, &mut installed).await {
+            Ok(()) => top.await,
+            Err(error) => Err(error),
+        };
+        match &outcome {
+            Ok(_) => self.store.finish(),
+            Err(_) => {
+                if self.undo(&installed).await {
+                    self.store.finish();
+                }
+            }
+        }
+        outcome
+    }
+
+    /// Installs what a plan brings, in order, the caller holding `changes`,
+    /// noting each id in `installed` as it starts. One that fails, or does not
+    /// start, is an error.
+    async fn install_members(
+        &self,
+        members: Vec<Member>,
+        installed: &mut Vec<String>,
+    ) -> Result<(), PluginError> {
+        for member in members {
+            let id = member.inspection.id.clone();
+            self.ensure_absent(&id)?;
+            installed.push(id.clone());
+            let info = self
+                .install_one(
+                    member.package,
+                    &member.inspection,
+                    &member.inspection.approval_digest,
+                    member.source,
+                    Choice::default(),
+                )
+                .await?;
+            if info.state != PluginState::Enabled {
+                return Err(PluginError::Failed {
+                    plugin: id,
+                    source: anyhow::anyhow!("it did not start"),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Refuses an id that is installed or a built-in's, so a plan never undoes
+    /// a plugin it did not create.
+    fn ensure_absent(&self, id: &str) -> Result<(), PluginError> {
+        match self.slots().iter().any(|slot| slot.id() == id) || self.store.dir(id).exists() {
+            true => Err(PluginError::Exists(id.to_owned())),
+            false => Ok(()),
+        }
+    }
+
+    /// Installs `package` and starts it, the caller holding `changes`.
+    /// `own` is the digest it is stored under.
+    async fn install_one(
+        &self,
+        package: Package,
+        inspection: &Inspection,
+        own: &str,
+        source: Source,
+        choice: Choice,
+    ) -> Result<PluginInfo, PluginError> {
         let id = inspection.id.clone();
-        if inspection.approval_digest != approved {
-            return Err(PluginError::Changed(id));
-        }
-        self.require_provided(&inspection.grant.requires)?;
-        grant::check_choice(&inspection.grant, &choice).map_err(PackageError::from)?;
-        if self.slots().iter().any(|slot| slot.id() == id) || self.store.dir(&id).exists() {
-            return Err(PluginError::Exists(id));
-        }
+        self.ensure_absent(&id)?;
         let sandbox = self.sandbox()?.clone();
         let record = Approval {
-            digest: inspection.approval_digest.clone(),
+            digest: own.to_owned(),
             grant: inspection.grant.clone(),
             choice: choice.clone(),
             source: source.clone(),
@@ -156,6 +272,24 @@ impl Plugins {
         Ok(info(&slots[find(&slots, &id)?]))
     }
 
+    /// Removes what an install brought before it failed, last first, with its
+    /// data, the caller holding `changes`. Whether all of it is gone.
+    async fn undo(&self, installed: &[String]) -> bool {
+        let mut clean = true;
+        for id in installed.iter().rev() {
+            let undone = match self.remove_installed(id).await {
+                Ok(()) => self.store.discard(id),
+                Err(PluginError::NotFound(_)) => self.store.discard(id),
+                Err(error) => Err(error),
+            };
+            if let Err(error) = undone {
+                tracing::warn!(plugin = id, %error, "cannot undo a dependency of a failed install");
+                clean = false;
+            }
+        }
+        clean
+    }
+
     /// Loads every installed package, one at a time so a client's change waits
     /// for at most one `init`. One that cannot be read or no longer derives
     /// what was approved is listed `failed` (or `disabled`, if the user turned
@@ -165,9 +299,27 @@ impl Plugins {
             .map(|saved| saved.disabled.into_iter().collect())
             .unwrap_or_default();
         let store = self.store.clone();
-        let ids = tokio::task::spawn_blocking(move || store.ids())
-            .await
-            .unwrap_or_default();
+        let ids = tokio::task::spawn_blocking(move || {
+            // Rolls back an update that never finished, which `recover` reads.
+            store.ids();
+            store.recover();
+            let needs = |id: &str| -> Vec<String> {
+                store
+                    .record(id)
+                    .map(|record| {
+                        record
+                            .grant
+                            .dependencies
+                            .into_iter()
+                            .map(|d| d.id)
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            };
+            dependency_order(store.ids(), needs)
+        })
+        .await
+        .unwrap_or_default();
         for id in ids {
             let _changing = self.changes.lock().await;
             if self.slots().iter().any(|slot| slot.id() == id) {
@@ -177,12 +329,7 @@ impl Plugins {
             let wanted = !disabled.contains(&id);
             match self.load_guest(&id, None).await {
                 Ok(guest) if wanted => {
-                    let unprovided = self.require_provided(&guest.requires);
                     let guest = self.add(guest, PluginState::Failed);
-                    if let Err(error) = unprovided {
-                        tracing::warn!(plugin = id, %error, "installed plugin did not start");
-                        continue;
-                    }
                     if let Err(error) = self.start_guest(&guest).await {
                         tracing::warn!(plugin = id, %error, "installed plugin did not start");
                     }
@@ -210,15 +357,12 @@ impl Plugins {
         &self,
         package: Package,
         inspection: &Inspection,
+        own: &str,
         source: Source,
         scope: Option<EntryScope>,
     ) -> Result<PluginInfo, PluginError> {
         let id = inspection.id.as_str();
         let sandbox = self.sandbox()?.clone();
-        if self.running.any(id) {
-            return Err(PluginError::Busy(id.to_owned()));
-        }
-        self.require_provided(&inspection.grant.requires)?;
         let (old, was) = {
             let slots = self.slots();
             let slot = &slots[find(&slots, id)?];
@@ -230,7 +374,7 @@ impl Plugins {
         let approved = self.store.record(id).unwrap_or_default();
         let choice = grant::carry(&approved.grant, &inspection.grant, &approved.choice);
         let record = Approval {
-            digest: inspection.approval_digest.clone(),
+            digest: own.to_owned(),
             grant: inspection.grant.clone(),
             choice: choice.clone(),
             source: source.clone(),
@@ -373,6 +517,12 @@ impl Plugins {
     /// cannot be removed.
     pub async fn remove(&self, id: &str) -> Result<(), PluginError> {
         let _changing = self.changes.lock().await;
+        self.remove_installed(id).await
+    }
+
+    /// [`Plugins::remove`], the caller holding `changes`. Refused while an
+    /// installed plugin declares it as a dependency.
+    pub(super) async fn remove_installed(&self, id: &str) -> Result<(), PluginError> {
         {
             let slots = self.slots();
             if matches!(slots[find(&slots, id)?].kind, Kind::Builtin(_)) {
@@ -381,6 +531,13 @@ impl Plugins {
             if self.running.any(id) {
                 return Err(PluginError::Busy(id.to_owned()));
             }
+        }
+        let dependents = self.dependents_of(id);
+        if !dependents.is_empty() {
+            return Err(PluginError::Required {
+                plugin: id.to_owned(),
+                dependents,
+            });
         }
         let (store, owned) = (self.store.clone(), id.to_owned());
         tokio::task::spawn_blocking(move || store.remove(&owned))
@@ -460,6 +617,7 @@ impl Plugins {
             signer: self.signer_info(source),
             warnings,
             grant,
+            plan: Vec::new(),
         })
     }
 
@@ -474,7 +632,21 @@ impl Plugins {
         })
     }
 
-    fn require_provided(&self, requires: &[String]) -> Result<(), PluginError> {
+    fn providers(&self, requires: &[String]) -> Vec<String> {
+        self.slots()
+            .iter()
+            .filter_map(|slot| match &slot.kind {
+                Kind::Builtin(plugin) => plugin
+                    .descriptor()
+                    .provides
+                    .filter(|package| requires.iter().any(|r| r == package))
+                    .map(|_| slot.id().to_owned()),
+                Kind::Guest(_) => None,
+            })
+            .collect()
+    }
+
+    pub(super) fn require_provided(&self, requires: &[String]) -> Result<(), PluginError> {
         let slots = self.slots();
         let provided = |package: &str| {
             slots.iter().any(|slot| {
@@ -556,6 +728,8 @@ impl Plugins {
             source,
             granted,
             requires: grant.requires.clone(),
+            providers: self.providers(&grant.requires),
+            dependencies: grant.dependencies.clone(),
             commands: manifest.commands,
             schedules: manifest.schedules,
             optional: effective
@@ -579,6 +753,14 @@ impl Plugins {
         guest
     }
 
+    fn dependencies_ready(&self, guest: &Guest) -> Result<(), PluginError> {
+        self.require_provided(&guest.requires)?;
+        guest
+            .dependencies
+            .iter()
+            .try_for_each(|dependency| self.dependency_ready(&guest.id, dependency))
+    }
+
     /// Runs `init` with `changes` held. Success enables the plugin; a failure
     /// leaves it `failed`, and one that reaches the trap limit is disabled and
     /// stays so after a restart.
@@ -592,6 +774,18 @@ impl Plugins {
             .and_then(|record| record.revoked)
         {
             return Err(revoked(&guest.id, &guest.version, &reason));
+        }
+        if let Err(error) = self.dependencies_ready(guest) {
+            let mut slots = self.slots();
+            let index = find(&slots, &guest.id)?;
+            slots[index].state = match error {
+                PluginError::MissingDependency { .. }
+                | PluginError::Package(PackageError::Unprovided(_)) => {
+                    PluginState::MissingDependency
+                }
+                _ => PluginState::Failed,
+            };
+            return Err(error);
         }
         let outcome = match (&guest.loaded, self.sandbox()) {
             (Some(loaded), Ok(sandbox)) => sandbox.init(loaded).await,

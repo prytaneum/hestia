@@ -94,6 +94,7 @@
       "plugin_failed": "The {plugin} plugin could not start: {detail}",
       "plugin_id_invalid": "'{id}' is not a valid id. Use lowercase letters, digits and '-'.",
       "plugin_invalid": "This plugin cannot be installed: {detail}",
+      "plugin_missing_dependency": "The {plugin} plugin needs {dependency} {range}, which is not installed at a version it accepts.",
       "plugin_not_found": "No plugin '{plugin}'.",
       "plugin_not_from_repository": "The {plugin} plugin was not installed from a repository, so none updates it.",
       "plugin_release_not_found": "Repository '{repository}' lists no release of {plugin}.",

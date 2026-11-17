@@ -95,6 +95,16 @@ pub struct GrantedSchedule {
     pub every: String,
 }
 
+/// A plugin this one needs, declared in `[dependencies]`: its id and the caret
+/// range of versions it accepts.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct Dependency {
+    pub id: String,
+    pub range: String,
+}
+
 /// What the user approves, derived from the component and the manifest.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -105,6 +115,8 @@ pub struct Grant {
     pub contributes: Vec<String>,
     /// The packages other than the kernel's that the component imports.
     pub requires: Vec<String>,
+    /// The plugins `[dependencies]` names.
+    pub dependencies: Vec<Dependency>,
     pub schedules: Vec<GrantedSchedule>,
 }
 
@@ -121,7 +133,9 @@ pub struct SignerInfo {
     pub official: bool,
 }
 
-/// A package read before anything of it runs.
+/// A package read before anything of it runs. `plan` lists, in install order,
+/// every plugin the install would bring because this one needs it; each is
+/// inspected as the plugin itself is, and `approval_digest` covers them all.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -133,10 +147,11 @@ pub struct Inspection {
     /// What the package does that will stop working, such as importing a
     /// deprecated interface.
     pub warnings: Vec<WarningInfo>,
+    pub plan: Vec<Inspection>,
     /// Absent for a package read from a directory, which nothing signs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer: Option<SignerInfo>,
-    /// Covers the package, the grant and the signer; `plugin.install` carries it back.
+    /// Covers the package, the grant, the signer and the plan; `plugin.install` carries it back.
     pub approval_digest: String,
 }
 

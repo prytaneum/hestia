@@ -710,7 +710,7 @@ async fn a_plugin_command_runs_as_a_job_asks_its_starter_and_starts_jobs_of_its_
                 break;
             }
         }
-        let disable = client.plugin().disable("tour").await.unwrap_err();
+        let disable = client.plugin().disable("tour", false).await.unwrap_err();
         assert_eq!(
             client::error_info(&disable),
             ErrorInfo::PluginBusy {

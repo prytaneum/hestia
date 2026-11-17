@@ -15,7 +15,7 @@ pub use error::TrustError;
 pub(crate) use fetch::loopback;
 pub(crate) use fetch::{policy, Fetched, PolicyFor};
 pub(crate) use hplugin::Hplugin;
-pub(crate) use index::{is_newer, Listing, Release};
+pub(crate) use index::{accepts, is_newer, Listing, Release};
 pub(crate) use repositories::{pinned, Repositories, Repository};
 pub(crate) use signature::same_key;
 pub use signature::Signer;

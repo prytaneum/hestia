@@ -10,6 +10,7 @@ const VERSION_MAX: usize = 32;
 const SCOPE_VALUES_MAX: usize = 64;
 const SCOPE_VALUE_MAX: usize = 255;
 const PROGRAM_ARGS_MAX: usize = 32;
+const DEPENDENCIES_MAX: usize = 16;
 
 /// `plugin.toml`: what the component cannot say about itself. Permissions and
 /// contributions are read from the component, never declared here.
@@ -31,6 +32,9 @@ pub struct Manifest {
     pub commands: Vec<CommandDecl>,
     #[serde(default)]
     pub schedules: Vec<ScheduleDecl>,
+    /// The plugins this one needs, by id, each with a caret range of versions.
+    #[serde(default)]
+    pub dependencies: BTreeMap<String, String>,
 }
 
 #[derive(Deserialize, Default, Debug, Clone)]
@@ -141,6 +145,8 @@ pub enum ManifestError {
     Name,
     #[error("the scope of '{0}' must list at most {SCOPE_VALUES_MAX} values of 1-{SCOPE_VALUE_MAX} characters (a program at most {PROGRAM_ARGS_MAX} arguments), with no control or direction characters")]
     Scope(String),
+    #[error("dependency '{id}': {reason}")]
+    Dependency { id: String, reason: String },
     #[error("plugin version '{0}' must be 1-{VERSION_MAX} letters, digits or '.+-'")]
     Version(String),
     #[error("plugin.toml api '{0}' must be a version such as 0.1.0")]
@@ -148,6 +154,31 @@ pub enum ManifestError {
 }
 
 impl Manifest {
+    fn check_dependencies(&self) -> Result<(), ManifestError> {
+        let refuse = |id: &str, reason: &str| ManifestError::Dependency {
+            id: id.to_owned(),
+            reason: reason.to_owned(),
+        };
+        if self.dependencies.len() > DEPENDENCIES_MAX {
+            return Err(refuse(
+                "",
+                &format!("a plugin may depend on at most {DEPENDENCIES_MAX} others"),
+            ));
+        }
+        for (id, range) in &self.dependencies {
+            if !crate::id::is_valid(id) {
+                return Err(refuse(id, "not a plugin id"));
+            }
+            if *id == self.id {
+                return Err(refuse(id, "a plugin cannot depend on itself"));
+            }
+            if !range.starts_with('^') || semver::VersionReq::parse(range).is_err() {
+                return Err(refuse(id, "write a caret range such as \"^1.2\""));
+            }
+        }
+        Ok(())
+    }
+
     pub fn parse(text: &str) -> Result<Self, ManifestError> {
         let manifest: Manifest = toml::from_str(text)?;
         if !crate::id::is_valid(&manifest.id) {
@@ -167,6 +198,7 @@ impl Manifest {
         {
             return Err(ManifestError::Scope(permission.clone()));
         }
+        manifest.check_dependencies()?;
         let version = &manifest.version;
         let version_ok = (1..=VERSION_MAX).contains(&version.len())
             && version

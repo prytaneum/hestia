@@ -147,7 +147,24 @@ impl Document for Approval {
 #[derive(Clone)]
 pub(crate) struct Store {
     root: PathBuf,
+    data: PathBuf,
     amending: Arc<Mutex<()>>,
+}
+
+/// The plugins a plan is installing for `plugin`, kept until the plan finishes
+/// so a crash leaves them to be undone at the next start. `digest` is what
+/// `plugin` is stored under once it is installed or updated: a record that
+/// carries it says the plan finished.
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+struct Pending {
+    plugin: String,
+    digest: String,
+    members: Vec<String>,
+}
+
+impl Document for Pending {
+    const NAME: &'static str = "pending.json";
 }
 
 /// `<data_home>/sandbox`, which holds one directory per plugin: its `/data`.
@@ -159,12 +176,83 @@ impl Store {
     pub fn new(data_home: &Path) -> Self {
         Store {
             root: data_home.join("plugins"),
+            data: sandbox_root(data_home),
             amending: Arc::default(),
         }
     }
 
     pub fn dir(&self, id: &str) -> PathBuf {
         self.root.join(id)
+    }
+
+    /// Records the plugins a plan is about to install for `plugin`, which is
+    /// stored under `digest` once the plan is done.
+    pub fn begin(
+        &self,
+        plugin: &str,
+        digest: &str,
+        members: Vec<String>,
+    ) -> Result<(), PluginError> {
+        let pending = Pending {
+            plugin: plugin.to_owned(),
+            digest: digest.to_owned(),
+            members,
+        };
+        schema::save_private(&self.root.join(Pending::NAME), &pending).map_err(PluginError::Save)
+    }
+
+    /// Clears the record of a plan that finished or was undone. The record
+    /// stays only if it cannot be deleted, which the log says.
+    pub fn finish(&self) {
+        match std::fs::remove_file(self.root.join(Pending::NAME)) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                tracing::error!(%error, "cannot clear the record of an install plan");
+            }
+            _ => {}
+        }
+    }
+
+    /// Settles a plan that was never cleared. If its plugin is stored under the
+    /// recorded digest the plan finished and only the record goes; otherwise
+    /// what it brought is discarded, and the record stays while any of that
+    /// fails so the next start retries.
+    pub fn recover(&self) {
+        let Some(plan) = schema::load::<Pending>(&self.root.join(Pending::NAME)) else {
+            return;
+        };
+        let finished = crate::id::is_valid(&plan.plugin)
+            && self
+                .record(&plan.plugin)
+                .is_some_and(|record| record.digest == plan.digest);
+        if !finished {
+            let mut clean = true;
+            for id in plan.members.iter().filter(|id| crate::id::is_valid(id)) {
+                tracing::warn!(
+                    plugin = id,
+                    "an install never finished; removing what it brought"
+                );
+                if let Err(error) = self.discard(id) {
+                    tracing::warn!(plugin = id, %error, "cannot remove it");
+                    clean = false;
+                }
+            }
+            if !clean {
+                return;
+            }
+        }
+        self.finish();
+    }
+
+    /// [`Store::remove`], and the plugin's `/data` with it: for a plugin an
+    /// install brought that the user never ran as theirs.
+    pub fn discard(&self, id: &str) -> Result<(), PluginError> {
+        self.remove(id)?;
+        match std::fs::remove_dir_all(self.data.join(id)) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                Err(PluginError::io(IoOp::Remove, error))
+            }
+            _ => Ok(()),
+        }
     }
 
     /// The installed ids. Staging left by an install that never finished is

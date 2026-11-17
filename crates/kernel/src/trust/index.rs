@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use semver::Version;
+use semver::{Version, VersionReq};
 use serde::Deserialize;
 
 use super::error::TrustError;
@@ -153,6 +153,18 @@ impl Index {
             .map(|release| (listing, release))
     }
 
+    /// The newest release of `id` that is not revoked and `range` accepts.
+    pub fn matching(&self, id: &str, range: &VersionReq) -> Option<(&Listing, &Release)> {
+        let listing = self.listing(id)?;
+        listing
+            .releases
+            .iter()
+            .filter(|release| self.revocation(id, &release.version).is_none())
+            .filter(|release| semver(&release.version).is_some_and(|v| range.matches(&v)))
+            .max_by_key(|release| semver(&release.version))
+            .map(|release| (listing, release))
+    }
+
     /// The newest release of `id` that is not revoked.
     pub fn latest(&self, id: &str) -> Option<(&Listing, &Release)> {
         let listing = self.listing(id)?;
@@ -171,6 +183,15 @@ pub fn is_newer(candidate: &str, installed: &str) -> bool {
     match (semver(candidate), semver(installed)) {
         (Some(candidate), Some(installed)) => candidate > installed,
         (Some(_), None) => true,
+        _ => false,
+    }
+}
+
+/// Whether `version` is one the caret `range` accepts. A version that is not
+/// semver, as a dev install may have, is accepted by none.
+pub fn accepts(range: &str, version: &str) -> bool {
+    match (VersionReq::parse(range), semver(version)) {
+        (Ok(range), Some(version)) => range.matches(&version),
         _ => false,
     }
 }

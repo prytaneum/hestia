@@ -32,6 +32,8 @@ pub enum PluginState {
     Enabled,
     Disabled,
     Failed,
+    /// A plugin it declares in `[dependencies]` is not installed at a version it accepts.
+    MissingDependency,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -46,6 +48,9 @@ pub struct PluginInfo {
     pub state: PluginState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provides: Option<String>,
+    /// The ids of the plugins it needs. For a WASM plugin, the ones it declares
+    /// in `[dependencies]` and the built-ins that provide the packages it
+    /// imports.
     pub requires: Vec<String>,
     pub commands: Vec<super::CommandSpec>,
     /// The optional permissions the user granted.
@@ -79,18 +84,29 @@ impl Contract for PluginEnable {
     type Result = PluginInfo;
 }
 
-/// Refused while an enabled plugin requires this one or the plugin has work
-/// running; only hides and unlinks, so its data on disk is untouched.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginDisableParams {
+    pub id: String,
+    /// Also disable every enabled plugin that needs this one. Without it, the
+    /// call is refused with `plugin_required` naming them.
+    pub cascade: bool,
+}
+
+/// Refused while an enabled plugin requires this one, naming all of them,
+/// unless `cascade` disables them first; refused too while the plugin has work
+/// running. Only hides and unlinks, so its data on disk is untouched.
 pub struct PluginDisable;
 impl Contract for PluginDisable {
     const CHANNEL: &'static str = "plugin.disable";
     const CHANGES: Option<Scope> = Some(Scope::Plugins);
-    type Params = PluginTarget;
+    type Params = PluginDisableParams;
     type Result = PluginInfo;
 }
 
 /// Deletes an installed plugin and its compiled cache entry. A built-in cannot
-/// be removed.
+/// be removed, nor a plugin another installed plugin depends on.
 pub struct PluginRemove;
 impl Contract for PluginRemove {
     const CHANNEL: &'static str = "plugin.remove";

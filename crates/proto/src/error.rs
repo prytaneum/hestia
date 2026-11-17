@@ -746,6 +746,13 @@ pub enum ErrorInfo {
     PluginBusy {
         plugin: String,
     },
+    /// A plugin declared in `[dependencies]` is not installed, or not at a
+    /// version the range accepts.
+    PluginMissingDependency {
+        plugin: String,
+        dependency: String,
+        range: String,
+    },
     /// A built-in's start-up failed; `detail` is its English reason.
     PluginFailed {
         plugin: String,
@@ -1156,6 +1163,11 @@ impl fmt::Display for ErrorInfo {
                 dependents.join(", ")
             ),
             PluginBusy { plugin } => write!(f, "plugin '{plugin}' has work running"),
+            PluginMissingDependency {
+                plugin,
+                dependency,
+                range,
+            } => write!(f, "plugin '{plugin}' needs '{dependency}' {range}, which is not installed at a version it accepts"),
             PluginFailed { plugin, detail } => {
                 write!(f, "plugin '{plugin}' failed to start: {detail}")
             }

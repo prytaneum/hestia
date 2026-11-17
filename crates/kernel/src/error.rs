@@ -14,6 +14,17 @@ pub enum PluginError {
         plugin: String,
         dependents: Vec<String>,
     },
+    #[error("its version {version} is outside what {} accept", dependents.join(", "))]
+    Rejected {
+        version: String,
+        dependents: Vec<String>,
+    },
+    #[error("plugin '{plugin}' needs '{dependency}' {range}, which is not installed at a version it accepts")]
+    MissingDependency {
+        plugin: String,
+        dependency: String,
+        range: String,
+    },
     #[error("plugin '{0}' has work running")]
     Busy(String),
     #[error("plugin '{plugin}' failed to enable: {source}")]
@@ -87,6 +98,12 @@ pub enum PackageError {
     Grant(#[from] GrantError),
     #[error("its manifest names '{0}'")]
     Renamed(String),
+    #[error("its dependencies loop back through {0}")]
+    DependencyCycle(String),
+    #[error("its dependencies are nested more than {0} deep")]
+    DependencyDepth(usize),
+    #[error("its dependencies bring more than {0} plugins")]
+    TooManyDependencies(usize),
     #[error("it needs {0}, which no enabled plugin provides")]
     Unprovided(String),
     #[error(transparent)]
@@ -116,6 +133,18 @@ impl From<PluginError> for ErrorInfo {
             },
             PluginError::Package(reason) => ErrorInfo::PluginInvalid {
                 detail: reason.to_string(),
+            },
+            PluginError::MissingDependency {
+                plugin,
+                dependency,
+                range,
+            } => ErrorInfo::PluginMissingDependency {
+                plugin,
+                dependency,
+                range,
+            },
+            rejected @ PluginError::Rejected { .. } => ErrorInfo::PluginInvalid {
+                detail: rejected.to_string(),
             },
             PluginError::NotEnabled(plugin) => ErrorInfo::PluginDisabled { plugin },
             PluginError::NoCommand { plugin, command } => ErrorInfo::PluginInvalid {

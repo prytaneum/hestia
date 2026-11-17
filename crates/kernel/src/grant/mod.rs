@@ -2,13 +2,16 @@
 //! digest the user's approval is bound to.
 
 mod pin;
+mod plan;
 mod table;
 pub(crate) mod versions;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use proto::plugin::{Choice, Grant, GrantedPermission, PermissionScope, Program, ScopeKind};
+use proto::plugin::{
+    Choice, Dependency, Grant, GrantedPermission, PermissionScope, Program, ScopeKind,
+};
 use sha2::{Digest, Sha256};
 
 use crate::commands::{self, ScheduleDecl};
@@ -16,6 +19,7 @@ use crate::manifest::{Manifest, Scopes};
 use crate::runtime::{Denials, Shape};
 pub(crate) use pin::digest;
 pub use pin::{pin, Reserved};
+pub(crate) use plan::plan_digest;
 pub use table::{Gate, Permission, Stability, Table};
 
 #[derive(Debug, thiserror::Error)]
@@ -199,6 +203,14 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
         permissions,
         contributes: shape.exports.clone(),
         requires: requires.into_iter().collect(),
+        dependencies: manifest
+            .dependencies
+            .iter()
+            .map(|(id, range)| Dependency {
+                id: id.clone(),
+                range: range.clone(),
+            })
+            .collect(),
         schedules: manifest
             .schedules
             .iter()
@@ -371,14 +383,19 @@ pub fn approval_digest(
 
 /// Whether `new` asks for anything `old` did not: a permission, a scope entry
 /// (a host, an endpoint, a host served without checksum, or a program whose
-/// path, arguments or digest pin differ), a required package, an export, or a
-/// schedule that is new or ticks more often. Dropping or narrowing never widens,
-/// and a new optional permission arrives declined, so it does not widen either.
+/// path, arguments or digest pin differ), a required package, a dependency, an
+/// export, or a schedule that is new or ticks more often. Dropping or narrowing
+/// never widens, and a new optional permission arrives declined, so it does not
+/// widen either.
 pub fn widens(old: &Grant, new: &Grant) -> bool {
     let more_packages = new
         .requires
         .iter()
         .any(|package| !old.requires.contains(package));
+    let more_dependencies = new
+        .dependencies
+        .iter()
+        .any(|dependency| !old.dependencies.contains(dependency));
     let more_exports = new
         .contributes
         .iter()
@@ -390,6 +407,7 @@ pub fn widens(old: &Grant, new: &Grant) -> bool {
             .any(|before| before.id == schedule.id && commands::interval(&before.every) <= every)
     });
     more_packages
+        || more_dependencies
         || more_exports
         || more_schedules
         || new.permissions.iter().any(|granted| {
@@ -836,13 +854,17 @@ mod tests {
             ],
             contributes: vec!["hestia:servers/flavor".into()],
             requires: vec!["hestia:servers".into()],
+            dependencies: vec![Dependency {
+                id: "base".into(),
+                range: "^1.0".into(),
+            }],
             schedules: vec![GrantedSchedule {
                 id: "nightly".into(),
                 every: "1d".into(),
             }],
         };
         type Change = fn(&mut Grant);
-        let widened: [(&str, Change); 11] = [
+        let widened: [(&str, Change); 13] = [
             ("a new schedule", |g| {
                 g.schedules.push(GrantedSchedule {
                     id: "extra".into(),
@@ -854,6 +876,15 @@ mod tests {
             }),
             ("a new permission", |g| {
                 g.permissions.push(permission_named("extra"))
+            }),
+            ("a new dependency", |g| {
+                g.dependencies.push(Dependency {
+                    id: "extra".into(),
+                    range: "^1.0".into(),
+                })
+            }),
+            ("a dependency on another range", |g| {
+                g.dependencies[0].range = "^2.0".into()
             }),
             ("a new required package", |g| {
                 g.requires.push("hestia:content".into())

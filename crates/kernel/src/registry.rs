@@ -18,6 +18,7 @@ use guests::Guest;
 use running::Running;
 
 mod calls;
+mod dependencies;
 mod guests;
 mod permissions;
 mod releases;
@@ -63,14 +64,21 @@ impl Slot {
         }
     }
 
-    /// Whether this plugin, enabled, needs `plugin`: a built-in by its id, or
-    /// a WASM plugin by the package `plugin` provides.
+    /// Whether this plugin, enabled, needs `plugin`: a built-in by its id, a
+    /// WASM plugin by the package `plugin` provides, or by the id it declares in
+    /// `[dependencies]`, a built-in's included.
     fn needs(&self, plugin: &Slot) -> bool {
         match (&self.kind, &plugin.kind) {
-            (Kind::Guest(guest), Kind::Builtin(builtin)) => builtin
-                .descriptor()
-                .provides
-                .is_some_and(|package| guest.requires.iter().any(|p| p == package)),
+            (Kind::Guest(guest), Kind::Builtin(builtin)) => {
+                let descriptor = builtin.descriptor();
+                guest.dependencies.iter().any(|d| d.id == descriptor.id)
+                    || descriptor
+                        .provides
+                        .is_some_and(|package| guest.requires.iter().any(|p| p == package))
+            }
+            (Kind::Guest(guest), Kind::Guest(needed)) => {
+                guest.dependencies.iter().any(|d| d.id == needed.id)
+            }
             _ => self.requires().contains(&plugin.id()),
         }
     }
@@ -251,6 +259,12 @@ impl Plugins {
         match guest {
             Some(guest) => {
                 if !self.is_enabled(id) {
+                    for needed in self.needed_by(&guest) {
+                        if !self.is_enabled(&needed.id) {
+                            self.start_guest(&needed).await?;
+                            self.start_schedules(&needed, common::now_unix().max(0) as u64);
+                        }
+                    }
                     self.start_guest(&guest).await?;
                     self.start_schedules(&guest, common::now_unix().max(0) as u64);
                 }
@@ -272,37 +286,47 @@ impl Plugins {
         Ok(info(&slots[index]))
     }
 
-    /// Refused while an enabled plugin requires it or it has work running.
-    pub async fn disable(&self, id: &str) -> Result<PluginInfo, PluginError> {
+    /// Refused while an enabled plugin requires it, which the error names, or
+    /// it has work running. With `cascade` the enabled plugins that need it, and
+    /// those that need them, are disabled first.
+    pub async fn disable(&self, id: &str, cascade: bool) -> Result<PluginInfo, PluginError> {
         let _changing = self.changes.lock().await;
         let mut slots = self.slots();
         let index = find(&slots, id)?;
-        match slots[index].state {
-            PluginState::Disabled => return Ok(info(&slots[index])),
-            PluginState::Failed => {}
-            PluginState::Enabled => {
-                let dependents: Vec<String> = slots
-                    .iter()
-                    .filter(|slot| slot.state == PluginState::Enabled && slot.needs(&slots[index]))
-                    .map(|slot| slot.id().to_string())
-                    .collect();
-                if !dependents.is_empty() {
-                    return Err(PluginError::Required {
-                        plugin: id.to_string(),
-                        dependents,
-                    });
-                }
-                if self.running.any(id) {
-                    return Err(PluginError::Busy(id.to_string()));
-                }
-                slots[index]
-                    .stop()
-                    .map_err(|_| PluginError::Busy(id.to_string()))?;
-            }
+        if slots[index].state == PluginState::Disabled {
+            return Ok(info(&slots[index]));
         }
-        slots[index].state = PluginState::Disabled;
-        self.save(&slots)?;
-        tracing::info!(plugin = id, "plugin disabled");
+        let mut stopping = Vec::new();
+        if slots[index].state == PluginState::Enabled {
+            stopping = enabled_dependents(&slots, index);
+            if !stopping.is_empty() && !cascade {
+                return Err(PluginError::Required {
+                    plugin: id.to_string(),
+                    dependents: stopping
+                        .iter()
+                        .map(|i| slots[*i].id().to_string())
+                        .collect(),
+                });
+            }
+            stopping.push(index);
+            if let Some(busy) = stopping.iter().find(|i| self.running.any(slots[**i].id())) {
+                return Err(PluginError::Busy(slots[*busy].id().to_string()));
+            }
+        } else {
+            stopping.push(index);
+        }
+        let mut outcome = Ok(());
+        for stopped in stopping {
+            if slots[stopped].state == PluginState::Enabled && slots[stopped].stop().is_err() {
+                outcome = Err(PluginError::Busy(slots[stopped].id().to_string()));
+                break;
+            }
+            slots[stopped].state = PluginState::Disabled;
+            tracing::info!(plugin = slots[stopped].id(), "plugin disabled");
+        }
+        let saved = self.save(&slots);
+        outcome?;
+        saved?;
         Ok(info(&slots[index]))
     }
 
@@ -350,12 +374,40 @@ fn info(slot: &Slot) -> PluginInfo {
             version: guest.version.clone(),
             state: slot.state,
             provides: None,
-            requires: Vec::new(),
+            requires: guest.needs(),
             commands: guest.commands.iter().map(CommandDecl::spec).collect(),
             optional: guest.optional.clone(),
             entries: guest.scoped.then(|| guest.entries.get()),
         },
     }
+}
+
+/// The enabled plugins that need `target`, directly or through each other, in
+/// the order to stop them: each before what it needs.
+fn enabled_dependents(slots: &[Slot], target: usize) -> Vec<usize> {
+    let mut found: Vec<usize> = Vec::new();
+    let mut frontier = vec![target];
+    while let Some(needed) = frontier.pop() {
+        for (index, slot) in slots.iter().enumerate() {
+            if index != target
+                && slot.state == PluginState::Enabled
+                && !found.contains(&index)
+                && slot.needs(&slots[needed])
+            {
+                found.push(index);
+                frontier.push(index);
+            }
+        }
+    }
+    let mut ordered = Vec::with_capacity(found.len());
+    while !found.is_empty() {
+        let next = found
+            .iter()
+            .position(|&i| !found.iter().any(|&j| j != i && slots[j].needs(&slots[i])))
+            .unwrap_or(0);
+        ordered.push(found.remove(next));
+    }
+    ordered
 }
 
 fn find(slots: &[Slot], id: &str) -> Result<usize, PluginError> {

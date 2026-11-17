@@ -4,19 +4,21 @@ import type { SignerInfo } from "./SignerInfo";
 import type { WarningInfo } from "./WarningInfo";
 
 /**
- * A package read before anything of it runs.
+ * A package read before anything of it runs. `plan` lists, in install order,
+ * every plugin the install would bring because this one needs it; each is
+ * inspected as the plugin itself is, and `approval_digest` covers them all.
  */
 export type Inspection = { id: string, name: string, version: string, grant: Grant, 
 /**
  * What the package does that will stop working, such as importing a
  * deprecated interface.
  */
-warnings: Array<WarningInfo>, 
+warnings: Array<WarningInfo>, plan: Array<Inspection>, 
 /**
  * Absent for a package read from a directory, which nothing signs.
  */
 signer?: SignerInfo, 
 /**
- * Covers the package, the grant and the signer; `plugin.install` carries it back.
+ * Covers the package, the grant, the signer and the plan; `plugin.install` carries it back.
  */
 approvalDigest: string, };

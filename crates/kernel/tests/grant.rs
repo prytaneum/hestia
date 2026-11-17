@@ -347,7 +347,7 @@ async fn an_installed_plugin_survives_restarts_and_removal_takes_its_cache() {
     let restarted = build();
     restarted.restore().await;
     assert_eq!(state(&restarted, "grant-keep"), Some(PluginState::Enabled));
-    restarted.disable("grant-keep").await.unwrap();
+    restarted.disable("grant-keep", false).await.unwrap();
     let again = build();
     again.restore().await;
     assert_eq!(state(&again, "grant-keep"), Some(PluginState::Disabled));
@@ -372,7 +372,7 @@ async fn an_installed_plugin_survives_restarts_and_removal_takes_its_cache() {
     let tampered = build();
     tampered.restore().await;
     assert_eq!(state(&tampered, "grant-keep"), Some(PluginState::Failed));
-    tampered.disable("grant-keep").await.unwrap();
+    tampered.disable("grant-keep", false).await.unwrap();
     let still_off = build();
     still_off.restore().await;
     assert_eq!(
@@ -590,4 +590,119 @@ async fn a_package_built_for_another_api_line_is_refused_at_inspect() {
         refusal(plugins.inspect(&pkg).await),
         PackageError::Manifest(ManifestError::Api(_))
     ));
+}
+
+async fn install(
+    registry: &Plugins,
+    pkg: &Path,
+    id: &str,
+    extra: String,
+) -> Result<proto::plugin::PluginInfo, PluginError> {
+    package(pkg, id, guest("hello"), &extra);
+    let digest = registry.inspect(pkg).await?.approval_digest;
+    registry.install(pkg, &digest, Default::default()).await
+}
+
+#[tokio::test]
+async fn plugins_start_in_dependency_order_and_stop_with_what_depends_on_them() {
+    let home = tempfile::tempdir().unwrap();
+    let registry = plugins(home.path(), vec![Arc::new(Core)]);
+    let pkg = home.path().join("pkg");
+    let needs = |id: &str| format!("[dependencies]\n{id} = \"^0.1\"\n");
+    package(&pkg, "app", guest("hello"), &needs("ghost"));
+    assert!(matches!(
+        registry.inspect(&pkg).await,
+        Err(PluginError::MissingDependency { dependency, .. }) if dependency == "ghost"
+    ));
+    install(&registry, &pkg, "base", String::new())
+        .await
+        .unwrap();
+    package(
+        &pkg,
+        "app",
+        guest("hello"),
+        "[dependencies]\nbase = \"^1.0\"\n",
+    );
+    assert!(
+        matches!(
+            registry.inspect(&pkg).await,
+            Err(PluginError::MissingDependency { .. })
+        ),
+        "an installed version the range rejects is a missing dependency"
+    );
+
+    install(&registry, &pkg, "app", needs("base"))
+        .await
+        .unwrap();
+    install(&registry, &pkg, "top", needs("app")).await.unwrap();
+    assert_eq!(
+        registry
+            .list()
+            .iter()
+            .find(|p| p.id == "top")
+            .unwrap()
+            .requires,
+        ["app"]
+    );
+
+    assert!(matches!(
+        registry.disable("base", false).await,
+        Err(PluginError::Required { dependents, .. }) if dependents == ["top", "app"]
+    ));
+    assert!(matches!(
+        registry.remove("base").await,
+        Err(PluginError::Required { dependents, .. }) if dependents == ["app"]
+    ));
+    let core = format!("[dependencies]\ncore = \"^{}\"\n", common::app::VERSION);
+    install(&registry, &pkg, "uses-core", core).await.unwrap();
+    assert_eq!(
+        registry
+            .list()
+            .iter()
+            .find(|p| p.id == "uses-core")
+            .unwrap()
+            .requires,
+        ["core"]
+    );
+    assert!(
+        matches!(
+            registry.disable("core", false).await,
+            Err(PluginError::Required { dependents, .. }) if dependents == ["uses-core"]
+        ),
+        "a built-in a plugin declares is needed like any other"
+    );
+    registry.disable("core", true).await.unwrap();
+    assert_eq!(state(&registry, "uses-core"), Some(PluginState::Disabled));
+    assert!(registry.enable("uses-core").await.is_err(), "core is off");
+    registry.enable("core").await.unwrap();
+    registry.enable("uses-core").await.unwrap();
+
+    registry.disable("base", true).await.unwrap();
+    for id in ["base", "app", "top"] {
+        assert_eq!(state(&registry, id), Some(PluginState::Disabled), "{id}");
+    }
+
+    registry.enable("top").await.unwrap();
+    for id in ["base", "app", "top"] {
+        assert_eq!(state(&registry, id), Some(PluginState::Enabled), "{id}");
+    }
+
+    let restarted = plugins(home.path(), vec![Arc::new(Core)]);
+    restarted.restore().await;
+    for id in ["base", "app", "top"] {
+        assert_eq!(
+            state(&restarted, id),
+            Some(PluginState::Enabled),
+            "{id} starts after what it needs, whatever the order on disk"
+        );
+    }
+
+    std::fs::remove_dir_all(home.path().join("plugins").join("base")).unwrap();
+    let orphaned = plugins(home.path(), vec![Arc::new(Core)]);
+    orphaned.restore().await;
+    assert_eq!(
+        state(&orphaned, "app"),
+        Some(PluginState::MissingDependency)
+    );
+    assert!(orphaned.enable("app").await.is_err());
 }

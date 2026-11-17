@@ -19,9 +19,16 @@ impl Plugin<'_> {
             .await
     }
 
-    pub async fn disable(&self, id: &str) -> Result<proto::plugin::PluginInfo, IpcError> {
+    pub async fn disable(
+        &self,
+        id: &str,
+        cascade: bool,
+    ) -> Result<proto::plugin::PluginInfo, IpcError> {
         self.session
-            .call::<proto::plugin::PluginDisable>(&proto::plugin::PluginTarget { id: id.into() })
+            .call::<proto::plugin::PluginDisable>(&proto::plugin::PluginDisableParams {
+                id: id.into(),
+                cascade,
+            })
             .await
     }
 

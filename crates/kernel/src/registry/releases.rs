@@ -9,6 +9,7 @@ use proto::plugin::{
     PluginUpdatesResult, RepositoryFailure, RepositoryInfo, UpdateInspection,
 };
 
+use super::dependencies::Plan;
 use super::{find, Kind, Plugins};
 use crate::error::PluginError;
 use crate::grant;
@@ -105,7 +106,7 @@ impl Plugins {
         version: Option<&str>,
     ) -> Result<Inspection, PluginError> {
         let (package, source) = self.release(repository, id, version).await?;
-        self.inspection(&package, &source).await
+        Ok(self.plan(&package, &source).await?.inspection)
     }
 
     /// Installs a release of a repository if it still derives `approved`.
@@ -180,13 +181,14 @@ impl Plugins {
         let update = self.prepare_update(id).await?;
         Ok(UpdateInspection {
             installed: update.installed,
-            inspection: update.inspection,
+            inspection: update.plan.inspection,
             widened: update.widened,
         })
     }
 
     /// Replaces `id` with its update if it still derives `approved`. A widened
-    /// update is only ever applied this way, never on its own.
+    /// update is only ever applied this way, never on its own. What it newly
+    /// needs is installed first, and removed again if the update fails.
     pub async fn update(
         &self,
         id: &str,
@@ -194,12 +196,22 @@ impl Plugins {
         scope: Option<EntryScope>,
     ) -> Result<PluginInfo, PluginError> {
         let update = self.prepare_update(id).await?;
-        if update.inspection.approval_digest != approved {
+        if update.plan.inspection.approval_digest != approved {
             return Err(PluginError::Changed(id.to_owned()));
         }
         let _changing = self.changes.lock().await;
-        self.replace(update.package, &update.inspection, update.source, scope)
-            .await
+        self.still_holds(&update.plan, true)?;
+        let Plan {
+            inspection,
+            own,
+            members,
+        } = update.plan;
+        self.with_members(
+            members,
+            (&inspection.id, &own),
+            self.replace(update.package, &inspection, &own, update.source, scope),
+        )
+        .await
     }
 
     /// The newest release of `id`, signed by the author who signed the
@@ -236,13 +248,14 @@ impl Plugins {
             return Err(TrustError::AuthorKey(id.to_owned()).into());
         }
         let package = download(&fetched, listing, release, &Signer::parse(author)?).await?;
-        let inspection = self.inspection(&package, &source).await?;
+        let plan = self.plan(&package, &source).await?;
+        self.accepted(id, &plan.inspection.version)?;
         let approved = self.store.record(id).unwrap_or_default().grant;
         Ok(Update {
             installed,
-            widened: grant::widens(&approved, &inspection.grant),
+            widened: grant::widens(&approved, &plan.inspection.grant) || !plan.members.is_empty(),
             package,
-            inspection,
+            plan,
             source,
         })
     }
@@ -282,7 +295,7 @@ impl Plugins {
     /// The index of `repository`, verified under its pinned key and no older
     /// than the last one seen. It records the sequence and disables what the
     /// index revokes among the plugins installed from this repository.
-    async fn fetch(
+    pub(super) async fn fetch(
         &self,
         repository: &Repository,
     ) -> Result<(Fetched, Vec<PluginRevoked>), PluginError> {
@@ -388,14 +401,14 @@ struct Update {
     installed: String,
     widened: bool,
     package: Package,
-    inspection: Inspection,
+    plan: Plan,
     source: Source,
 }
 
 /// A release of a verified index: the `.hplugin` held to the index's digest
 /// and signed by `author` as the plugin and version the index lists, whose
 /// manifest says the same.
-async fn download(
+pub(super) async fn download(
     fetched: &Fetched,
     listing: &Listing,
     release: &Release,

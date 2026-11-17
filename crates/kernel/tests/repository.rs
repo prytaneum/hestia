@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use kernel::{Limits, PluginError, Plugins, Sandbox, Services, TrustError};
+use kernel::{Limits, PackageError, PluginError, Plugins, Sandbox, Services, TrustError};
 use proto::plugin::{Choice, PluginSource, PluginState};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -111,7 +111,7 @@ fn manifest(id: &str, version: &str, hosts: &[&str]) -> String {
 fn optional_manifest(id: &str, version: &str, hosts: &[&str]) -> String {
     let hosts: Vec<String> = hosts.iter().map(|h| format!("\"{h}\"")).collect();
     format!(
-        "id = \"{id}\"\nname = \"{id}\"\nversion = \"{version}\"\n[permissions.\"network:connect\"]\noptional = true\nhosts = [{}]\n",
+        "id = \"{id}\"\nname = \"{id}\"\nversion = \"{version}\"\n[permissions.\"network:connect\"]\noptional = true\nhosts = [{}]\n[permissions.\"secrets\"]\noptional = true\n",
         hosts.join(", ")
     )
 }
@@ -610,7 +610,7 @@ async fn an_update_keeps_an_optional_grant_only_while_the_permission_stays_optio
         optional_manifest("rel", "3.0.0", &["evil.example"]),
         "net",
     );
-    apply(&registry, true).await;
+    apply(&registry, false).await;
     assert!(
         granted().is_empty(),
         "a permission dropped and added back optional arrives declined, whatever its scope"
@@ -1109,5 +1109,249 @@ async fn a_key_that_stands_for_hestia_is_never_a_repository_key_and_an_index_can
     assert!(
         !signer("mine").await.official,
         "an index lists keys but never decides which are Hestia's"
+    );
+}
+
+fn needing(id: &str, version: &str, needs: &[(&str, &str)]) -> String {
+    let mut text = format!("id = \"{id}\"\nname = \"{id}\"\nversion = \"{version}\"\n");
+    if !needs.is_empty() {
+        text += "[dependencies]\n";
+        for (dependency, range) in needs {
+            text += &format!("{dependency} = \"{range}\"\n");
+        }
+    }
+    text
+}
+
+fn release(repo: &mut Publisher, author: &Author, id: &str, version: &str, needs: &[(&str, &str)]) {
+    repo.release(id, author, version, &needing(id, version, needs), "hello");
+}
+
+#[tokio::test]
+async fn an_install_brings_what_the_plugin_needs_under_one_approval() {
+    let home = tempfile::tempdir().unwrap();
+    let registry = plugins(home.path());
+    let (mut repo, author) = (Publisher::new("acme").await, Author::new());
+    release(&mut repo, &author, "lib", "1.0.0", &[]);
+    release(&mut repo, &author, "tool", "1.0.0", &[("lib", "^1.0")]);
+    release(&mut repo, &author, "orphan", "1.0.0", &[("ghost", "^1.0")]);
+    release(&mut repo, &author, "ping", "1.0.0", &[("pong", "^1.0")]);
+    release(&mut repo, &author, "pong", "1.0.0", &[("ping", "^1.0")]);
+    repo.publish(1, now() + 3600);
+    registry
+        .add_repository("acme", &repo.url(), &repo.key())
+        .await
+        .unwrap();
+
+    assert!(matches!(
+        registry.inspect_release("acme", "orphan", None).await,
+        Err(PluginError::MissingDependency { dependency, .. }) if dependency == "ghost"
+    ));
+    assert!(matches!(
+        registry.inspect_release("acme", "ping", None).await,
+        Err(PluginError::Package(PackageError::DependencyCycle(_)))
+    ));
+
+    let inspection = registry
+        .inspect_release("acme", "tool", None)
+        .await
+        .unwrap();
+    let planned: Vec<_> = inspection.plan.iter().map(|p| p.id.as_str()).collect();
+    assert_eq!(planned, ["lib"]);
+    assert_eq!(
+        inspection.plan[0].signer.as_ref().unwrap().repository,
+        "acme"
+    );
+
+    release(&mut repo, &author, "lib", "1.1.0", &[]);
+    repo.publish(2, now() + 3600);
+    assert!(
+        matches!(
+            registry
+                .install_release(
+                    "acme",
+                    "tool",
+                    None,
+                    &inspection.approval_digest,
+                    Default::default(),
+                )
+                .await,
+            Err(PluginError::Changed(_))
+        ),
+        "a plan that moved since the prompt is not installed"
+    );
+    assert!(registry.list().is_empty(), "nothing was installed");
+
+    let inspection = registry
+        .inspect_release("acme", "tool", None)
+        .await
+        .unwrap();
+    let installed = registry
+        .install_release(
+            "acme",
+            "tool",
+            None,
+            &inspection.approval_digest,
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(installed.state, PluginState::Enabled);
+    assert_eq!(
+        state(&registry, "lib"),
+        (PluginState::Enabled, "1.1.0".into())
+    );
+    assert!(matches!(
+        registry.remove("lib").await,
+        Err(PluginError::Required { dependents, .. }) if dependents == ["tool"]
+    ));
+
+    release(
+        &mut repo,
+        &author,
+        "tool",
+        "1.1.0",
+        &[("lib", "^1.0"), ("extra", "^1.0")],
+    );
+    release(&mut repo, &author, "extra", "1.0.0", &[]);
+    repo.publish(3, now() + 3600);
+    let update = registry.inspect_update("tool").await.unwrap();
+    let planned: Vec<_> = update
+        .inspection
+        .plan
+        .iter()
+        .map(|p| p.id.as_str())
+        .collect();
+    assert_eq!((update.widened, planned), (true, vec!["extra"]));
+    assert!(matches!(
+        registry.update("tool", "stale", None).await,
+        Err(PluginError::Changed(_))
+    ));
+    registry
+        .update("tool", &update.inspection.approval_digest, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        state(&registry, "tool"),
+        (PluginState::Enabled, "1.1.0".into())
+    );
+    assert_eq!(
+        state(&registry, "extra"),
+        (PluginState::Enabled, "1.0.0".into())
+    );
+
+    release(&mut repo, &author, "extra", "1.1.0", &[("tool", "^1.0")]);
+    repo.publish(4, now() + 3600);
+    assert!(
+        matches!(
+            registry.inspect_update("extra").await,
+            Err(PluginError::Package(PackageError::DependencyCycle(_)))
+        ),
+        "an update that loops back through an installed plugin is refused"
+    );
+
+    release(&mut repo, &author, "lib", "2.0.0", &[]);
+    repo.publish(5, now() + 3600);
+    assert!(
+        matches!(
+            registry.inspect_update("lib").await,
+            Err(PluginError::Rejected { dependents, .. }) if dependents == ["tool"]
+        ),
+        "an update that leaves a dependent's range is refused at inspect"
+    );
+
+    release(&mut repo, &author, "first", "1.0.0", &[]);
+    repo.release(
+        "zbad",
+        &author,
+        "1.0.0",
+        &needing("zbad", "1.0.0", &[]),
+        "trap",
+    );
+    release(
+        &mut repo,
+        &author,
+        "combo",
+        "1.0.0",
+        &[("first", "^1.0"), ("zbad", "^1.0")],
+    );
+    repo.publish(6, now() + 3600);
+    let sandboxed = kernel::sandbox_root(home.path()).join("first");
+    std::fs::create_dir_all(&sandboxed).unwrap();
+    std::fs::write(sandboxed.join("written"), "").unwrap();
+    let inspection = registry
+        .inspect_release("acme", "combo", None)
+        .await
+        .unwrap();
+    assert!(matches!(
+        registry
+            .install_release(
+                "acme",
+                "combo",
+                None,
+                &inspection.approval_digest,
+                Default::default(),
+            )
+            .await,
+        Err(PluginError::Failed { plugin, .. }) if plugin == "zbad"
+    ));
+    let listed = |id: &str| registry.list().iter().any(|p| p.id == id);
+    assert!(
+        !["first", "zbad", "combo"].into_iter().any(listed),
+        "a plan whose member does not start leaves nothing installed"
+    );
+    assert!(!sandboxed.exists(), "an undone member's data goes with it");
+    let pending = home.path().join("plugins/pending.json");
+    assert!(!pending.exists());
+
+    let inspection = registry
+        .inspect_release("acme", "first", None)
+        .await
+        .unwrap();
+    registry
+        .install_release(
+            "acme",
+            "first",
+            None,
+            &inspection.approval_digest,
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    std::fs::create_dir_all(&sandboxed).unwrap();
+    let stored = |id: &str| -> String {
+        let text =
+            std::fs::read_to_string(home.path().join("plugins").join(id).join("approval.json"));
+        serde_json::from_str::<Value>(&text.unwrap()).unwrap()["digest"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let record = |digest: String| {
+        std::fs::write(
+            &pending,
+            json!({ "plugin": "tool", "digest": digest, "members": ["first"] }).to_string(),
+        )
+        .unwrap();
+    };
+    record(stored("tool"));
+    plugins(home.path()).restore().await;
+    assert!(
+        sandboxed.exists() && !pending.exists(),
+        "a plan whose plugin is stored under its digest finished: only the record goes"
+    );
+    assert!(home.path().join("plugins/first").exists());
+    record("stale".into());
+    let restarted = plugins(home.path());
+    restarted.restore().await;
+    assert!(
+        !restarted.list().iter().any(|p| p.id == "first")
+            && !sandboxed.exists()
+            && !pending.exists(),
+        "an install that never finished is undone before anything starts"
+    );
+    assert_eq!(
+        state(&restarted, "tool"),
+        (PluginState::Enabled, "1.1.0".into())
     );
 }

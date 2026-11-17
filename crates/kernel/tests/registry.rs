@@ -79,18 +79,18 @@ async fn enable_and_disable_follow_dependencies_and_persist() {
     assert_eq!(*log.lock().unwrap(), ["core", "extra"]);
     assert!(plugins.is_enabled("extra"));
 
-    let error = plugins.disable("core").await.unwrap_err();
+    let error = plugins.disable("core", false).await.unwrap_err();
     assert!(matches!(&error, PluginError::Required { dependents, .. } if dependents == &["extra"]));
 
-    plugins.disable("extra").await.unwrap();
-    plugins.disable("core").await.unwrap();
+    plugins.disable("extra", false).await.unwrap();
+    plugins.disable("core", false).await.unwrap();
     assert!(!plugins.is_enabled("core"));
 
     log.lock().unwrap().clear();
     plugins.enable("extra").await.unwrap();
     assert_eq!(*log.lock().unwrap(), ["core", "extra"]);
 
-    plugins.disable("extra").await.unwrap();
+    plugins.disable("extra", false).await.unwrap();
     log.lock().unwrap().clear();
     let restarted = open(dir.path(), build(&log)).unwrap();
     assert_eq!(*log.lock().unwrap(), ["core"]);
@@ -131,7 +131,7 @@ async fn start_up_never_enables_what_the_user_turned_off() {
         ]
     );
 
-    plugins.disable("extra").await.unwrap();
+    plugins.disable("extra", false).await.unwrap();
     let restarted = open(dir.path(), build(&log)).unwrap();
     assert!(log.lock().unwrap().is_empty());
     assert_eq!(
@@ -162,7 +162,7 @@ async fn a_busy_plugin_stays_enabled_and_a_failing_one_takes_its_dependents_down
     .unwrap();
 
     assert!(matches!(
-        plugins.disable("busy").await,
+        plugins.disable("busy", false).await,
         Err(PluginError::Busy(_))
     ));
     assert!(plugins.is_enabled("busy"));
@@ -175,6 +175,6 @@ async fn a_busy_plugin_stays_enabled_and_a_failing_one_takes_its_dependents_down
         ]
     );
 
-    plugins.disable("broken").await.unwrap();
+    plugins.disable("broken", false).await.unwrap();
     assert_eq!(states(&plugins)[1].1, PluginState::Disabled);
 }

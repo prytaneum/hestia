@@ -16,12 +16,13 @@ pub use command::{
     ArgKind, ArgSpec, CommandSpec, PluginRun, PluginRunDone, PluginRunParams, PluginRunProgress,
 };
 pub use grant::{
-    Grant, GrantedPermission, GrantedSchedule, Inspection, PermissionScope, PluginInspect,
-    PluginInstall, PluginInstallParams, PluginPackage, Program, ScopeKind, SignerInfo, Tier,
+    Dependency, Grant, GrantedPermission, GrantedSchedule, Inspection, PermissionScope,
+    PluginInspect, PluginInstall, PluginInstallParams, PluginPackage, Program, ScopeKind,
+    SignerInfo, Tier,
 };
 pub use registry::{
-    PluginDisable, PluginEnable, PluginInfo, PluginKind, PluginList, PluginRemove,
-    PluginSecretParams, PluginSecretSet, PluginSource, PluginState, PluginTarget,
+    PluginDisable, PluginDisableParams, PluginEnable, PluginInfo, PluginKind, PluginList,
+    PluginRemove, PluginSecretParams, PluginSecretSet, PluginSource, PluginState, PluginTarget,
 };
 pub use repository::{
     PluginInspectRelease, PluginInstallRelease, PluginInstallReleaseParams, PluginReleaseParams,

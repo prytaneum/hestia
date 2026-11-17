@@ -534,7 +534,7 @@ hestia job cancel <id>           # cancel one by the id `job list` shows
 ```bash
 hestia plugin list               # every plugin: id, name, version, state, source, requires, optional granted, entries
 hestia plugin enable <id>        # also enables what it requires, first
-hestia plugin disable <id>       # refused while an enabled plugin requires it
+hestia plugin disable <id>       # names the enabled plugins that need it and asks before disabling them too (--yes skips the prompt)
 hestia plugin add <dir>          # install from a directory (developer mode); shows what it asks for first (--yes skips)
 hestia plugin repo add <id> <url> --key <minisign key>   # add a repository under a pinned key
 hestia plugin repo list|remove <id>

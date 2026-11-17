@@ -296,7 +296,15 @@ async fn a_command_that_ignores_its_cancel_is_dropped_and_one_running_keeps_its_
     let home = tempfile::tempdir().unwrap();
     let plugins = plugins(home.path(), Arc::new(Host::new(home.path())));
     let pkg = home.path().join("pkg");
-    let optional = format!("{MANIFEST}[permissions.\"secrets\"]\noptional = true\n");
+    let optional = format!(
+        "{MANIFEST}[permissions.\"secrets\"]\noptional = true\n[dependencies]\nbase = \"^0.1\"\n"
+    );
+    package(&pkg, "base", guest("hello"), "");
+    let approved = plugins.inspect(&pkg).await.unwrap().approval_digest;
+    plugins
+        .install(&pkg, &approved, Default::default())
+        .await
+        .unwrap();
     package(&pkg, "tour", service_guest("tour"), &optional);
     std::fs::create_dir_all(home.path().join("plugin-data/tour")).unwrap();
     std::fs::write(home.path().join("plugin-data/tour/mode"), "free").unwrap();
@@ -324,13 +332,20 @@ async fn a_command_that_ignores_its_cancel_is_dropped_and_one_running_keeps_its_
         () = async {} => {}
     }
     assert!(matches!(
-        plugins.disable("tour").await,
+        plugins.disable("tour", false).await,
         Err(PluginError::Busy(_))
     ));
     assert!(matches!(
         plugins.remove("tour").await,
         Err(PluginError::Busy(_))
     ));
+    assert!(
+        matches!(
+            plugins.disable("base", true).await,
+            Err(PluginError::Busy(busy)) if busy == "tour"
+        ),
+        "a cascade waits for a dependent that has work running"
+    );
     assert!(
         matches!(
             plugins.set_permission("tour", "secrets", true).await,
@@ -343,7 +358,7 @@ async fn a_command_that_ignores_its_cancel_is_dropped_and_one_running_keeps_its_
         reached(stopped.unwrap_err()),
         SandboxError::Stopped
     ));
-    assert_eq!(changed, ["tour"]);
+    assert_eq!(changed, ["base", "tour"]);
     plugins.set_developer(true).await;
 
     plugins

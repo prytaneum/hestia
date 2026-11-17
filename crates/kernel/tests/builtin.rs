@@ -56,7 +56,7 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
         .collect();
     assert_eq!(permissions, ["probe:read"]);
 
-    plugins.disable("probe").await.unwrap();
+    plugins.disable("probe", false).await.unwrap();
     assert!(matches!(
         plugins.install(&pkg, &inspection.approval_digest, Default::default()).await,
         Err(PluginError::Package(PackageError::Unprovided(package))) if package == "hestia:probe"
@@ -67,20 +67,34 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
         .await
         .unwrap();
     assert_eq!(installed.state, PluginState::Enabled);
+    assert_eq!(installed.requires, ["probe"]);
     assert!(matches!(
-        plugins.disable("probe").await,
+        plugins.disable("probe", false).await,
         Err(PluginError::Required { dependents, .. }) if dependents == ["consumer"]
     ));
+    plugins.disable("probe", true).await.unwrap();
+    let state = |plugins: &Plugins| {
+        plugins
+            .list()
+            .iter()
+            .find(|p| p.id == "consumer")
+            .map(|p| p.state)
+    };
+    assert_eq!(state(&plugins), Some(PluginState::Disabled));
+    assert!(matches!(
+        plugins.enable("consumer").await,
+        Err(PluginError::Package(PackageError::Unprovided(_)))
+    ));
+    assert_eq!(state(&plugins), Some(PluginState::MissingDependency));
+    plugins.enable("probe").await.unwrap();
+    plugins.enable("consumer").await.unwrap();
+    assert_eq!(state(&plugins), Some(PluginState::Enabled));
     let without_provider = Plugins::new(home.path(), Vec::new(), Some(sandbox.clone()))
         .unwrap()
         .with_developer(true);
     without_provider.restore().await;
     assert_eq!(
-        without_provider
-            .list()
-            .iter()
-            .find(|p| p.id == "consumer")
-            .map(|p| p.state),
+        state(&without_provider),
         Some(PluginState::Failed),
         "a plugin whose provider is missing never starts"
     );

@@ -122,6 +122,7 @@ import type { ModpackUpdateResult } from "./generated/ModpackUpdateResult";
 import type { NetworkStatus } from "./generated/NetworkStatus";
 import type { PingResult } from "./generated/PingResult";
 import type { PluginAnswerParams } from "./generated/PluginAnswerParams";
+import type { PluginDisableParams } from "./generated/PluginDisableParams";
 import type { PluginEntriesParams } from "./generated/PluginEntriesParams";
 import type { PluginInfo } from "./generated/PluginInfo";
 import type { PluginInstallParams } from "./generated/PluginInstallParams";
@@ -296,7 +297,7 @@ export interface Channels {
   "modpack.update": { params: Omit<Partial<EntryModpackUpdateParams>, "target" | "to"> & { "target"?: Partial<EntryTarget>; "to"?: Partial<ModpackMove> }; result: JobStarted };
   "net.status": { params: Empty; result: NetworkStatus };
   "plugin.answer": { params: Partial<PluginAnswerParams>; result: Empty };
-  "plugin.disable": { params: Partial<PluginTarget>; result: PluginInfo };
+  "plugin.disable": { params: Partial<PluginDisableParams>; result: PluginInfo };
   "plugin.enable": { params: Partial<PluginTarget>; result: PluginInfo };
   "plugin.entries": { params: Omit<Partial<PluginEntriesParams>, "entries"> & { "entries"?: Partial<EntryScope> }; result: PluginInfo };
   "plugin.inspect": { params: Partial<PluginPackage>; result: Inspection };

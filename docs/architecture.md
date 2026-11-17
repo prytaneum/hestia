@@ -101,6 +101,7 @@ What is yours sits at the top level. What the launcher can regenerate sits under
 ├── plugins.key          the key that vouches for the compiled plugin cache (owner-only)
 ├── plugins/<id>/        an installed plugin: package, approved digest, settings, secrets (owner-only)
 │                        (<id>.previous and <id>.staging exist only mid-update)
+├── plugins/pending.json the plugins an install is bringing, only while it runs (owner-only)
 ├── sandbox/<id>/        the plugin's own files, its `/data`
 ├── servers/<slug>/      one directory per server
 ├── instances/<slug>/    one directory per instance
@@ -158,8 +159,9 @@ that directory. Release builds use `panic = "abort"` and `strip = true`, so rele
 ## The kernel
 
 `crates/kernel` holds the plugin registry and network vetting. A built-in implements `Builtin` (a descriptor with
-`provides` and `requires`, plus `enable` and `disable`) and is enabled in dependency order. Disabling is refused while
-an enabled plugin requires it or it has work running. The disabled ids persist in `plugins.json`; start-up never enables
+`provides` and `requires`, plus `enable` and `disable`) and is enabled in dependency order. Disabling is refused, naming
+every enabled plugin that needs it, unless the caller confirms (`cascade`), which disables those first; it is also
+refused while it has work running. The disabled ids persist in `plugins.json`; start-up never enables
 what the user turned off, so a plugin whose requirement is off stays `failed`. The kernel depends on `proto` and
 `common` only, so it cannot reach the launcher. `hestiad`'s runtime builds the registry from `engine::builtins()` and
 the router consults it for owner gates.
@@ -175,7 +177,25 @@ permission with its scope (its unhashed hosts and, for each program, its argumen
 requirements, never Hestia's prompt text; `plugin.install` refuses a package that no longer derives it, and start-up
 recomputes it and lists a changed package `failed` without running it. A permission the grant lacks links as a stub
 whose functions answer `denied(<permission>)`; an interface with a function that has no error to answer with cannot be
-denied. Installs, enables, disables and removals run one at a time. The daemon runtime owns one `kernel::Sandbox` (none
+denied. A manifest's `[dependencies]` (`id = "^1.2"`, caret ranges only, at most 16) names other plugins, built-ins
+included, and is part of the grant. `plugin.inspect` (and the release and update inspections) resolve it before any code
+runs: each dependency must be installed, enabled and at an accepted version, or be listed by an added repository (the
+one that vouched for the dependent first, then the others, each index fetched once and the next repository tried when a
+download fails), which then joins the plan after what it needs itself. What an installed dependency declares is walked
+too. A cycle, a chain over 8, a plan of more than 32 plugins or a package that cannot be installed is refused
+(`plugin_invalid`), an unresolvable dependency is `plugin_missing_dependency`. The inspection carries the `plan`, each
+plugin to install with its own signer and grant, and its `approval_digest` covers all of it, so one prompt approves the
+whole install and a plan that moved since the prompt is `plugin_changed`. Everything that can still refuse the call (a
+built-in a plugin needs, the chosen optional permissions, a busy plugin, a dependent's range) is checked before anything
+is installed. An install then adds the plan's plugins first, in order, each with no optional permission and no entries,
+and removes them again, with their `sandbox/<id>`, if one fails or does not start; the members are written to
+`plugins/pending.json` meanwhile, so a crash is undone at the next start, before anything starts, unless the plugin is
+already stored under the recorded digest (the plan finished and only its record was left). Enabling starts what a plugin
+needs first, and start-up orders installed plugins the same way; one whose dependency is not installed at an accepted
+version, or whose imported package no enabled built-in provides, is listed `missing_dependency`, one whose dependency is
+installed but off stays `failed`. A built-in declared as a dependency counts like any other: disabling it is refused or
+cascades. Removing a plugin another installed plugin declares is refused, and so is an update that leaves a dependent's
+range. Installs, enables, disables and removals run one at a time. The daemon runtime owns one `kernel::Sandbox` (none
 if it cannot start, and WASM plugins are then listed but never run): compiled components under `meta/plugins/`, vouched
 for by `plugins.key`; `app.info` reports online only while the network is reachable and offline mode is off; installed
 plugins start after recovery, off the accept loop; a plugin that reaches the trap limit is disabled and stays so across

@@ -2,6 +2,7 @@
 
 use anyhow::{bail, Context, Result};
 use clap::{Args, Subcommand};
+use proto::error::ErrorInfo;
 use proto::plugin::{
     Choice, EntryScope, Grant, GrantedPermission, Inspection, PermissionScope, PluginInfo,
     PluginReleaseParams, PluginSource, PluginState, Tier,
@@ -52,8 +53,14 @@ pub enum PluginCmd {
     List,
     /// Enable a plugin, and what it requires
     Enable { id: String },
-    /// Disable a plugin; refused while another enabled plugin requires it
-    Disable { id: String },
+    /// Disable a plugin; one that other enabled plugins need asks before
+    /// disabling them too
+    Disable {
+        id: String,
+        /// Also disable the plugins that need it, without prompting
+        #[arg(long)]
+        yes: bool,
+    },
     /// Install a plugin from a directory holding plugin.toml and plugin.wasm;
     /// needs `plugins.developer`
     Add {
@@ -154,6 +161,7 @@ fn state_name(state: PluginState) -> &'static str {
         PluginState::Enabled => "enabled",
         PluginState::Disabled => "disabled",
         PluginState::Failed => "failed",
+        PluginState::MissingDependency => "missing dependency",
     }
 }
 
@@ -280,7 +288,32 @@ fn show_grant(inspection: &Inspection) -> Result<()> {
             grant.requires.join(", ")
         )))?;
     }
+    if !grant.dependencies.is_empty() {
+        let needs: Vec<String> = grant
+            .dependencies
+            .iter()
+            .map(|dependency| format!("{} {}", dependency.id, dependency.range))
+            .collect();
+        ui::show(View::line(format!(
+            "it needs plugins: {}",
+            needs.join(", ")
+        )))?;
+    }
     Ok(())
+}
+
+/// The plugin and, before it, each plugin the install brings with it, all
+/// shown for one approval.
+fn show_plan(inspection: &Inspection) -> Result<()> {
+    for planned in &inspection.plan {
+        ui::show(View::note(format!(
+            "it also installs {}, which it needs, with no optional permissions and no entries; \
+             grant them later with `hestia plugin grant` and `hestia plugin entries`",
+            planned.id
+        )))?;
+        show_grant(planned)?;
+    }
+    show_grant(inspection)
 }
 
 fn approve(question: &str, yes: bool) -> Result<()> {
@@ -423,8 +456,21 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
             let plugin = client.plugin().enable(&id).await?;
             ui::show(View::line(format!("enabled {}", plugin.id)))?;
         }
-        PluginCmd::Disable { id } => {
-            let plugin = client.plugin().disable(&id).await?;
+        PluginCmd::Disable { id, yes } => {
+            let plugin = match client.plugin().disable(&id, yes).await {
+                Err(error) => match client::error_info(&error) {
+                    ErrorInfo::PluginRequired { dependents, .. } => {
+                        ui::show(View::note(format!(
+                            "{id} is needed by {}, which would be disabled too",
+                            dependents.join(", ")
+                        )))?;
+                        approve("Disable them all?", false)?;
+                        client.plugin().disable(&id, true).await?
+                    }
+                    _ => return Err(error.into()),
+                },
+                Ok(plugin) => plugin,
+            };
             ui::show(View::line(format!("disabled {}", plugin.id)))?;
         }
         PluginCmd::Add { path, choice, yes } => {
@@ -433,7 +479,7 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                 .to_string_lossy()
                 .into_owned();
             let inspection = client.plugin().inspect(&path).await?;
-            show_grant(&inspection)?;
+            show_plan(&inspection)?;
             approve("Install it with these permissions?", yes)?;
             let choice = choose(&client, &inspection.grant, choice, yes).await?;
             let plugin = client
@@ -460,7 +506,7 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                 version,
             };
             let inspection = client.plugin().inspect_release(&release).await?;
-            show_grant(&inspection)?;
+            show_plan(&inspection)?;
             approve("Install it with these permissions?", yes)?;
             let choice = choose(&client, &inspection.grant, choice, yes).await?;
             let plugin = client
@@ -554,7 +600,7 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                     "{} {} asks for more than you approved for {}",
                     id, update.inspection.version, update.installed
                 )))?;
-                show_grant(&update.inspection)?;
+                show_plan(&update.inspection)?;
                 approve("Update with these permissions?", yes)?;
             }
             let held = client

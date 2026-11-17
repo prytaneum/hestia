@@ -5,7 +5,13 @@ import type { PluginKind } from "./PluginKind";
 import type { PluginSource } from "./PluginSource";
 import type { PluginState } from "./PluginState";
 
-export type PluginInfo = { id: string, name: string, kind: PluginKind, source: PluginSource, version: string, state: PluginState, provides?: string, requires: Array<string>, commands: Array<CommandSpec>, 
+export type PluginInfo = { id: string, name: string, kind: PluginKind, source: PluginSource, version: string, state: PluginState, provides?: string, 
+/**
+ * The ids of the plugins it needs. For a WASM plugin, the ones it declares
+ * in `[dependencies]` and the built-ins that provide the packages it
+ * imports.
+ */
+requires: Array<string>, commands: Array<CommandSpec>, 
 /**
  * The optional permissions the user granted.
  */
