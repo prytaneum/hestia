@@ -31,6 +31,7 @@ fn is_public_v4(ip: Ipv4Addr) -> bool {
         || a == 0
         || (a == 100 && (64..128).contains(&b))
         || (a == 192 && b == 0 && c == 0)
+        || (a == 192 && b == 88 && c == 99)
         || (a == 198 && (18..20).contains(&b))
         || a >= 240)
 }
@@ -68,7 +69,10 @@ fn is_public_v6(ip: Ipv6Addr) -> bool {
         || (segments[0] & 0xfe00) == 0xfc00
         || (segments[0] & 0xffc0) == 0xfe80
         || (segments[0] & 0xffc0) == 0xfec0
-        || segments[..3] == [0x64, 0xff9b, 0x0001])
+        || segments[..3] == [0x64, 0xff9b, 0x0001]
+        || (segments[0] == 0x0100 && segments[1..4] == [0, 0, 0])
+        || (segments[0] == 0x2001
+            && (segments[1] == 0 || segments[1] == 0x0db8 || (segments[1] & 0xfff0) == 0x0010)))
 }
 
 /// Every address must be public: one private answer among public ones is what a
@@ -156,6 +160,11 @@ mod tests {
             "2002:c0a8:101::1",
             "fec0::1",
             "64:ff9b:1::1",
+            "192.88.99.1",
+            "2001:db8::1",
+            "2001:0:4136:e378:8000:63bf:3fff:fdd2",
+            "100::1",
+            "2001:10::1",
         ] {
             assert!(
                 vet("a.test", vec![addr(ip)]).is_err(),
@@ -166,6 +175,7 @@ mod tests {
             "93.184.216.34",
             "2606:2800:220:1:248:1893:25c8:1946",
             "2002:5db8:d822::1",
+            "2001:4860:4860::8888",
         ] {
             assert!(vet("a.test", vec![addr(ip)]).is_ok(), "{ip} must pass");
         }
