@@ -603,6 +603,8 @@ schedules beside its permissions.
 
 ### Writing a plugin
 
+The [author guide](plugins/README.md) walks through these commands.
+
 The author's commands work on a project directory (the current one by default) and need no daemon, except `dev`. They
 apply the kernel's own rules, linked into the CLI without its sandbox: the manifest parse, the component shape, the
 version gates and the grant derivation. `check`, `world` and `pack` build the project for `wasm32-wasip2` with the

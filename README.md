@@ -150,6 +150,7 @@ Your data lives in `~/.hestia` (`%APPDATA%\Hestia` on Windows), overridable with
 | [docs/architecture.md](docs/architecture.md) | how it's put together, a page per subsystem                                        |
 | [docs/contributing.md](docs/contributing.md) | conventions and copy-and-adapt recipes                                             |
 | [docs/packaging.md](docs/packaging.md)       | installers and release artifacts                                                   |
+| [docs/plugins/](docs/plugins/README.md)      | writing a plugin: manifest, permissions, testing, publishing                       |
 
 Contributions are welcome — [docs/contributing.md](docs/contributing.md) has the wire-in recipes, and adding a feature
 is usually one line in each of five places.

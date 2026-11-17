@@ -4,7 +4,7 @@
 
 Hestia is a small kernel run by plugins. One registry holds two kinds: **built-in** plugins (Hestia's own native code,
 registered through the same model) and **WASM** plugins (sandboxed, signed, approved by the user). This page covers the
-`kernel` crate and the model; [contributing.md](../contributing.md#add-a-built-in) has the recipes and
+`kernel` crate and the model; [contributing.md](../contributing.md#add-a-built-in-plugin) has the recipes and
 [plugins/](../plugins/README.md) is the author guide.
 
 ## The model
