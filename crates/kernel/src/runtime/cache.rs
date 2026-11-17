@@ -61,7 +61,7 @@ impl Cache {
     }
 
     pub fn forget(&self, plugin: &str) {
-        if let Err(error) = std::fs::remove_file(self.path(plugin)) {
+        if let Err(error) = common::fsys::remove_file(self.path(plugin)) {
             if error.kind() != std::io::ErrorKind::NotFound {
                 tracing::warn!(plugin, %error, "cannot remove cached component");
             }
@@ -103,7 +103,7 @@ impl Cache {
     }
 
     fn store(&self, path: &Path, entry: &[u8]) -> std::io::Result<()> {
-        create_private_dir(&self.dir)?;
+        common::fsys::create_private_dir(&self.dir)?;
         common::atomic::write_private(path, entry)
     }
 }
@@ -124,18 +124,22 @@ impl Hasher for MacHasher<'_> {
 /// Reads the install's key, or makes one. A key that cannot be saved still
 /// serves this run; the next run recompiles.
 fn install_key(file: &Path) -> Result<[u8; KEY_BYTES], SandboxError> {
-    if let Some(key) = std::fs::read(file)
-        .ok()
-        .and_then(|bytes| <[u8; KEY_BYTES]>::try_from(bytes).ok())
-    {
-        return Ok(key);
+    match std::fs::read(file) {
+        Ok(bytes) => {
+            if let Ok(key) = <[u8; KEY_BYTES]>::try_from(bytes) {
+                return Ok(key);
+            }
+        }
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+            tracing::warn!(%error, "cannot read the plugin cache key; using a key for this run only");
+            return fresh_key();
+        }
+        Err(_) => {}
     }
-    let mut key = [0u8; KEY_BYTES];
-    getrandom::fill(&mut key)
-        .map_err(|error| SandboxError::Engine(wasmtime::format_err!("{error}")))?;
+    let key = fresh_key()?;
     let saved = file
         .parent()
-        .map_or(Ok(()), create_private_dir)
+        .map_or(Ok(()), common::fsys::create_private_dir)
         .and_then(|()| common::atomic::write_private(file, &key));
     if let Err(error) = saved {
         tracing::warn!(%error, "cannot save the plugin cache key");
@@ -143,12 +147,11 @@ fn install_key(file: &Path) -> Result<[u8; KEY_BYTES], SandboxError> {
     Ok(key)
 }
 
-fn create_private_dir(dir: &Path) -> std::io::Result<()> {
-    let mut builder = std::fs::DirBuilder::new();
-    builder.recursive(true);
-    #[cfg(unix)]
-    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
-    builder.create(dir)
+fn fresh_key() -> Result<[u8; KEY_BYTES], SandboxError> {
+    let mut key = [0u8; KEY_BYTES];
+    getrandom::fill(&mut key)
+        .map_err(|error| SandboxError::Engine(wasmtime::format_err!("{error}")))?;
+    Ok(key)
 }
 
 fn hex(bytes: &[u8]) -> String {

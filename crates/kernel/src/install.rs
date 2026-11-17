@@ -52,24 +52,17 @@ impl Package {
 
 /// Refuses a link, so a package cannot point Hestia at another file of the
 /// user's, and anything but a regular file, whose length says nothing about
-/// what reading it returns.
+/// what reading it returns. The check is made on the opened handle, so a swap
+/// between the check and the read cannot redirect it.
 fn read_bounded(path: &Path, max: u64) -> Result<Vec<u8>, PackageError> {
     let file = path.display().to_string();
     let unreadable = |error: std::io::Error| PackageError::Unreadable {
         file: file.clone(),
         detail: error.to_string(),
     };
-    if !std::fs::symlink_metadata(path)
-        .map_err(unreadable)?
-        .file_type()
-        .is_file()
-    {
+    let Some(opened) = common::fsys::open_regular(path).map_err(unreadable)? else {
         return Err(PackageError::NotAFile(file));
-    }
-    let opened = std::fs::File::open(path).map_err(unreadable)?;
-    if !opened.metadata().map_err(unreadable)?.is_file() {
-        return Err(PackageError::NotAFile(file));
-    }
+    };
     let mut bytes = Vec::new();
     opened
         .take(max + 1)
@@ -202,7 +195,7 @@ impl Store {
     /// Clears the record of a plan that finished or was undone. The record
     /// stays only if it cannot be deleted, which the log says.
     pub fn finish(&self) {
-        match std::fs::remove_file(self.root.join(Pending::NAME)) {
+        match common::fsys::remove_file(self.root.join(Pending::NAME)) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
                 tracing::error!(%error, "cannot clear the record of an install plan");
             }
@@ -245,7 +238,7 @@ impl Store {
     /// install brought that the user never ran as theirs.
     pub fn discard(&self, id: &str) -> Result<(), PluginError> {
         self.remove(id)?;
-        match std::fs::remove_dir_all(self.data.join(id)) {
+        match common::fsys::remove_dir_all(self.data.join(id)) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
                 Err(PluginError::io(IoOp::Remove, error))
             }
@@ -267,7 +260,7 @@ impl Store {
         let mut ids = BTreeSet::new();
         for name in names {
             if name.ends_with(STAGING) {
-                if let Err(error) = std::fs::remove_dir_all(self.root.join(&name)) {
+                if let Err(error) = common::fsys::remove_dir_all(self.root.join(&name)) {
                     tracing::warn!(dir = name, %error, "cannot reclaim plugin staging");
                 }
             } else if let Some(id) = name.strip_suffix(PREVIOUS) {
@@ -302,7 +295,7 @@ impl Store {
     /// leaves no half-installed plugin. The caller serialises installs.
     pub fn save(&self, package: &Package, record: &Approval) -> Result<(), PluginError> {
         let staging = self.stage(package, record)?;
-        std::fs::rename(&staging, self.dir(&package.manifest.id))
+        common::fsys::rename(&staging, self.dir(&package.manifest.id))
             .map_err(|e| PluginError::io(IoOp::Move, e))
     }
 
@@ -319,10 +312,10 @@ impl Store {
         let id = &package.manifest.id;
         let (current, previous) = (self.dir(id), self.root.join(format!("{id}{PREVIOUS}")));
         let staging = self.stage(package, &record)?;
-        let _ = std::fs::remove_dir_all(&previous);
-        std::fs::rename(&current, &previous).map_err(|e| PluginError::io(IoOp::Move, e))?;
-        std::fs::rename(&staging, &current).map_err(|error| {
-            let _ = std::fs::rename(&previous, &current);
+        let _ = common::fsys::remove_dir_all(&previous);
+        common::fsys::rename(&current, &previous).map_err(|e| PluginError::io(IoOp::Move, e))?;
+        common::fsys::rename(&staging, &current).map_err(|error| {
+            let _ = common::fsys::rename(&previous, &current);
             PluginError::io(IoOp::Move, error)
         })
     }
@@ -336,12 +329,12 @@ impl Store {
             return;
         }
         let doomed = self.root.join(format!("{id}{STAGING}"));
-        let _ = std::fs::remove_dir_all(&doomed);
-        if let Err(error) = std::fs::rename(&previous, &doomed) {
+        let _ = common::fsys::remove_dir_all(&doomed);
+        if let Err(error) = common::fsys::rename(&previous, &doomed) {
             tracing::error!(plugin = id, %error, "cannot discard the previous version");
             return;
         }
-        if let Err(error) = std::fs::remove_dir_all(&doomed) {
+        if let Err(error) = common::fsys::remove_dir_all(&doomed) {
             tracing::warn!(plugin = id, %error, "cannot delete the previous version");
         }
     }
@@ -350,8 +343,8 @@ impl Store {
     pub fn rollback(&self, id: &str) -> Result<(), PluginError> {
         let _held = self.amending.lock().unwrap_or_else(|e| e.into_inner());
         let previous = self.root.join(format!("{id}{PREVIOUS}"));
-        let _ = std::fs::remove_dir_all(self.dir(id));
-        std::fs::rename(&previous, self.dir(id)).map_err(|e| PluginError::io(IoOp::Move, e))
+        let _ = common::fsys::remove_dir_all(self.dir(id));
+        common::fsys::rename(&previous, self.dir(id)).map_err(|e| PluginError::io(IoOp::Move, e))
     }
 
     /// Rewrites the record in place; the digest and the package are untouched.
@@ -368,8 +361,8 @@ impl Store {
     fn stage(&self, package: &Package, record: &Approval) -> Result<PathBuf, PluginError> {
         let id = &package.manifest.id;
         let staging = self.root.join(format!("{id}{STAGING}"));
-        let _ = std::fs::remove_dir_all(&staging);
-        std::fs::create_dir_all(&staging).map_err(|e| PluginError::io(IoOp::Create, e))?;
+        let _ = common::fsys::remove_dir_all(&staging);
+        common::fsys::create_private_dir(&staging).map_err(|e| PluginError::io(IoOp::Create, e))?;
         let write = |name: &str, bytes: &[u8]| {
             std::fs::write(staging.join(name), bytes).map_err(|e| PluginError::io(IoOp::Write, e))
         };
@@ -408,7 +401,7 @@ impl Store {
     pub fn remove(&self, id: &str) -> Result<(), PluginError> {
         let _held = self.amending.lock().unwrap_or_else(|e| e.into_inner());
         self.commit(id);
-        match std::fs::remove_dir_all(self.dir(id)) {
+        match common::fsys::remove_dir_all(self.dir(id)) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
                 Err(PluginError::io(IoOp::Remove, error))
             }
