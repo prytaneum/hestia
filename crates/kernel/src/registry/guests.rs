@@ -104,6 +104,10 @@ impl Plugins {
     /// Installs the package in `dir` if it still derives `approved`, then starts
     /// it. Only developer mode installs from a directory, which no signature
     /// vouches for. A plugin whose `init` fails stays installed, `failed`.
+    ///
+    /// A directory whose id is already a dev install replaces it as an update
+    /// does: settings, secrets and schedule runs stay, the granted optional
+    /// permissions are carried, and `choice` is ignored.
     pub async fn install(
         &self,
         dir: &Path,
@@ -114,8 +118,38 @@ impl Plugins {
             return Err(PluginError::DeveloperMode);
         }
         let package = read(dir).await?;
+        if self.is_dev(&package.manifest.id) {
+            return self.reload(package, approved).await;
+        }
         self.install_package(package, approved, Source::Dev, choice)
             .await
+    }
+
+    fn is_dev(&self, id: &str) -> bool {
+        self.slots().iter().any(|slot| {
+            slot.id() == id
+                && matches!(&slot.kind, Kind::Guest(guest) if guest.source == Source::Dev)
+        })
+    }
+
+    async fn reload(&self, package: Package, approved: &str) -> Result<PluginInfo, PluginError> {
+        let plan = self.plan(&package, &Source::Dev).await?;
+        let _changing = self.changes.lock().await;
+        if plan.inspection.approval_digest != approved {
+            return Err(PluginError::Changed(plan.inspection.id.clone()));
+        }
+        self.still_holds(&plan, true)?;
+        let Plan {
+            inspection,
+            own,
+            members,
+        } = plan;
+        self.with_members(
+            members,
+            (&inspection.id, &own),
+            self.replace(package, &inspection, &own, Source::Dev, None),
+        )
+        .await
     }
 
     pub(super) async fn install_package(

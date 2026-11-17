@@ -693,3 +693,69 @@ async fn plugins_start_in_dependency_order_and_stop_with_what_depends_on_them() 
     );
     assert!(orphaned.enable("app").await.is_err());
 }
+
+#[tokio::test]
+async fn a_dev_reinstall_is_an_update_that_keeps_the_plugins_state() {
+    let home = tempfile::tempdir().unwrap();
+    let registry = plugins(home.path(), Vec::new());
+    let pkg = home.path().join("pkg");
+    let schedule = "[[schedules]]\nid = \"nightly\"\nevery = \"1h\"\n";
+    package(&pkg, "reload", service_guest("tour"), schedule);
+    let data = kernel::sandbox_root(home.path()).join("reload");
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::write(data.join("mode"), "free").unwrap();
+    let approved = registry.inspect(&pkg).await.unwrap().approval_digest;
+    registry
+        .install(&pkg, &approved, Default::default())
+        .await
+        .unwrap();
+    registry.store_secret("reload", "token", "s3cret").unwrap();
+    let state = home.path().join("plugins/reload");
+    let schedules = std::fs::read(state.join("schedules.json")).unwrap();
+
+    std::fs::write(
+        pkg.join("plugin.toml"),
+        format!("id = \"reload\"\nname = \"reload\"\nversion = \"0.2.0\"\n{schedule}"),
+    )
+    .unwrap();
+    let approved = registry.inspect(&pkg).await.unwrap().approval_digest;
+    let info = registry
+        .install(&pkg, &approved, Default::default())
+        .await
+        .unwrap();
+
+    assert_eq!(info.version, "0.2.0");
+    assert!(std::fs::read_to_string(state.join("secrets.json"))
+        .unwrap()
+        .contains("s3cret"));
+    assert_eq!(
+        std::fs::read(state.join("schedules.json")).unwrap(),
+        schedules
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_installed_under_a_removed_ids_name_reads_none_of_its_secrets() {
+    let home = tempfile::tempdir().unwrap();
+    let registry = plugins(home.path(), Vec::new());
+    let pkg = home.path().join("pkg");
+    package(&pkg, "reused", service_guest("tour"), "");
+    let data = kernel::sandbox_root(home.path()).join("reused");
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::write(data.join("mode"), "free").unwrap();
+    let approved = registry.inspect(&pkg).await.unwrap().approval_digest;
+    registry
+        .install(&pkg, &approved, Default::default())
+        .await
+        .unwrap();
+    registry.store_secret("reused", "token", "s3cret").unwrap();
+    registry.remove("reused").await.unwrap();
+    registry
+        .install(&pkg, &approved, Default::default())
+        .await
+        .unwrap();
+
+    registry.store_secret("reused", "other", "v").unwrap();
+    let secrets = std::fs::read_to_string(home.path().join("plugins/reused/secrets.json")).unwrap();
+    assert!(!secrets.contains("s3cret"), "{secrets}");
+}

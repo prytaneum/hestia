@@ -91,6 +91,11 @@ impl Files {
             .clone()
     }
 
+    pub(super) fn forget(&self, dir: &Path) {
+        let mut open = self.open.lock().unwrap_or_else(PoisonError::into_inner);
+        open.retain(|path, _| path.parent() != Some(dir));
+    }
+
     fn get(&self, dir: &Path, kind: Kind, key: &str) -> Option<Value> {
         let values = self.values(dir, kind);
         let values = values.lock().unwrap_or_else(PoisonError::into_inner);

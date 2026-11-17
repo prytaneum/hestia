@@ -315,9 +315,13 @@ impl Sandbox {
         )
     }
 
-    /// Drops the plugin's compiled cache entry.
+    /// Drops the plugin's compiled cache entry and the settings and secrets held
+    /// in memory, so a plugin installed under the same id starts from its disk.
     pub fn forget(&self, plugin: &str) {
         self.cache.forget(plugin);
+        if let Some(dir) = self.shared.services.state_dir(plugin) {
+            self.shared.files.forget(&dir);
+        }
     }
 
     /// Runs the plugin's `lifecycle.init`; a component without one succeeds.
