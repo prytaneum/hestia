@@ -5,6 +5,9 @@ use wasmtime::ResourceLimiter;
 pub(super) const TICK: Duration = Duration::from_millis(10);
 
 const TABLE_ELEMENTS: usize = 100_000;
+pub(super) const MEMORIES_PER_STORE: usize = 2;
+pub(super) const TABLES_PER_STORE: usize = 2;
+pub(super) const CORE_INSTANCES_PER_STORE: usize = 4;
 
 /// The bounds every plugin call runs under.
 #[derive(Debug, Clone)]
@@ -31,7 +34,7 @@ pub struct Limits {
 impl Default for Limits {
     /// 10 s for `init`, 5 s for an event such as `settings-changed`, 2 s for a
     /// hook, an hour for a command and 5 s more once its job is cancelled,
-    /// 256 MiB per memory, 10 notices then one more every 5 s, 4 calls per plugin and 16 overall, three traps in
+    /// 256 MiB of memory per call, 10 notices then one more every 5 s, 4 calls per plugin and 16 overall, three traps in
     /// ten minutes.
     fn default() -> Self {
         Limits {
@@ -101,10 +104,12 @@ impl Limits {
     }
 }
 
-/// A refused growth is reported to the guest as a failed `memory.grow`; the flag
-/// lets the host tell that trap from any other.
+/// The memory of every linear memory a call holds together stays under `max`; a
+/// refused growth is reported to the guest as a failed `memory.grow`, and the
+/// flag lets the host tell that trap from any other.
 pub(super) struct MemoryCap {
     max: usize,
+    held: usize,
     pub exceeded: bool,
 }
 
@@ -112,6 +117,7 @@ impl MemoryCap {
     pub fn new(max: usize) -> Self {
         MemoryCap {
             max,
+            held: 0,
             exceeded: false,
         }
     }
@@ -120,12 +126,16 @@ impl MemoryCap {
 impl ResourceLimiter for MemoryCap {
     fn memory_growing(
         &mut self,
-        _current: usize,
+        current: usize,
         desired: usize,
         _maximum: Option<usize>,
     ) -> wasmtime::Result<bool> {
-        let allowed = desired <= self.max;
-        self.exceeded |= !allowed;
+        let total = self.held.saturating_add(desired.saturating_sub(current));
+        let allowed = desired <= self.max && total <= self.max;
+        match allowed {
+            true => self.held = total,
+            false => self.exceeded = true,
+        }
         Ok(allowed)
     }
 
@@ -136,5 +146,17 @@ impl ResourceLimiter for MemoryCap {
         _maximum: Option<usize>,
     ) -> wasmtime::Result<bool> {
         Ok(desired <= TABLE_ELEMENTS)
+    }
+
+    fn memories(&self) -> usize {
+        MEMORIES_PER_STORE
+    }
+
+    fn tables(&self) -> usize {
+        TABLES_PER_STORE
+    }
+
+    fn instances(&self) -> usize {
+        CORE_INSTANCES_PER_STORE
     }
 }

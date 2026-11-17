@@ -15,6 +15,10 @@ pub enum SandboxError {
     /// plugin did not stop within the grace, or the host stopped the plugin.
     #[error("the call was stopped")]
     Stopped,
+    /// The host's pool of instances was full. Nothing of the plugin ran, so it
+    /// is not the plugin's fault and is never counted as a trap.
+    #[error("the host has no free instance capacity")]
+    Exhausted,
     #[error("call exceeded its time budget")]
     Timeout,
     #[error("call exceeded its memory limit")]

@@ -143,7 +143,9 @@ hosts in `engine::net::hosts`.
 The kernel also holds the WASM sandbox (`runtime/`): one wasmtime engine for the daemon, a fresh store and instance per
 call, run as async calls that yield on every 10 ms epoch tick, so each call's wall-clock budget (`init` 10 s, an event
 such as `settings-changed` 5 s, a hook 2 s) also bounds a guest waiting inside a host call, and dropping the call stops
-the guest. Memory is capped at 256 MiB under the pooling allocator. At most 4 calls per plugin and 16 overall run at
+the guest. Memory is capped at 256 MiB across all of a call's memories under the pooling allocator, which also caps a component at
+2 memories, 2 tables and 4 core instances so one plugin cannot take the pool. A full pool answers `Exhausted`, which is
+the host's capacity and never counts as a trap. At most 4 calls per plugin and 16 overall run at
 once; the rest wait for a slot within their budget. The third trap in ten minutes is reported as `TrapLimit`, and the
 registry disables the plugin. WASI has no sockets and an empty environment; what reaches outside the plugin is
 `wasi:http`, `download`, `programs` and `ipc`, below. Compiled components are cached under `meta/plugins/`, one entry

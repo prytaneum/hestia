@@ -17,7 +17,7 @@ The host calls an export when something happens, and each call has a wall-clock 
 
 Enable the feature in `Cargo.toml` (`features = ["lifecycle", "commands"]`), implement the trait and call
 `hestia::export!(Plugin)` once. A budget also bounds a call that waits inside a host function, and a call that is
-dropped stops the guest. Memory is capped at 256 MiB; at most 4 calls per plugin and 16 overall run at once. A plugin
+dropped stops the guest. Memory is capped at 256 MiB per call, in 2 memories at most; at most 4 calls per plugin and 16 overall run at once. A plugin
 that traps three times in ten minutes is disabled and stays so across restarts. Exports a plugin does not implement read
 as not provided, and adding one in an update asks the user again.
 

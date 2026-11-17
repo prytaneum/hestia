@@ -44,8 +44,8 @@ use proto::plugin::Grant;
 use tokio::time::{error::Elapsed, timeout_at, Instant};
 use wasmtime::component::{Component, HasSelf, InstancePre, Linker};
 use wasmtime::{
-    Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig, Store,
-    WasmBacktraceDetails,
+    Config, Engine, InstanceAllocationStrategy, PoolConcurrencyLimitError, PoolingAllocationConfig,
+    Store, WasmBacktraceDetails,
 };
 
 #[cfg(feature = "probe")]
@@ -602,6 +602,10 @@ impl Sandbox {
             Ok(Ok(Ok(()))) => return Ok(()),
             Ok(Ok(Err(error))) => return Err(SandboxError::Guest(error)),
             Err(_) => SandboxError::Timeout,
+            Ok(Err(error)) if error.is::<PoolConcurrencyLimitError>() => {
+                tracing::error!(plugin, %error, "the instance pool is full; not counted as a trap");
+                return Err(SandboxError::Exhausted);
+            }
             Ok(Err(_)) if memory_exceeded => SandboxError::Memory,
             Ok(Err(error)) => {
                 if self.shared.developer.load(Ordering::Relaxed) {
@@ -651,6 +655,9 @@ fn engine_config(limits: &Limits) -> Config {
         .total_core_instances(slots * 4)
         .total_memories(slots * 2)
         .total_tables(slots * 2)
+        .max_core_instances_per_component(limits::CORE_INSTANCES_PER_STORE as u32)
+        .max_memories_per_component(limits::MEMORIES_PER_STORE as u32)
+        .max_tables_per_component(limits::TABLES_PER_STORE as u32)
         .max_memory_size(limits.memory_bytes);
     let mut config = Config::new();
     config
