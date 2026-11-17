@@ -3,4 +3,4 @@
 /**
  * What the manifest narrows a permission to.
  */
-export type ScopeKind = "hosts" | "paths" | "endpoints" | "programs";
+export type ScopeKind = "hosts" | "paths" | "endpoints" | "programs" | "entries";

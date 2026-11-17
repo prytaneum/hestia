@@ -2,4 +2,13 @@
 import type { PermissionScope } from "./PermissionScope";
 import type { Tier } from "./Tier";
 
-export type GrantedPermission = { permission: string, tier: Tier, prompt: string, scope?: PermissionScope, };
+export type GrantedPermission = { permission: string, tier: Tier, prompt: string, scope?: PermissionScope, 
+/**
+ * The manifest marks it optional: it arrives declined, and the user may
+ * grant or revoke it later.
+ */
+optional: boolean, 
+/**
+ * The user chooses which entries it reaches, at approval.
+ */
+entries: boolean, };

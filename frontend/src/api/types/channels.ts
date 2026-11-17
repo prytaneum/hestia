@@ -21,6 +21,7 @@ import type { CacheUsage } from "./generated/CacheUsage";
 import type { CapeClearParams } from "./generated/CapeClearParams";
 import type { CapeEquipParams } from "./generated/CapeEquipParams";
 import type { ChangedEvent } from "./generated/ChangedEvent";
+import type { Choice } from "./generated/Choice";
 import type { ConfigEntry } from "./generated/ConfigEntry";
 import type { ConfigGetParams } from "./generated/ConfigGetParams";
 import type { ConfigGetResult } from "./generated/ConfigGetResult";
@@ -66,6 +67,7 @@ import type { EntryModpackStatusParams } from "./generated/EntryModpackStatusPar
 import type { EntryModpackUpdateParams } from "./generated/EntryModpackUpdateParams";
 import type { EntryRenameParams } from "./generated/EntryRenameParams";
 import type { EntryRenamed } from "./generated/EntryRenamed";
+import type { EntryScope } from "./generated/EntryScope";
 import type { EntryStopParams } from "./generated/EntryStopParams";
 import type { EntryTarget } from "./generated/EntryTarget";
 import type { EntryUpdates } from "./generated/EntryUpdates";
@@ -120,12 +122,14 @@ import type { ModpackUpdateResult } from "./generated/ModpackUpdateResult";
 import type { NetworkStatus } from "./generated/NetworkStatus";
 import type { PingResult } from "./generated/PingResult";
 import type { PluginAnswerParams } from "./generated/PluginAnswerParams";
+import type { PluginEntriesParams } from "./generated/PluginEntriesParams";
 import type { PluginInfo } from "./generated/PluginInfo";
 import type { PluginInstallParams } from "./generated/PluginInstallParams";
 import type { PluginInstallReleaseParams } from "./generated/PluginInstallReleaseParams";
 import type { PluginLink } from "./generated/PluginLink";
 import type { PluginNotice } from "./generated/PluginNotice";
 import type { PluginPackage } from "./generated/PluginPackage";
+import type { PluginPermissionParams } from "./generated/PluginPermissionParams";
 import type { PluginQuestion } from "./generated/PluginQuestion";
 import type { PluginQuestionClosed } from "./generated/PluginQuestionClosed";
 import type { PluginReleaseParams } from "./generated/PluginReleaseParams";
@@ -294,18 +298,20 @@ export interface Channels {
   "plugin.answer": { params: Partial<PluginAnswerParams>; result: Empty };
   "plugin.disable": { params: Partial<PluginTarget>; result: PluginInfo };
   "plugin.enable": { params: Partial<PluginTarget>; result: PluginInfo };
+  "plugin.entries": { params: Omit<Partial<PluginEntriesParams>, "entries"> & { "entries"?: Partial<EntryScope> }; result: PluginInfo };
   "plugin.inspect": { params: Partial<PluginPackage>; result: Inspection };
-  "plugin.install": { params: Partial<PluginInstallParams>; result: PluginInfo };
+  "plugin.install": { params: Omit<Partial<PluginInstallParams>, "choice"> & { "choice"?: Omit<Partial<Choice>, "entries"> & { "entries"?: Partial<EntryScope> } }; result: PluginInfo };
   "plugin.list": { params: Empty; result: Array<PluginInfo> };
+  "plugin.permission": { params: Partial<PluginPermissionParams>; result: PluginInfo };
   "plugin.release.inspect": { params: Partial<PluginReleaseParams>; result: Inspection };
-  "plugin.release.install": { params: Omit<Partial<PluginInstallReleaseParams>, "release"> & { "release"?: Partial<PluginReleaseParams> }; result: PluginInfo };
+  "plugin.release.install": { params: Omit<Partial<PluginInstallReleaseParams>, "release" | "choice"> & { "release"?: Partial<PluginReleaseParams>; "choice"?: Omit<Partial<Choice>, "entries"> & { "entries"?: Partial<EntryScope> } }; result: PluginInfo };
   "plugin.remove": { params: Partial<PluginTarget>; result: Empty };
   "plugin.repo.add": { params: Partial<PluginRepoAddParams>; result: RepositoryInfo };
   "plugin.repo.list": { params: Empty; result: Array<RepositoryInfo> };
   "plugin.repo.remove": { params: Partial<PluginTarget>; result: Empty };
   "plugin.run": { params: Partial<PluginRunParams>; result: JobStarted };
   "plugin.secret.set": { params: Partial<PluginSecretParams>; result: Empty };
-  "plugin.update": { params: Partial<PluginUpdateApplyParams>; result: PluginInfo };
+  "plugin.update": { params: Omit<Partial<PluginUpdateApplyParams>, "entries"> & { "entries"?: Partial<EntryScope> }; result: PluginInfo };
   "plugin.update.inspect": { params: Partial<PluginTarget>; result: UpdateInspection };
   "plugin.updates": { params: Empty; result: PluginUpdatesResult };
   "process.list": { params: Empty; result: Array<ProcessInfo> };
@@ -418,8 +424,10 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "instance.create": 60000,
   "modpack.check_update": 120000,
   "modpack.preview_update": 120000,
+  "plugin.entries": 60000,
   "plugin.inspect": 60000,
   "plugin.install": 60000,
+  "plugin.permission": 60000,
   "plugin.release.inspect": 300000,
   "plugin.release.install": 300000,
   "plugin.repo.add": 60000,
