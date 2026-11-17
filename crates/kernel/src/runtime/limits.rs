@@ -27,6 +27,7 @@ pub struct Limits {
     pub(super) memory_bytes: usize,
     pub(super) calls_per_plugin: usize,
     pub(super) calls_total: usize,
+    pub(super) pool_slots: usize,
     pub(super) traps_to_disable: usize,
     pub(super) trap_window: Duration,
 }
@@ -34,7 +35,7 @@ pub struct Limits {
 impl Default for Limits {
     /// 10 s for `init`, 5 s for an event such as `settings-changed`, 2 s for a
     /// hook, an hour for a command and 5 s more once its job is cancelled,
-    /// 256 MiB of memory per call, 10 notices then one more every 5 s, 4 calls per plugin and 16 overall, three traps in
+    /// 256 MiB of memory per call, 10 notices then one more every 5 s, 4 calls per plugin and 16 overall, 16 instance slots in the host's pool, three traps in
     /// ten minutes.
     fn default() -> Self {
         Limits {
@@ -53,6 +54,7 @@ impl Default for Limits {
             memory_bytes: 256 << 20,
             calls_per_plugin: 4,
             calls_total: 16,
+            pool_slots: 16,
             traps_to_disable: 3,
             trap_window: Duration::from_secs(10 * 60),
         }
@@ -90,6 +92,15 @@ impl Limits {
         Limits {
             notice_burst: burst,
             notice_refill_per_second: refill_per_second,
+            ..self
+        }
+    }
+
+    /// How many instances the host's pool holds. A call that finds it full
+    /// fails with `Exhausted`; the call limits keep the default from reaching it.
+    pub fn with_pool_slots(self, slots: usize) -> Self {
+        Limits {
+            pool_slots: slots,
             ..self
         }
     }

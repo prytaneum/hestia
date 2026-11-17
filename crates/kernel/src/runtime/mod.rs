@@ -648,7 +648,7 @@ fn guest_export<T>(
 }
 
 fn engine_config(limits: &Limits) -> Config {
-    let slots = limits.calls_total as u32;
+    let slots = limits.pool_slots as u32;
     let mut pool = PoolingAllocationConfig::new();
     pool.total_component_instances(slots)
         .total_core_instances(slots * 4)

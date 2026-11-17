@@ -520,3 +520,39 @@ async fn plugins_set_developer_reaches_the_sandbox_of_a_dev_installed_plugin() {
         .await;
     assert!(captured_for("devflow").contains("trapped\n"));
 }
+
+#[tokio::test]
+async fn a_full_pool_refuses_the_call_without_counting_a_trap_or_disabling_the_plugin() {
+    let host = Host::new("pool", true);
+    let sandbox = sandbox_services(Limits::default().with_pool_slots(1), host.clone());
+    let holder = sandbox
+        .load("holder", wasm(service_guest("tour")))
+        .await
+        .unwrap();
+    let other = sandbox
+        .load("other", wasm(service_guest("tour")))
+        .await
+        .unwrap();
+
+    host.mode("holder", "hold");
+    host.mode("other", "free");
+    let mut holding = Box::pin(sandbox.init(&holder));
+    let meanwhile = async {
+        host.locked.notified().await;
+        let mut refused = Vec::new();
+        for _ in 0..4 {
+            refused.push(sandbox.init(&other).await);
+        }
+        refused
+    };
+    let refused = tokio::select! {
+        _ = &mut holding => panic!("the holder runs until it is dropped"),
+        refused = meanwhile => refused,
+    };
+    for result in refused {
+        assert!(matches!(result, Err(SandboxError::Exhausted)), "{result:?}");
+    }
+    drop(holding);
+
+    sandbox.init(&other).await.unwrap();
+}
