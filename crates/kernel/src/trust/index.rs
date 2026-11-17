@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use semver::{Version, VersionReq};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::error::TrustError;
 use super::hplugin::ARCHIVE_MAX;
@@ -15,7 +15,7 @@ pub const LIFETIME_DAYS: u64 = 30;
 /// signature repeats the subject, `hestia-index <repository> <sequence>
 /// <expires>`, so a signature cannot be lifted onto another repository, an
 /// older sequence or a longer life.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Index {
     pub repository: String,
@@ -34,7 +34,7 @@ pub struct Index {
 
 /// A plugin of the repository: the key its author signs releases with, and the
 /// releases. The key is the author's own; the repository only names it.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Listing {
     pub id: String,
@@ -44,7 +44,7 @@ pub struct Listing {
 
 /// One `.hplugin` of a plugin and the SHA-256 and size the signed index vouches
 /// for.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Release {
     pub version: String,
@@ -53,7 +53,7 @@ pub struct Release {
     pub size: u64,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Revocation {
     pub id: String,

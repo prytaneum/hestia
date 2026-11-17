@@ -4,7 +4,7 @@
 //! its caps and the signature verifies.
 
 use std::collections::HashSet;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write};
 
 use sha2::{Digest, Sha256};
 
@@ -23,7 +23,7 @@ const FILE_TYPE: u32 = 0o170000;
 /// the other entries.
 pub(crate) const ARCHIVE_MAX: u64 = COMPONENT_MAX + (1 << 20);
 
-pub(crate) struct Hplugin {
+pub struct Hplugin {
     pub manifest: Vec<u8>,
     pub wasm: Vec<u8>,
     signature: String,
@@ -39,7 +39,7 @@ fn refused(reason: impl Into<String>) -> TrustError {
 
 /// What the author signs. The id and version are the manifest's, so a
 /// signature cannot be moved to another plugin or release.
-fn statement(id: &str, version: &str, manifest: &[u8], wasm: &[u8]) -> Vec<u8> {
+pub fn statement(id: &str, version: &str, manifest: &[u8], wasm: &[u8]) -> Vec<u8> {
     format!(
         "hestia-hplugin-v1\n{id}\n{version}\n{}\n{}\n",
         hex(&Sha256::digest(manifest)),
@@ -61,6 +61,27 @@ fn read_entry(entry: impl Read, name: &str, max: u64) -> Result<Vec<u8>, TrustEr
 }
 
 impl Hplugin {
+    /// The archive of `manifest`, `wasm` and the author's `signature`: exactly
+    /// the three entries [`Hplugin::read`] accepts.
+    pub fn pack(manifest: &[u8], wasm: &[u8], signature: &str) -> Result<Vec<u8>, TrustError> {
+        let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default();
+        for (name, bytes) in [
+            (MANIFEST, manifest),
+            (COMPONENT, wasm),
+            (SIGNATURE, signature.as_bytes()),
+        ] {
+            zip.start_file(name, options)
+                .map_err(|error| refused(format!("{name} cannot be written: {error}")))?;
+            zip.write_all(bytes)
+                .map_err(|error| refused(format!("{name} cannot be written: {error}")))?;
+        }
+        let archive = zip
+            .finish()
+            .map_err(|error| refused(format!("the archive cannot be finished: {error}")))?;
+        Ok(archive.into_inner())
+    }
+
     pub fn read(archive: &[u8]) -> Result<Hplugin, TrustError> {
         if archive.len() as u64 > ARCHIVE_MAX {
             return Err(refused("it is larger than a package may be"));

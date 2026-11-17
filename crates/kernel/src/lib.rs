@@ -20,12 +20,21 @@ pub use api::probe;
 pub use api::{Chain, ChainError, HostCalls, Reply, Settled};
 pub use builtin::{Builtin, Busy, Descriptor};
 pub use error::{PackageError, PluginError};
-pub use grant::{denials, Gate, GrantError, Permission, Stability, Table};
+pub use grant::versions::check as check_versions;
+pub use grant::{denials, derive, widens, Gate, GrantError, Permission, Stability, Table};
 pub use install::sandbox_root;
-pub use manifest::ManifestError;
+pub use manifest::{Manifest, ManifestError};
 pub use registry::Plugins;
 pub use runtime::{
     Answer, Denials, GuestError, Invocation, JobOutcome, Limits, Loaded, NoticeLevel, Opened,
     Sandbox, SandboxError, Services, Shape, ShapeError,
 };
-pub use trust::TrustError;
+pub use trust::{
+    statement, Hplugin, Index, Listing, Release, Revocation, Signer, TrustError, LIFETIME_DAYS,
+};
+
+/// The permissions and interfaces of the kernel's own package, which the
+/// registry extends with those of the built-ins that provide a package.
+pub fn table() -> Table {
+    api::kernel::table()
+}

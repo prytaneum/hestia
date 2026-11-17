@@ -40,7 +40,7 @@ fn refused(what: &str, asked: &Version, host: &Version) -> GrantError {
 /// interface without being a dev install, or one that uses an interface from
 /// after the version it names. What it uses that is deprecated comes back as
 /// warnings. A package without `api` is held to the versions its imports name.
-pub(crate) fn check(
+pub fn check(
     table: &Table,
     manifest: &Manifest,
     shape: &Shape,
