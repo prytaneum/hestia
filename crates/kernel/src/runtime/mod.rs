@@ -18,6 +18,7 @@ mod limits;
 mod messages;
 mod notify;
 mod pause;
+mod permissions;
 mod programs;
 mod progress;
 mod reach;
@@ -47,6 +48,7 @@ use wasmtime::{Config, Engine, InstanceAllocationStrategy, PoolingAllocationConf
 #[cfg(feature = "probe")]
 use crate::api::Chain;
 use crate::api::HostCalls;
+use crate::entries::Entries;
 use admission::Admission;
 use bindings::exports::hestia::kernel::{
     commands, lifecycle, on_job_done, on_schedule, settings_changed,
@@ -203,17 +205,20 @@ impl Sandbox {
     }
 
     /// Links `opened`, each denied import to a stub that answers `denied`; a
-    /// denied `wasi:` import cannot be answered and fails the load. An export
-    /// that is present but malformed fails the load. Calls reach only the
-    /// hosts, programs and endpoints `grant` lists.
+    /// denied import the sandbox cannot answer (`grant::deniable`) fails the
+    /// load. An export that is present but malformed fails the load. Calls reach
+    /// only the hosts, programs and endpoints `grant` lists, and the entries
+    /// `entries` holds now, which the registry keeps current.
     pub fn link(
         &self,
         opened: &Opened,
         denials: &Denials,
         grant: &Grant,
+        entries: Entries,
     ) -> Result<Loaded, SandboxError> {
-        if let Some((import, permission)) =
-            denials.iter().find(|(name, _)| name.starts_with("wasi:"))
+        if let Some((import, permission)) = denials
+            .iter()
+            .find(|(name, _)| !crate::grant::deniable(name))
         {
             return Err(SandboxError::Load(wasmtime::format_err!(
                 "'{import}' needs '{permission}', which is not granted"
@@ -255,10 +260,12 @@ impl Sandbox {
             denied = denials.len(),
             "component loaded"
         );
+        let mut reach = Reach::of(grant);
+        reach.entries = entries;
         Ok(Loaded {
             plugin: opened.plugin.clone(),
             pre,
-            reach: Arc::new(Reach::of(grant)),
+            reach: Arc::new(reach),
             lifecycle,
             settings_changed,
             commands,
@@ -273,6 +280,7 @@ impl Sandbox {
             &self.open(plugin, wasm).await?,
             &Denials::new(),
             &Grant::default(),
+            Entries::default(),
         )
     }
 

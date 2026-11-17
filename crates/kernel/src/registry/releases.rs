@@ -5,8 +5,8 @@
 
 use proto::error::IoOp;
 use proto::plugin::{
-    Inspection, PluginInfo, PluginRevoked, PluginState, PluginUpdate, PluginUpdatesResult,
-    RepositoryFailure, RepositoryInfo, UpdateInspection,
+    Choice, EntryScope, Inspection, PluginInfo, PluginRevoked, PluginState, PluginUpdate,
+    PluginUpdatesResult, RepositoryFailure, RepositoryInfo, UpdateInspection,
 };
 
 use super::{find, Kind, Plugins};
@@ -115,9 +115,11 @@ impl Plugins {
         id: &str,
         version: Option<&str>,
         approved: &str,
+        choice: Choice,
     ) -> Result<PluginInfo, PluginError> {
         let (package, source) = self.release(repository, id, version).await?;
-        self.install_package(package, approved, source).await
+        self.install_package(package, approved, source, choice)
+            .await
     }
 
     /// Fetches every repository's index, together, which disables an installed
@@ -185,13 +187,18 @@ impl Plugins {
 
     /// Replaces `id` with its update if it still derives `approved`. A widened
     /// update is only ever applied this way, never on its own.
-    pub async fn update(&self, id: &str, approved: &str) -> Result<PluginInfo, PluginError> {
+    pub async fn update(
+        &self,
+        id: &str,
+        approved: &str,
+        scope: Option<EntryScope>,
+    ) -> Result<PluginInfo, PluginError> {
         let update = self.prepare_update(id).await?;
         if update.inspection.approval_digest != approved {
             return Err(PluginError::Changed(id.to_owned()));
         }
         let _changing = self.changes.lock().await;
-        self.replace(update.package, &update.inspection, update.source)
+        self.replace(update.package, &update.inspection, update.source, scope)
             .await
     }
 
@@ -349,7 +356,7 @@ impl Plugins {
         let done = blocking(IoOp::Write, move || {
             marks
                 .into_iter()
-                .filter(|revoked| match store.revoke(&revoked.id, &revoked.reason) {
+                .filter(|revoked| match store.amend(&revoked.id, |record| record.revoked = Some(revoked.reason.clone())) {
                     Ok(()) => true,
                     Err(error) => {
                         tracing::error!(plugin = revoked.id, %error, "cannot record the revocation");

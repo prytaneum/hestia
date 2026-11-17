@@ -100,7 +100,10 @@ impl State {
 /// with this call's chain, which already ends with this plugin.
 #[cfg(feature = "probe")]
 impl State {
-    pub(crate) fn link(&self) -> Result<crate::api::Link, types::PluginError> {
+    pub(crate) fn link(
+        &self,
+        permission: Option<&'static str>,
+    ) -> Result<crate::api::Link, types::PluginError> {
         let calls = self
             .shared
             .calls
@@ -110,6 +113,7 @@ impl State {
         Ok(crate::api::Link {
             calls,
             chain: self.call.chain.clone(),
+            permission,
         })
     }
 }

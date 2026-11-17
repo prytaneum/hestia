@@ -8,7 +8,8 @@ const KERNEL_VERSION: &str = "0.1.0";
 pub struct Permission {
     pub name: &'static str,
     pub tier: Tier,
-    /// The manifest scope the permission requires, if it takes one.
+    /// The manifest scope the permission requires, if it takes one;
+    /// [`ScopeKind::Entries`] is chosen by the user instead.
     pub scope: Option<ScopeKind>,
     pub prompt: &'static str,
 }
@@ -110,6 +111,7 @@ impl Table {
                 ("hestia:kernel/app", None),
                 ("hestia:kernel/data", None),
                 ("hestia:kernel/settings", None),
+                ("hestia:kernel/permissions", None),
                 ("hestia:kernel/secrets", Some("secrets")),
                 ("hestia:kernel/messages", None),
                 ("hestia:kernel/progress", None),

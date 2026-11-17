@@ -19,6 +19,7 @@ use running::Running;
 
 mod calls;
 mod guests;
+mod permissions;
 mod releases;
 mod running;
 mod schedules;
@@ -339,6 +340,8 @@ fn info(slot: &Slot) -> PluginInfo {
                     .map(|id| id.to_string())
                     .collect(),
                 commands: Vec::new(),
+                optional: Vec::new(),
+                entries: None,
             }
         }
         Kind::Guest(guest) => PluginInfo {
@@ -351,6 +354,8 @@ fn info(slot: &Slot) -> PluginInfo {
             provides: None,
             requires: Vec::new(),
             commands: guest.commands.iter().map(CommandDecl::spec).collect(),
+            optional: guest.optional.clone(),
+            entries: guest.scoped.then(|| guest.entries.get()),
         },
     }
 }

@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use super::choice::Choice;
 use super::registry::PluginInfo;
 use crate::change::Scope;
 use crate::contract::Contract;
@@ -28,6 +29,8 @@ pub enum ScopeKind {
     Paths,
     Endpoints,
     Programs,
+    /// Chosen by the user at approval, never written in the manifest.
+    Entries,
 }
 
 impl std::fmt::Display for ScopeKind {
@@ -37,6 +40,7 @@ impl std::fmt::Display for ScopeKind {
             ScopeKind::Paths => "paths",
             ScopeKind::Endpoints => "endpoints",
             ScopeKind::Programs => "programs",
+            ScopeKind::Entries => "entries",
         })
     }
 }
@@ -73,6 +77,11 @@ pub struct GrantedPermission {
     pub prompt: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<PermissionScope>,
+    /// The manifest marks it optional: it arrives declined, and the user may
+    /// grant or revoke it later.
+    pub optional: bool,
+    /// The user chooses which entries it reaches, at approval.
+    pub entries: bool,
 }
 
 /// A schedule the plugin wakes itself with: it runs without anyone asking, so
@@ -145,6 +154,7 @@ pub struct PluginPackage {
 pub struct PluginInstallParams {
     pub path: String,
     pub approval_digest: String,
+    pub choice: Choice,
 }
 
 /// Reads the package and derives its grant; nothing is installed or run.

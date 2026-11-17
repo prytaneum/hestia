@@ -37,11 +37,28 @@ impl Plugin<'_> {
         &self,
         path: &str,
         approval_digest: &str,
+        choice: proto::plugin::Choice,
     ) -> Result<proto::plugin::PluginInfo, IpcError> {
         self.session
             .call::<proto::plugin::PluginInstall>(&proto::plugin::PluginInstallParams {
                 path: path.into(),
                 approval_digest: approval_digest.into(),
+                choice,
+            })
+            .await
+    }
+
+    pub async fn set_permission(
+        &self,
+        id: &str,
+        permission: &str,
+        granted: bool,
+    ) -> Result<proto::plugin::PluginInfo, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginPermission>(&proto::plugin::PluginPermissionParams {
+                id: id.into(),
+                permission: permission.into(),
+                granted,
             })
             .await
     }
@@ -128,12 +145,14 @@ impl Plugin<'_> {
         &self,
         release: proto::plugin::PluginReleaseParams,
         approval_digest: &str,
+        choice: proto::plugin::Choice,
     ) -> Result<proto::plugin::PluginInfo, IpcError> {
         self.session
             .call::<proto::plugin::PluginInstallRelease>(
                 &proto::plugin::PluginInstallReleaseParams {
                     release,
                     approval_digest: approval_digest.into(),
+                    choice,
                 },
             )
             .await
@@ -160,11 +179,27 @@ impl Plugin<'_> {
         &self,
         id: &str,
         approval_digest: &str,
+        entries: Option<proto::plugin::EntryScope>,
     ) -> Result<proto::plugin::PluginInfo, IpcError> {
         self.session
             .call::<proto::plugin::PluginUpdateApply>(&proto::plugin::PluginUpdateApplyParams {
                 id: id.into(),
                 approval_digest: approval_digest.into(),
+                entries,
+            })
+            .await
+    }
+
+    /// Replaces the entries `id` may reach; they are named by id or name.
+    pub async fn set_entries(
+        &self,
+        id: &str,
+        entries: proto::plugin::EntryScope,
+    ) -> Result<proto::plugin::PluginInfo, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginEntries>(&proto::plugin::PluginEntriesParams {
+                id: id.into(),
+                entries,
             })
             .await
     }

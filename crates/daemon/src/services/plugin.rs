@@ -5,14 +5,15 @@ use std::path::Path;
 use proto::error::ErrorInfo;
 use proto::job::JobStarted;
 use proto::plugin::{
-    PluginAnswer, PluginDisable, PluginEnable, PluginInspect, PluginInspectRelease, PluginInstall,
-    PluginInstallRelease, PluginList, PluginRemove, PluginRepoAdd, PluginRepoList,
-    PluginRepoRemove, PluginRun, PluginSecretSet, PluginUpdateApply, PluginUpdateInspect,
-    PluginUpdates,
+    Choice, PluginAnswer, PluginDisable, PluginEnable, PluginEntries, PluginInspect,
+    PluginInspectRelease, PluginInstall, PluginInstallRelease, PluginList, PluginPermission,
+    PluginRemove, PluginRepoAdd, PluginRepoList, PluginRepoRemove, PluginRun, PluginSecretSet,
+    PluginUpdateApply, PluginUpdateInspect, PluginUpdates,
 };
 use proto::Empty;
 
-use crate::runtime::{Caller, Channels};
+use crate::runtime::entries::resolve_scope;
+use crate::runtime::{Caller, Channels, HandlerContext};
 
 /// A relative path would resolve against the daemon's working directory, which
 /// is not the client's.
@@ -24,6 +25,12 @@ fn package_dir(path: &str) -> Result<&Path, ErrorInfo> {
             detail: "the package path must be absolute".into(),
         }),
     }
+}
+
+/// The choice with the entries it names resolved to stable ids.
+fn resolved(ctx: &HandlerContext, mut choice: Choice) -> Result<Choice, ErrorInfo> {
+    choice.entries = resolve_scope(ctx.runtime.engine(), choice.entries)?;
+    Ok(choice)
 }
 
 pub(super) fn register(on: &mut Channels<'_>) {
@@ -71,9 +78,10 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<PluginInstall, _, _>(|p, ctx| async move {
         let dir = package_dir(&p.path)?;
+        let choice = resolved(&ctx, p.choice)?;
         ctx.runtime
             .plugins()
-            .install(dir, &p.approval_digest)
+            .install(dir, &p.approval_digest, choice)
             .await
             .map_err(ErrorInfo::from)
     });
@@ -109,6 +117,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<PluginInstallRelease, _, _>(|p, ctx| async move {
         let release = p.release;
+        let choice = resolved(&ctx, p.choice)?;
         ctx.runtime
             .plugins()
             .install_release(
@@ -116,6 +125,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 &release.id,
                 release.version.as_deref(),
                 &p.approval_digest,
+                choice,
             )
             .await
             .map_err(ErrorInfo::from)
@@ -134,9 +144,30 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<PluginUpdateApply, _, _>(|p, ctx| async move {
+        let scope = p
+            .entries
+            .map(|scope| resolve_scope(ctx.runtime.engine(), scope))
+            .transpose()?;
         ctx.runtime
             .plugins()
-            .update(&p.id, &p.approval_digest)
+            .update(&p.id, &p.approval_digest, scope)
+            .await
+            .map_err(ErrorInfo::from)
+    });
+
+    on.handle::<PluginPermission, _, _>(|p, ctx| async move {
+        ctx.runtime
+            .plugins()
+            .set_permission(&p.id, &p.permission, p.granted)
+            .await
+            .map_err(ErrorInfo::from)
+    });
+
+    on.handle::<PluginEntries, _, _>(|p, ctx| async move {
+        let scope = resolve_scope(ctx.runtime.engine(), p.entries)?;
+        ctx.runtime
+            .plugins()
+            .set_entries(&p.id, scope)
             .await
             .map_err(ErrorInfo::from)
     });

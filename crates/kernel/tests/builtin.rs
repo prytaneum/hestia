@@ -63,12 +63,12 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
 
     plugins.disable("probe").await.unwrap();
     assert!(matches!(
-        plugins.install(&pkg, &inspection.approval_digest).await,
+        plugins.install(&pkg, &inspection.approval_digest, Default::default()).await,
         Err(PluginError::Package(PackageError::Unprovided(package))) if package == "hestia:probe"
     ));
     plugins.enable("probe").await.unwrap();
     let installed = plugins
-        .install(&pkg, &inspection.approval_digest)
+        .install(&pkg, &inspection.approval_digest, Default::default())
         .await
         .unwrap();
     assert_eq!(installed.state, PluginState::Enabled);
@@ -101,7 +101,7 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
 
     let granted = denials(plugins.table(), &shape, &["probe:read"]);
     let loaded = sandbox
-        .link(&opened, &granted, &Default::default())
+        .link(&opened, &granted, &Default::default(), Default::default())
         .unwrap();
     let filled = sandbox.fill(&loaded, Chain::default(), "hi").await.unwrap();
     assert_eq!(filled.as_deref(), Some("hi/2/HI/2"));
@@ -124,7 +124,7 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
 
     let withheld = denials(plugins.table(), &shape, &[]);
     let loaded = sandbox
-        .link(&opened, &withheld, &Default::default())
+        .link(&opened, &withheld, &Default::default(), Default::default())
         .unwrap();
     match sandbox.fill(&loaded, Chain::default(), "hi").await {
         Err(SandboxError::Guest(GuestError::Denied(permission))) => {

@@ -557,7 +557,11 @@ async fn a_plugin_installed_from_a_directory_runs_only_while_developer_mode_is_o
         .await
         .unwrap()
         .approval_digest;
-    let refused = client.plugin().install(&path, &digest).await.unwrap_err();
+    let refused = client
+        .plugin()
+        .install(&path, &digest, Default::default())
+        .await
+        .unwrap_err();
     assert_eq!(
         client::error_info(&refused),
         ErrorInfo::PluginDeveloperMode,
@@ -565,7 +569,11 @@ async fn a_plugin_installed_from_a_directory_runs_only_while_developer_mode_is_o
     );
 
     set_developer(&client, true).await;
-    let installed = client.plugin().install(&path, &digest).await.unwrap();
+    let installed = client
+        .plugin()
+        .install(&path, &digest, Default::default())
+        .await
+        .unwrap();
     assert_eq!(installed.state, PluginState::Enabled);
 
     set_developer(&client, false).await;
@@ -604,7 +612,7 @@ async fn install_tour(
     let inspection = client.plugin().inspect(&path).await.expect("inspect");
     client
         .plugin()
-        .install(&path, &inspection.approval_digest)
+        .install(&path, &inspection.approval_digest, Default::default())
         .await
         .expect("install");
     data

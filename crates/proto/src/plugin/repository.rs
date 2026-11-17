@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use super::choice::Choice;
 use super::grant::Inspection;
 use super::registry::{PluginInfo, PluginTarget};
 use crate::change::Scope;
@@ -73,6 +74,7 @@ pub struct PluginReleaseParams {
 pub struct PluginInstallReleaseParams {
     pub release: PluginReleaseParams,
     pub approval_digest: String,
+    pub choice: Choice,
 }
 
 /// Downloads the release, checks it against the signed index and derives its

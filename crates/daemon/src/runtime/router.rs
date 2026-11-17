@@ -14,7 +14,7 @@ use proto::Contract;
 use serde_json::Value;
 use tracing::Instrument;
 
-use super::{HandlerContext, Runtime};
+use super::{Caller, HandlerContext, Runtime};
 
 /// A handler's typed failure is the canonical `ErrorInfo` — the same value the
 /// socket carries and a front-end localizes.
@@ -85,6 +85,14 @@ impl Router {
                             });
                         }
                     }
+                    if request.channel.starts_with("plugin.")
+                        && matches!(ctx.caller, Caller::Plugin(_))
+                    {
+                        tracing::warn!("rejected: a plugin calls a channel only a person may");
+                        return error_response(ErrorInfo::PersonOnly {
+                            channel: request.channel.clone(),
+                        });
+                    }
                     if requires_account(&request.channel) {
                         if let Err(refusal) = require_account(&ctx) {
                             return error_response(refusal);
@@ -137,6 +145,7 @@ impl<'r> Channels<'r> {
     pub fn handle<C, F, Fut>(&mut self, f: F)
     where
         C: Contract + 'static,
+        C::Params: Send,
         F: Fn(C::Params, HandlerContext) -> Fut + Send + Sync + Clone + 'static,
         Fut: Future<Output = ServiceResult<C::Result>> + Send + 'static,
     {
@@ -258,6 +267,31 @@ mod tests {
         assert_eq!(error["kind"], "plugin_disabled");
         assert_eq!(error["plugin"], "ghost");
         assert!(!ran.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn a_plugin_cannot_call_the_registrys_channels() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = engine::Engine::new(Some(home.path()));
+        let runtime = Arc::new(Runtime::over(engine, home.path().join("d.log")));
+        let router = crate::services::make_router();
+        let route = |caller: Caller| {
+            let (out, _) = unbounded_channel();
+            let ctx = HandlerContext {
+                runtime: runtime.clone(),
+                conn_id: 0,
+                out,
+                caller,
+                changed: Changed::default(),
+            };
+            router.route(Request::new("plugin.list", json!({}), None), ctx)
+        };
+
+        let refused = route(Caller::Plugin(kernel::Chain::default().enter("p").unwrap())).await;
+        let error = refused.error.expect("refused");
+        assert_eq!(error["kind"], "person_only");
+        assert_eq!(error["channel"], "plugin.list");
+        assert!(route(Caller::Client).await.error.is_none());
     }
 
     #[tokio::test]

@@ -20,6 +20,16 @@ interface work {
     shout: func(text: string) -> result<echoed, plugin-error>;
 }
 
+/// Calls that act on entries: `open` touches one, `create` makes one, `build`
+/// makes one through a job.
+interface entries {
+    use hestia:kernel/types@0.1.0.{plugin-error};
+
+    open: func(id: string) -> result<string, plugin-error>;
+    create: func(id: string) -> result<string, plugin-error>;
+    build: func(id: string) -> result<string, plugin-error>;
+}
+
 /// An extension point: the plugin that exports it fills it.
 interface filler {
     use hestia:kernel/types@0.1.0.{plugin-error};
@@ -43,5 +53,6 @@ interface legacy {
 world host {
     import read;
     import work;
+    import entries;
     export filler;
 }

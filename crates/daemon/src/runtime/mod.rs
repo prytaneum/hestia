@@ -5,6 +5,7 @@ mod calls;
 mod cancellations;
 mod changed;
 mod claims;
+pub mod entries;
 mod event_hub;
 mod managers;
 mod metrics;

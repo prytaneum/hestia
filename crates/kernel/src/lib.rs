@@ -4,6 +4,7 @@
 mod api;
 mod builtin;
 mod commands;
+pub mod entries;
 mod error;
 mod grant;
 pub mod id;
@@ -16,7 +17,7 @@ pub mod vetting;
 
 #[cfg(feature = "probe")]
 pub use api::probe;
-pub use api::{Chain, ChainError, HostCalls, Reply};
+pub use api::{Chain, ChainError, HostCalls, Reply, Settled};
 pub use builtin::{Builtin, Busy, Descriptor};
 pub use error::{PackageError, PluginError};
 pub use grant::{denials, GrantError, Permission, Stability, Table};

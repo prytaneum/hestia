@@ -48,6 +48,12 @@ pub struct PluginInfo {
     pub provides: Option<String>,
     pub requires: Vec<String>,
     pub commands: Vec<super::CommandSpec>,
+    /// The optional permissions the user granted.
+    pub optional: Vec<String>,
+    /// The entries it may reach; absent unless it holds a permission that takes
+    /// them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entries: Option<super::EntryScope>,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

@@ -19,7 +19,7 @@ pub mod probe;
 
 use wasmtime::component::{Component, InstancePre, Linker};
 
-pub use calls::{HostCalls, Reply};
+pub use calls::{HostCalls, Reply, Settled};
 pub use chain::{Chain, ChainError};
 #[cfg(feature = "probe")]
 pub(crate) use link::Link;

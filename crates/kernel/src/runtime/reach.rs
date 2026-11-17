@@ -1,5 +1,6 @@
 use proto::plugin::{Grant, Program, ScopeKind};
 
+use crate::entries::Entries;
 use crate::vetting::{Hosts, Policy};
 
 /// Where a plugin may go, read from the scopes the user approved: the hosts it
@@ -9,6 +10,9 @@ pub(super) struct Reach {
     pub policy: Policy,
     pub programs: Vec<Program>,
     pub endpoints: Vec<String>,
+    /// The permissions the plugin holds, which `permissions.granted` answers from.
+    pub granted: Vec<String>,
+    pub entries: Entries,
 }
 
 impl Default for Reach {
@@ -18,13 +22,22 @@ impl Default for Reach {
             policy: Policy::new(nothing),
             programs: Vec::new(),
             endpoints: Vec::new(),
+            granted: Vec::new(),
+            entries: Entries::default(),
         }
     }
 }
 
 impl Reach {
     pub fn of(grant: &Grant) -> Self {
-        let mut reach = Reach::default();
+        let mut reach = Reach {
+            granted: grant
+                .permissions
+                .iter()
+                .map(|p| p.permission.clone())
+                .collect(),
+            ..Reach::default()
+        };
         for granted in &grant.permissions {
             let Some(scope) = &granted.scope else {
                 continue;

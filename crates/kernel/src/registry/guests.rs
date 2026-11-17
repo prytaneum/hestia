@@ -9,10 +9,11 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use proto::error::IoOp;
-use proto::plugin::{Grant, Inspection, PluginInfo, PluginState, SignerInfo};
+use proto::plugin::{Choice, EntryScope, Grant, Inspection, PluginInfo, PluginState, SignerInfo};
 
 use super::{find, info, schema, Kind, Plugins, Saved, Slot};
 use crate::commands::{CommandDecl, ScheduleDecl};
+use crate::entries::Entries;
 use crate::error::{PackageError, PluginError};
 use crate::grant;
 use crate::install::{Approval, Package, Source};
@@ -33,20 +34,28 @@ pub(crate) struct Guest {
     pub requires: Vec<String>,
     pub commands: Vec<CommandDecl>,
     pub schedules: Vec<ScheduleDecl>,
+    /// The optional permissions the user granted.
+    pub optional: Vec<String>,
+    /// Whether it holds a permission that takes the entries scope.
+    pub scoped: bool,
+    pub entries: Entries,
     pub loaded: Option<Loaded>,
 }
 
 impl Guest {
-    fn unloaded(id: &str, source: Source) -> Self {
+    fn unloaded(id: &str, record: Approval) -> Self {
         Guest {
             id: id.to_owned(),
             name: id.to_owned(),
             version: String::new(),
-            source,
+            source: record.source,
             granted: Vec::new(),
             requires: Vec::new(),
             commands: Vec::new(),
             schedules: Vec::new(),
+            optional: record.choice.optional,
+            scoped: false,
+            entries: Entries::new(record.choice.entries),
             loaded: None,
         }
     }
@@ -70,12 +79,18 @@ impl Plugins {
     /// Installs the package in `dir` if it still derives `approved`, then starts
     /// it. Only developer mode installs from a directory, which no signature
     /// vouches for. A plugin whose `init` fails stays installed, `failed`.
-    pub async fn install(&self, dir: &Path, approved: &str) -> Result<PluginInfo, PluginError> {
+    pub async fn install(
+        &self,
+        dir: &Path,
+        approved: &str,
+        choice: Choice,
+    ) -> Result<PluginInfo, PluginError> {
         if !self.developer() {
             return Err(PluginError::DeveloperMode);
         }
         let package = read(dir).await?;
-        self.install_package(package, approved, Source::Dev).await
+        self.install_package(package, approved, Source::Dev, choice)
+            .await
     }
 
     pub(super) async fn install_package(
@@ -83,6 +98,7 @@ impl Plugins {
         package: Package,
         approved: &str,
         source: Source,
+        choice: Choice,
     ) -> Result<PluginInfo, PluginError> {
         let _changing = self.changes.lock().await;
         let inspection = self.inspection(&package, &source).await?;
@@ -91,6 +107,7 @@ impl Plugins {
             return Err(PluginError::Changed(id));
         }
         self.require_provided(&inspection.grant.requires)?;
+        grant::check_choice(&inspection.grant, &choice).map_err(PackageError::from)?;
         if self.slots().iter().any(|slot| slot.id() == id) || self.store.dir(&id).exists() {
             return Err(PluginError::Exists(id));
         }
@@ -98,6 +115,7 @@ impl Plugins {
         let record = Approval {
             digest: inspection.approval_digest.clone(),
             grant: inspection.grant.clone(),
+            choice: choice.clone(),
             source: source.clone(),
             revoked: None,
         };
@@ -110,7 +128,14 @@ impl Plugins {
         .map_err(|error| PluginError::io(IoOp::Write, error))?;
         saved?;
         let guest = match self
-            .link(&sandbox, package, &inspection.grant, source)
+            .link(
+                &sandbox,
+                package,
+                &inspection.grant,
+                source,
+                &choice,
+                Entries::new(choice.entries.clone()),
+            )
             .await
         {
             Ok(guest) => guest,
@@ -150,7 +175,7 @@ impl Plugins {
                 continue;
             }
             let wanted = !disabled.contains(&id);
-            match self.load_guest(&id).await {
+            match self.load_guest(&id, None).await {
                 Ok(guest) if wanted => {
                     let unprovided = self.require_provided(&guest.requires);
                     let guest = self.add(guest, PluginState::Failed);
@@ -171,8 +196,8 @@ impl Plugins {
                         true => PluginState::Failed,
                         false => PluginState::Disabled,
                     };
-                    let source = self.store.record(&id).unwrap_or_default().source;
-                    self.add(Guest::unloaded(&id, source), state);
+                    let record = self.store.record(&id).unwrap_or_default();
+                    self.add(Guest::unloaded(&id, record), state);
                 }
             }
         }
@@ -186,6 +211,7 @@ impl Plugins {
         package: Package,
         inspection: &Inspection,
         source: Source,
+        scope: Option<EntryScope>,
     ) -> Result<PluginInfo, PluginError> {
         let id = inspection.id.as_str();
         let sandbox = self.sandbox()?.clone();
@@ -201,22 +227,38 @@ impl Plugins {
                 Kind::Builtin(_) => return Err(PluginError::Builtin(id.to_owned())),
             }
         };
+        let approved = self.store.record(id).unwrap_or_default();
+        let choice = grant::carry(&approved.grant, &inspection.grant, &approved.choice);
         let record = Approval {
             digest: inspection.approval_digest.clone(),
             grant: inspection.grant.clone(),
+            choice: choice.clone(),
             source: source.clone(),
             revoked: None,
         };
-        let store = self.store.clone();
+        let (store, live, chosen) = (self.store.clone(), old.entries.clone(), scope.clone());
         let (package, swapped) = tokio::task::spawn_blocking(move || {
-            let swapped = store.swap(&package, &record);
+            let swapped = store.swap(&package, || {
+                let mut record = record;
+                record.choice.entries = chosen
+                    .map(EntryScope::normalised)
+                    .unwrap_or_else(|| live.get());
+                record
+            });
             (package, swapped)
         })
         .await
         .map_err(|error| PluginError::io(IoOp::Write, error))?;
         swapped?;
         let guest = match self
-            .link(&sandbox, package, &inspection.grant, source)
+            .link(
+                &sandbox,
+                package,
+                &inspection.grant,
+                source,
+                &choice,
+                old.entries.clone(),
+            )
             .await
         {
             Ok(guest) => Arc::new(guest),
@@ -234,6 +276,9 @@ impl Plugins {
                 self.place(id, old, Some(was))?;
                 return Err(error);
             }
+        }
+        if let Some(scope) = scope {
+            guest.entries.set(scope);
         }
         self.store.commit(id);
         tracing::info!(plugin = id, version = guest.version, "plugin updated");
@@ -308,7 +353,7 @@ impl Plugins {
     }
 
     /// Replaces what the slot of `id` runs, and its state when one is given.
-    fn place(
+    pub(super) fn place(
         &self,
         id: &str,
         guest: Arc<Guest>,
@@ -446,7 +491,13 @@ impl Plugins {
 
     /// Reads an installed package and links it if it still derives the digest
     /// the user approved.
-    async fn load_guest(&self, id: &str) -> Result<Guest, PluginError> {
+    /// `live` is the scope the plugin runs with now, when the guest replaces one
+    /// that is running.
+    pub(super) async fn load_guest(
+        &self,
+        id: &str,
+        live: Option<Entries>,
+    ) -> Result<Guest, PluginError> {
         let sandbox = self.sandbox()?.clone();
         let package = read(&self.store.dir(id)).await?;
         if package.manifest.id != id {
@@ -460,8 +511,15 @@ impl Plugins {
         if let Some(reason) = record.revoked {
             return Err(revoked(id, &package.manifest.version, &reason));
         }
-        self.link(&sandbox, package, &inspection.grant, record.source)
-            .await
+        self.link(
+            &sandbox,
+            package,
+            &inspection.grant,
+            record.source,
+            &record.choice,
+            live.unwrap_or_else(|| Entries::new(record.choice.entries.clone())),
+        )
+        .await
     }
 
     /// Compiles the very bytes the digest covered, each ungranted import
@@ -472,8 +530,11 @@ impl Plugins {
         package: Package,
         grant: &Grant,
         source: Source,
+        choice: &Choice,
+        entries: Entries,
     ) -> Result<Guest, PluginError> {
-        let granted: Vec<String> = grant
+        let effective = grant::effective(grant, choice);
+        let granted: Vec<String> = effective
             .permissions
             .iter()
             .map(|granted| granted.permission.clone())
@@ -486,7 +547,7 @@ impl Plugins {
             .await
             .map_err(PackageError::from)?;
         let loaded = sandbox
-            .link(&opened, &denials, grant)
+            .link(&opened, &denials, &effective, entries.clone())
             .map_err(PackageError::from)?;
         Ok(Guest {
             id: manifest.id,
@@ -497,11 +558,19 @@ impl Plugins {
             requires: grant.requires.clone(),
             commands: manifest.commands,
             schedules: manifest.schedules,
+            optional: effective
+                .permissions
+                .iter()
+                .filter(|granted| granted.optional)
+                .map(|granted| granted.permission.clone())
+                .collect(),
+            scoped: effective.permissions.iter().any(|granted| granted.entries),
+            entries,
             loaded: Some(loaded),
         })
     }
 
-    fn add(&self, guest: Guest, state: PluginState) -> Arc<Guest> {
+    pub(super) fn add(&self, guest: Guest, state: PluginState) -> Arc<Guest> {
         let guest = Arc::new(guest);
         self.slots().push(Slot {
             kind: Kind::Guest(guest.clone()),

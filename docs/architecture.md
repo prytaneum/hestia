@@ -201,8 +201,9 @@ is read under the caps of a loose package, counted as it decompresses. Keys are 
 by minisign's key id. `trust::OFFICIAL_KEYS` (none yet) are Hestia's: a repository cannot pin one, and only a package
 signed by one is shown as official, so no index can make another key official.
 
-The approval record (`approval.json`) keeps the approved grant, the source (dev, or the repository with its key and the
-author's key) and any revocation; the repository and author key enter the approval digest, and the prompt shows the
+The approval record (`approval.json`) keeps the approved grant, the choice made within it (the optional permissions
+granted and the entries scope), the source (dev, or the repository with its key and the author's key) and any
+revocation; the repository and author key enter the approval digest, and the prompt shows the
 repository and the author's fingerprint. An update must be listed by the repository under the key that vouched for the
 install and signed by the same author key, whatever the index now says; an author-key change is refused, not applied.
 It replaces the files through a `.previous` directory: a version that fails to link or to start is rolled back, and a
@@ -264,6 +265,38 @@ Every call enters its plugin into the `Chain` before it runs, so a plugin alread
 8, is refused before anything runs. The `probe` feature compiles the test built-in `hestia:probe` and the adapter
 plumbing, which no production package uses yet; the kernel tests drive it with
 `tests/guest-services/src/bin/consumer.rs`.
+
+A permission the manifest marks `optional = true` (`[permissions."probe:read"]`, alone or beside its scope) arrives
+declined: the user ticks it at approval (`Choice.optional`) or grants it later (`plugin.permission`, `hestia plugin
+grant`), and the plugin is relinked, a declined interface answering `denied(<permission>)`. The mark must be on a
+permission the component needs, and on one every gated interface of which can be answered `denied` (`grant::deniable`:
+not `wasi:` nor `ipc`, which hold resources and fail the load instead); a choice naming a permission that is not
+optional is refused. Granting waits for a plugin with no command running; a revoke narrows, so it halts them, and a call
+already in flight keeps the link it began with until it ends. `hestia:kernel/permissions` (no permission) answers
+`granted(permission)` and `entries()` (`ids` empty when `all`), so a plugin adapts to what was approved.
+
+An update keeps a granted optional permission only while it is optional in both versions with a scope no wider
+(`grant::carry`); one that was dropped and added back, or whose scope widened, arrives declined, and one that was
+required and became optional stays granted. An update that adds an optional permission does not ask again; one that
+turns an optional permission required does.
+
+A permission whose table row has `ScopeKind::Entries` takes the **entries scope**, which the user chooses (all, or
+listed stable ids, at most `EntryScope::MAX_IDS`) rather than the manifest: at approval, or later with `plugin.entries`
+(`hestia plugin entries`), or with the update that adds the permission. The daemon resolves every reference a client
+names (an id or a name) to a stable id and refuses one that resolves to nothing or to two entries. The scope is one per
+plugin, stored with the approval (`approval.json`, `choice`) and kept outside the digest, so a permission that gains
+the scope reaches nothing until the user picks. Every write to it, and to the optional choice, goes through
+`Store::amend`, one lock over each record rewrite, a swap and a removal, so none loses another's field and none
+recreates a removed plugin.
+
+The gate is the daemon's `RouterCalls`, not a handler. An adapter can only call a contract that implements
+`proto::access::EntryAccess` (and `JobAccess` for a job), which has no defaults: `touches` lists the `EntryTarget`s
+(kind and reference) a call acts on, and `creates` the ones it made, a contract that does neither returning an empty
+list on purpose. `RouterCalls` resolves each target through the engine to the entry's stable id and refuses the call
+with `entry_out_of_scope` (the plugin sees `denied(<permission of the interface>)`) unless every one is inside the scope
+of every WASM plugin in the call chain, so a plugin cannot reach through another what it may not reach itself. What a
+call or a job's `done` made joins the caller's scope, and persists. The registry's own `plugin.*` channels refuse a
+plugin caller (`person_only`).
 
 Three kernel permissions carry a manifest scope the sandbox enforces on every call (`runtime/reach.rs` reads it from the
 grant). A plugin that is offline reaches nothing: `download` answers `offline` and `wasi:http` refuses.

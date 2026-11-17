@@ -1,6 +1,7 @@
 //! Wire contracts + domain types shared by both sides of the socket. Pure data:
 //! no I/O, no async. `serde` derive is the marshalling layer.
 
+pub mod access;
 pub mod accounts;
 pub mod app;
 pub mod backup;

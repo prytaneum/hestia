@@ -82,15 +82,21 @@ impl Contract for PluginUpdateInspect {
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct PluginUpdateApplyParams {
     pub id: String,
     pub approval_digest: String,
+    /// The entries to reach from now on, when the update adds an entries-scoped
+    /// permission; omitted, the scope stays as it is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entries: Option<super::EntryScope>,
 }
 
 /// Replaces the installed version with the update if it still derives the
-/// approved digest. A version that fails to load is rolled back.
+/// approved digest. A version that fails to load is rolled back. An optional
+/// permission the old version held stays granted only while the update keeps it
+/// optional with no wider scope; a new one arrives declined.
 pub struct PluginUpdateApply;
 impl Contract for PluginUpdateApply {
     const CHANNEL: &'static str = "plugin.update";

@@ -800,6 +800,15 @@ pub enum ErrorInfo {
     PluginIdInvalid {
         id: String,
     },
+    /// A plugin reached for an entry outside the `entries` scope the user approved.
+    EntryOutOfScope {
+        plugin: String,
+        entry: String,
+    },
+    /// A plugin called a channel only a person may: the registry's own.
+    PersonOnly {
+        channel: String,
+    },
 
     // --- protocol ---
     UnknownChannel {
@@ -883,6 +892,7 @@ impl ErrorInfo {
             SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
                 code::UNAUTHORIZED
             }
+            EntryOutOfScope { .. } | PersonOnly { .. } => code::FORBIDDEN,
             UnknownChannel { .. } => "unknown_channel",
             IncompatibleVersion { .. } => "version_mismatch",
             Offline { .. } | OfflineMode => "offline",
@@ -1171,6 +1181,10 @@ impl fmt::Display for ErrorInfo {
                 f,
                 "'{id}' is not a valid id: use lowercase letters, digits and '-'"
             ),
+            PersonOnly { channel } => write!(f, "'{channel}' is for a person to call"),
+            EntryOutOfScope { plugin, entry } => {
+                write!(f, "plugin '{plugin}' may not reach '{entry}'")
+            }
             PluginExists { plugin } => write!(f, "plugin '{plugin}' is already installed"),
             PluginChanged { plugin } => {
                 write!(f, "plugin '{plugin}' changed since it was approved")

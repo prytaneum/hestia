@@ -1,0 +1,17 @@
+package hestia:kernel@0.1.0;
+
+/// No permission. Lets a plugin adapt to what the user approved.
+interface permissions {
+    record entry-scope {
+        /// Every entry is reachable; `ids` is then empty.
+        all: bool,
+        ids: list<string>,
+    }
+
+    /// Whether the permission is granted: a required one that the plugin asked
+    /// for, or an optional one the user did not decline.
+    granted: func(permission: string) -> bool;
+
+    /// The servers and instances the plugin may reach, including any it created.
+    entries: func() -> entry-scope;
+}

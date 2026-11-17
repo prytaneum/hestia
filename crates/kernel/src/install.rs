@@ -4,10 +4,11 @@
 use std::collections::BTreeSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use common::schema::{self, Document};
 use proto::error::IoOp;
-use proto::plugin::{Grant, PluginSource};
+use proto::plugin::{Choice, Grant, PluginSource};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{PackageError, PluginError};
@@ -124,12 +125,14 @@ impl Source {
 }
 
 /// What the user approved: the digest, the grant it covered (what an update is
-/// compared with), where the package came from, and why it was revoked, if so.
+/// compared with), what they chose within it (optional permissions, entries),
+/// where the package came from, and why it was revoked, if so.
 #[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub(crate) struct Approval {
     pub digest: String,
     pub grant: Grant,
+    pub choice: Choice,
     pub source: Source,
     pub revoked: Option<String>,
 }
@@ -138,9 +141,13 @@ impl Document for Approval {
     const NAME: &'static str = "approval.json";
 }
 
+/// `amending` serialises every rewrite of a record and the swap and removal of
+/// a plugin's directory, so an amend never lands in a directory being replaced
+/// and two amends never lose one another's field.
 #[derive(Clone)]
 pub(crate) struct Store {
     root: PathBuf,
+    amending: Arc<Mutex<()>>,
 }
 
 /// `<data_home>/sandbox`, which holds one directory per plugin: its `/data`.
@@ -152,6 +159,7 @@ impl Store {
     pub fn new(data_home: &Path) -> Self {
         Store {
             root: data_home.join("plugins"),
+            amending: Arc::default(),
         }
     }
 
@@ -213,11 +221,18 @@ impl Store {
     }
 
     /// Puts `package` in place of the installed version, which waits beside it
-    /// until [`Store::commit`] or [`Store::rollback`].
-    pub fn swap(&self, package: &Package, record: &Approval) -> Result<(), PluginError> {
+    /// until [`Store::commit`] or [`Store::rollback`]. `record` is built once
+    /// nothing else can amend, so it carries the latest of what an amend wrote.
+    pub fn swap(
+        &self,
+        package: &Package,
+        record: impl FnOnce() -> Approval,
+    ) -> Result<(), PluginError> {
+        let _held = self.amending.lock().unwrap_or_else(|e| e.into_inner());
+        let record = record();
         let id = &package.manifest.id;
         let (current, previous) = (self.dir(id), self.root.join(format!("{id}{PREVIOUS}")));
-        let staging = self.stage(package, record)?;
+        let staging = self.stage(package, &record)?;
         let _ = std::fs::remove_dir_all(&previous);
         std::fs::rename(&current, &previous).map_err(|e| PluginError::io(IoOp::Move, e))?;
         std::fs::rename(&staging, &current).map_err(|error| {
@@ -247,15 +262,20 @@ impl Store {
 
     /// Brings back the version a [`Store::swap`] set aside.
     pub fn rollback(&self, id: &str) -> Result<(), PluginError> {
+        let _held = self.amending.lock().unwrap_or_else(|e| e.into_inner());
         let previous = self.root.join(format!("{id}{PREVIOUS}"));
         let _ = std::fs::remove_dir_all(self.dir(id));
         std::fs::rename(&previous, self.dir(id)).map_err(|e| PluginError::io(IoOp::Move, e))
     }
 
-    /// Marks the installed version revoked, which keeps it from ever starting.
-    pub fn revoke(&self, id: &str, reason: &str) -> Result<(), PluginError> {
-        let mut record = self.record(id).unwrap_or_default();
-        record.revoked = Some(reason.to_owned());
+    /// Rewrites the record in place; the digest and the package are untouched.
+    /// A plugin that is not installed has no record to rewrite.
+    pub fn amend(&self, id: &str, change: impl FnOnce(&mut Approval)) -> Result<(), PluginError> {
+        let _held = self.amending.lock().unwrap_or_else(|e| e.into_inner());
+        let mut record = self
+            .record(id)
+            .ok_or_else(|| PluginError::NotFound(id.to_owned()))?;
+        change(&mut record);
         schema::save(&self.dir(id).join(Approval::NAME), &record).map_err(PluginError::Save)
     }
 
@@ -300,6 +320,7 @@ impl Store {
     /// Deletes the plugin and any version an update set aside, which would
     /// otherwise return at the next start.
     pub fn remove(&self, id: &str) -> Result<(), PluginError> {
+        let _held = self.amending.lock().unwrap_or_else(|e| e.into_inner());
         self.commit(id);
         match std::fs::remove_dir_all(self.dir(id)) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {

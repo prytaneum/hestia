@@ -1,5 +1,6 @@
 //! The plugin registry's wire types.
 
+mod choice;
 mod command;
 mod grant;
 mod registry;
@@ -7,6 +8,10 @@ mod repository;
 mod surface;
 mod update;
 
+pub use choice::{
+    Choice, EntryScope, PluginEntries, PluginEntriesParams, PluginPermission,
+    PluginPermissionParams,
+};
 pub use command::{
     ArgKind, ArgSpec, CommandSpec, PluginRun, PluginRunDone, PluginRunParams, PluginRunProgress,
 };

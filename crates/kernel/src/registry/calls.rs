@@ -48,6 +48,22 @@ impl Plugins {
         self.settled(&guest.id, outcome)
     }
 
+    /// Fills the test built-in's extension point through the enabled plugin
+    /// `id`, as the router would call it.
+    #[cfg(feature = "probe")]
+    pub async fn fill(&self, id: &str, text: &str) -> Result<Option<String>, PluginError> {
+        let (guest, loaded) = self
+            .running(id)
+            .ok_or_else(|| PluginError::NotEnabled(id.to_owned()))?;
+        self.sandbox()?
+            .fill(&loaded, crate::api::Chain::default(), text)
+            .await
+            .map_err(|source| PluginError::Call {
+                plugin: guest.id.clone(),
+                source,
+            })
+    }
+
     /// Ends every running command, for a daemon that is stopping.
     pub fn stop_commands(&self) {
         self.running.halt_all();

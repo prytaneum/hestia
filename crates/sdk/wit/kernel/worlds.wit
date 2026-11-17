@@ -5,6 +5,7 @@ world base {
     import types;
     import log;
     import app;
+    import permissions;
     import data;
     import settings;
     import secrets;

@@ -8,7 +8,7 @@ pub(crate) mod versions;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use proto::plugin::{Grant, GrantedPermission, PermissionScope, Program, ScopeKind};
+use proto::plugin::{Choice, Grant, GrantedPermission, PermissionScope, Program, ScopeKind};
 use sha2::{Digest, Sha256};
 
 use crate::commands::{self, ScheduleDecl};
@@ -26,6 +26,10 @@ pub enum GrantError {
     UnknownInterface(String),
     #[error("plugin.toml gives a scope to '{0}', which the component does not need")]
     ScopeNotNeeded(String),
+    #[error("plugin.toml marks '{0}' optional, but the component does not need it")]
+    OptionalNotNeeded(String),
+    #[error("'{0}' cannot be optional: an interface it gates cannot be answered `denied`")]
+    OptionalUndeniable(String),
     #[error("plugin.toml gives '{permission}' {given} scope, but it takes {takes}")]
     ScopeKind {
         permission: String,
@@ -34,6 +38,8 @@ pub enum GrantError {
     },
     #[error("'{0}' needs a scope in plugin.toml")]
     ScopeMissing(String),
+    #[error("'{0}' is not an optional permission of this plugin")]
+    NotOptional(String),
     #[error("plugin.toml gives '{0}' unhashed hosts, but only hosts take them")]
     UnhashedNotTaken(String),
     #[error("plugin.toml gives '{1}' the unhashed host '{0}', which is not one of its hosts")]
@@ -75,6 +81,19 @@ const KERNEL_PACKAGE: &str = "hestia:kernel";
 
 fn unversioned(name: &str) -> &str {
     name.split_once('@').map_or(name, |(base, _)| base)
+}
+
+/// Whether the sandbox can answer `denied` for the interface when its
+/// permission is withheld: `wasi:` interfaces and `ipc`, which holds resources,
+/// cannot, so a plugin importing one without the permission does not load.
+pub(crate) fn deniable(import: &str) -> bool {
+    let interface = unversioned(import);
+    !interface.starts_with("wasi:") && interface != "hestia:kernel/ipc"
+}
+
+/// The scope the manifest writes; the entries scope is the user's.
+fn manifest_scope(permission: &Permission) -> Option<ScopeKind> {
+    permission.scope.filter(|kind| *kind != ScopeKind::Entries)
 }
 
 fn package_of(interface: &str) -> Option<&str> {
@@ -121,12 +140,24 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
             return Err(GrantError::UnknownInterface(export.clone()));
         }
     }
-    if let Some(unneeded) = manifest
-        .permissions
-        .keys()
-        .find(|name| !needed.get(name.as_str()).is_some_and(|p| p.scope.is_some()))
-    {
-        return Err(GrantError::ScopeNotNeeded(unneeded.clone()));
+    for (name, scopes) in &manifest.permissions {
+        let given_scope = scopes.kinds().next().is_some();
+        match needed.get(name.as_str()) {
+            None if scopes.optional && !given_scope => {
+                return Err(GrantError::OptionalNotNeeded(name.clone()))
+            }
+            None => return Err(GrantError::ScopeNotNeeded(name.clone())),
+            Some(permission) if manifest_scope(permission).is_none() && given_scope => {
+                return Err(GrantError::ScopeNotNeeded(name.clone()))
+            }
+            Some(_) if scopes.optional => {
+                let gated = |import: &String| matches!(table.gate(unversioned(import)), Gate::Needs(p) if p.name == name);
+                if shape.imports.iter().any(|i| gated(i) && !deniable(i)) {
+                    return Err(GrantError::OptionalUndeniable(name.clone()));
+                }
+            }
+            Some(_) => {}
+        }
     }
     let exported = |name: &str| shape.exports.iter().any(|e| unversioned(e) == name);
     if !manifest.commands.is_empty() && !exported("hestia:kernel/commands") {
@@ -137,7 +168,7 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
     }
     let mut permissions = Vec::new();
     for (name, permission) in needed {
-        let scope = match permission.scope {
+        let scope = match manifest_scope(permission) {
             None => None,
             Some(kind) => {
                 let scopes = manifest.permissions.get(name);
@@ -160,6 +191,8 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
             tier: permission.tier,
             prompt: permission.prompt.to_owned(),
             scope,
+            optional: manifest.permissions.get(name).is_some_and(|s| s.optional),
+            entries: permission.scope == Some(ScopeKind::Entries),
         });
     }
     Ok(Grant {
@@ -235,7 +268,7 @@ fn scope_of(name: &str, kind: ScopeKind, scopes: &Scopes) -> Result<PermissionSc
                 });
             }
         }
-        ScopeKind::Paths => {}
+        ScopeKind::Paths | ScopeKind::Entries => {}
     }
     Ok(scope)
 }
@@ -260,9 +293,11 @@ fn endpoint_here(entry: &str) -> Result<bool, GrantError> {
 /// Binds an approval to the package and what it reaches: the id, the exact
 /// manifest and component bytes, each permission with its scope (hosts,
 /// unhashed hosts, endpoints, and each program with its arguments and digest),
-/// the packages it requires, and for a repository's package the repository and
-/// the author key that vouch for it. Hestia's own prompt text and tiers are left
-/// out, so rewording them never invalidates an approval.
+/// the packages it requires, whether each permission is optional, and for a
+/// repository's package the repository and the author key that vouch for it.
+/// Hestia's own properties (its prompt text, tiers and which permissions take the
+/// entries scope) are left out, so changing them never invalidates an approval:
+/// a permission that gains the entries scope reaches none until the user picks.
 pub fn approval_digest(
     id: &str,
     manifest: &[u8],
@@ -275,7 +310,7 @@ pub fn approval_digest(
         hash.update((bytes.len() as u64).to_le_bytes());
         hash.update(bytes);
     };
-    field(b"hestia-approval-v6");
+    field(b"hestia-approval-v7");
     field(id.as_bytes());
     field(&Sha256::digest(manifest));
     field(&Sha256::digest(wasm));
@@ -284,6 +319,7 @@ pub fn approval_digest(
     field(&(permissions.len() as u64).to_le_bytes());
     for permission in permissions {
         field(permission.permission.as_bytes());
+        field(&[permission.optional as u8]);
         let scope = permission.scope.clone().unwrap_or_default();
         field(
             match permission.scope {
@@ -336,15 +372,9 @@ pub fn approval_digest(
 /// Whether `new` asks for anything `old` did not: a permission, a scope entry
 /// (a host, an endpoint, a host served without checksum, or a program whose
 /// path, arguments or digest pin differ), a required package, an export, or a
-/// schedule that is new or ticks more often. Dropping or narrowing never widens.
+/// schedule that is new or ticks more often. Dropping or narrowing never widens,
+/// and a new optional permission arrives declined, so it does not widen either.
 pub fn widens(old: &Grant, new: &Grant) -> bool {
-    let asked = |grant: &'_ Grant, permission: &str| {
-        grant
-            .permissions
-            .iter()
-            .find(|granted| granted.permission == permission)
-            .map(|granted| granted.scope.clone())
-    };
     let more_packages = new
         .requires
         .iter()
@@ -362,31 +392,89 @@ pub fn widens(old: &Grant, new: &Grant) -> bool {
     more_packages
         || more_exports
         || more_schedules
-        || new
+        || new.permissions.iter().any(|granted| {
+            match old
+                .permissions
+                .iter()
+                .find(|before| before.permission == granted.permission)
+            {
+                None => !granted.optional,
+                Some(before) if before.optional && !granted.optional => true,
+                Some(before) => scope_widens(before, granted),
+            }
+        })
+}
+
+/// Whether `now` reaches more than `before` did.
+fn scope_widens(before: &GrantedPermission, now: &GrantedPermission) -> bool {
+    match (&now.scope, &before.scope) {
+        (None, _) => false,
+        (Some(_), None) => true,
+        (Some(now), Some(before)) => {
+            now.kind != before.kind
+                || now
+                    .values
+                    .iter()
+                    .any(|value| !before.values.contains(value))
+                || now
+                    .unhashed
+                    .iter()
+                    .any(|host| !before.unhashed.contains(host))
+                || now
+                    .programs
+                    .iter()
+                    .any(|program| !before.programs.contains(program))
+        }
+    }
+}
+
+/// The grant as the user left it: every required permission and the optional
+/// ones they granted.
+pub(crate) fn effective(grant: &Grant, choice: &Choice) -> Grant {
+    let mut effective = grant.clone();
+    effective
+        .permissions
+        .retain(|p| !p.optional || choice.optional.contains(&p.permission));
+    effective
+}
+
+/// What an update keeps of `choice`, which was made against `old`: an optional
+/// permission stays granted only if it was optional before and still is, with a
+/// scope no wider; one that was required and became optional stays granted, since
+/// the update's approval covered it. Anything else arrives declined, so a
+/// permission dropped and added back never returns with what nobody approved.
+pub(crate) fn carry(old: &Grant, new: &Grant, choice: &Choice) -> Choice {
+    let held = |name: &str| old.permissions.iter().find(|p| p.permission == name);
+    let optional = new
+        .permissions
+        .iter()
+        .filter(|now| now.optional)
+        .filter(|now| match held(&now.permission) {
+            Some(before) if before.optional => {
+                choice.optional.contains(&now.permission) && !scope_widens(before, now)
+            }
+            Some(_) => true,
+            None => false,
+        })
+        .map(|now| now.permission.clone())
+        .collect();
+    Choice {
+        optional,
+        entries: choice.entries.clone(),
+    }
+}
+
+/// Refuses a choice that grants a permission the plugin does not mark optional.
+pub(crate) fn check_choice(grant: &Grant, choice: &Choice) -> Result<(), GrantError> {
+    match choice.optional.iter().find(|name| {
+        !grant
             .permissions
             .iter()
-            .any(|granted| match asked(old, &granted.permission) {
-                None => true,
-                Some(before) => match (&granted.scope, before) {
-                    (None, _) => false,
-                    (Some(_), None) => true,
-                    (Some(now), Some(before)) => {
-                        now.kind != before.kind
-                            || now
-                                .values
-                                .iter()
-                                .any(|value| !before.values.contains(value))
-                            || now
-                                .unhashed
-                                .iter()
-                                .any(|host| !before.unhashed.contains(host))
-                            || now
-                                .programs
-                                .iter()
-                                .any(|program| !before.programs.contains(program))
-                    }
-                },
-            })
+            .any(|p| p.optional && &p.permission == *name)
+    }) {
+        Some(name) => Err(GrantError::NotOptional(name.clone())),
+        None => Ok(()),
+    }
 }
 
 /// Each import that needs a permission the grant lacks, to that permission.
@@ -465,6 +553,31 @@ mod tests {
             exports: Vec::new(),
         };
         derive(&Table::kernel(), &manifest, &shape)
+    }
+
+    #[test]
+    fn an_optional_mark_belongs_to_a_permission_the_component_needs() {
+        let optional = "[permissions.\"secrets\"]\noptional = true\n";
+        let secrets = ["hestia:kernel/secrets@0.1.0"];
+        assert!(matches!(
+            derived(&[], optional),
+            Err(GrantError::OptionalNotNeeded(_))
+        ));
+        let grant = derived(&secrets, optional).unwrap();
+        assert!(grant.permissions[0].optional);
+        assert!(!derived(&secrets, "").unwrap().permissions[0].optional);
+        let wasi = ["wasi:http/types@0.2.0"];
+        let network =
+            "[permissions.\"network:connect\"]\noptional = true\nhosts = [\"a.example\"]\n";
+        assert!(matches!(
+            derived(&wasi, network),
+            Err(GrantError::OptionalUndeniable(_))
+        ));
+        let scoped = "[permissions.\"secrets\"]\nhosts = [\"a.example\"]\n";
+        assert!(matches!(
+            derived(&secrets, scoped),
+            Err(GrantError::ScopeNotNeeded(_))
+        ));
     }
 
     #[test]
@@ -781,6 +894,23 @@ mod tests {
             assert!(widens(&before, &new), "{case}");
         }
         assert!(!widens(&before, &before.clone()));
+        let optional = |g: &mut Grant| {
+            let mut extra = permission_named("extra");
+            extra.optional = true;
+            g.permissions.push(extra);
+        };
+        let mut with_optional = before.clone();
+        optional(&mut with_optional);
+        assert!(
+            !widens(&before, &with_optional),
+            "a new optional permission arrives declined and never widens"
+        );
+        let mut required_now = with_optional.clone();
+        required_now.permissions.last_mut().unwrap().optional = false;
+        assert!(
+            widens(&with_optional, &required_now),
+            "an optional permission turned required may have been declined"
+        );
         assert!(!widens(&before, &Grant::default()), "dropping never widens");
         let mut slower = before.clone();
         slower.schedules[0].every = "7d".into();

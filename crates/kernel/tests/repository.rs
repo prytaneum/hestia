@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use kernel::{Limits, Permission, PluginError, Plugins, Sandbox, Services, Table, TrustError};
-use proto::plugin::{PluginSource, PluginState, ScopeKind, Tier};
+use proto::plugin::{Choice, PluginSource, PluginState, ScopeKind, Tier};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -40,6 +40,7 @@ fn gated() -> Table {
             ("hestia:kernel/log", Some("log:sink")),
             ("hestia:kernel/app", Some("app:read")),
             ("hestia:kernel/lifecycle", None),
+            ("hestia:kernel/settings", Some("settings:use")),
         ],
         vec![
             Permission {
@@ -47,6 +48,12 @@ fn gated() -> Table {
                 tier: Tier::Unrestricted,
                 scope: None,
                 prompt: "Read the app info",
+            },
+            Permission {
+                name: "settings:use",
+                tier: Tier::Sandboxed,
+                scope: Some(ScopeKind::Hosts),
+                prompt: "Read its settings",
             },
             Permission {
                 name: "log:sink",
@@ -131,6 +138,14 @@ fn manifest(id: &str, version: &str, hosts: &[&str]) -> String {
         );
     }
     text
+}
+
+fn optional_manifest(id: &str, version: &str, hosts: &[&str]) -> String {
+    let hosts: Vec<String> = hosts.iter().map(|h| format!("\"{h}\"")).collect();
+    format!(
+        "id = \"{id}\"\nname = \"{id}\"\nversion = \"{version}\"\n[permissions.\"settings:use\"]\noptional = true\nhosts = [{}]\n",
+        hosts.join(", ")
+    )
 }
 
 /// A plugin author with a signing key of their own.
@@ -381,7 +396,13 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
     assert_eq!(signer.repository, "acme");
     assert!(!signer.official, "an author's key is never Hestia's");
     let installed = registry
-        .install_release("acme", "rel", None, &inspection.approval_digest)
+        .install_release(
+            "acme",
+            "rel",
+            None,
+            &inspection.approval_digest,
+            Default::default(),
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -437,7 +458,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
         }
     };
     registry
-        .update("rel", &same.inspection.approval_digest)
+        .update("rel", &same.inspection.approval_digest, None)
         .await
         .unwrap();
     assert_eq!(installed_version(home.path(), "rel"), "1.1.0");
@@ -454,11 +475,11 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
     let wider = registry.inspect_update("rel").await.unwrap();
     assert!(wider.widened, "a new scope entry asks again");
     assert!(matches!(
-        registry.update("rel", "stale").await,
+        registry.update("rel", "stale", None).await,
         Err(PluginError::Changed(_))
     ));
     registry
-        .update("rel", &wider.inspection.approval_digest)
+        .update("rel", &wider.inspection.approval_digest, None)
         .await
         .unwrap();
 
@@ -474,7 +495,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
     let unloadable = registry.inspect_update("rel").await.unwrap();
     assert!(matches!(
         registry
-            .update("rel", &unloadable.inspection.approval_digest)
+            .update("rel", &unloadable.inspection.approval_digest, None)
             .await,
         Err(PluginError::Package(_))
     ));
@@ -491,7 +512,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
     assert!(!narrower.widened);
     assert!(matches!(
         registry
-            .update("rel", &narrower.inspection.approval_digest)
+            .update("rel", &narrower.inspection.approval_digest, None)
             .await,
         Err(PluginError::Failed { .. })
     ));
@@ -539,12 +560,104 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
 
     let fixed = restarted.inspect_update("rel").await.unwrap();
     restarted
-        .update("rel", &fixed.inspection.approval_digest)
+        .update("rel", &fixed.inspection.approval_digest, None)
         .await
         .unwrap();
     assert_eq!(
         state(&restarted, "rel"),
         (PluginState::Enabled, "1.3.0".into())
+    );
+}
+
+async fn apply(registry: &Plugins, widened: bool) {
+    registry.check_updates().await;
+    let found = registry.inspect_update("rel").await.unwrap();
+    assert_eq!(found.widened, widened);
+    registry
+        .update("rel", &found.inspection.approval_digest, None)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn an_update_keeps_an_optional_grant_only_while_the_permission_stays_optional_and_no_wider() {
+    let home = tempfile::tempdir().unwrap();
+    let registry = plugins(home.path());
+    let (mut repo, author) = (Publisher::new("acme").await, Author::new());
+    let granted = || {
+        registry
+            .list()
+            .into_iter()
+            .find(|p| p.id == "rel")
+            .unwrap()
+            .optional
+    };
+    repo.release(
+        "rel",
+        &author,
+        "1.0.0",
+        &optional_manifest("rel", "1.0.0", &["a.example"]),
+        "settler",
+    );
+    repo.publish(1, now() + 3600);
+    registry
+        .add_repository("acme", &repo.url(), &repo.key())
+        .await
+        .unwrap();
+    let inspection = registry.inspect_release("acme", "rel", None).await.unwrap();
+    let chosen = Choice {
+        optional: vec!["settings:use".into()],
+        ..Choice::default()
+    };
+    registry
+        .install_release("acme", "rel", None, &inspection.approval_digest, chosen)
+        .await
+        .unwrap();
+    assert_eq!(granted(), ["settings:use"]);
+
+    let mut sequence = 1;
+    let mut update = |version: &str, manifest: String, component: &str| {
+        sequence += 1;
+        repo.release("rel", &author, version, &manifest, component);
+        repo.publish(sequence, now() + 3600);
+    };
+    update(
+        "1.1.0",
+        optional_manifest("rel", "1.1.0", &["a.example"]),
+        "settler",
+    );
+    apply(&registry, false).await;
+    assert_eq!(granted(), ["settings:use"], "the same optional grant stays");
+
+    update("2.0.0", manifest("rel", "2.0.0", &[]), "nap");
+    apply(&registry, false).await;
+    assert!(granted().is_empty());
+
+    update(
+        "3.0.0",
+        optional_manifest("rel", "3.0.0", &["evil.example"]),
+        "settler",
+    );
+    apply(&registry, false).await;
+    assert!(
+        granted().is_empty(),
+        "a permission dropped and added back optional arrives declined, whatever its scope"
+    );
+    let info = registry
+        .set_permission("rel", "settings:use", true)
+        .await
+        .unwrap();
+    assert_eq!(info.optional, ["settings:use"]);
+
+    update(
+        "3.1.0",
+        optional_manifest("rel", "3.1.0", &["evil.example", "b.example"]),
+        "settler",
+    );
+    apply(&registry, true).await;
+    assert!(
+        granted().is_empty(),
+        "an optional grant whose scope widened is declined again"
     );
 }
 
@@ -567,7 +680,13 @@ async fn an_update_that_never_finished_is_undone_at_start_and_nothing_else_is_to
         .unwrap();
     let inspection = registry.inspect_release("acme", "rel", None).await.unwrap();
     registry
-        .install_release("acme", "rel", None, &inspection.approval_digest)
+        .install_release(
+            "acme",
+            "rel",
+            None,
+            &inspection.approval_digest,
+            Default::default(),
+        )
         .await
         .unwrap();
 
@@ -911,7 +1030,13 @@ async fn an_update_keeps_the_repository_and_the_author_that_vouched_for_the_inst
         .unwrap();
     let inspection = registry.inspect_release("acme", "rel", None).await.unwrap();
     registry
-        .install_release("acme", "rel", None, &inspection.approval_digest)
+        .install_release(
+            "acme",
+            "rel",
+            None,
+            &inspection.approval_digest,
+            Default::default(),
+        )
         .await
         .unwrap();
 

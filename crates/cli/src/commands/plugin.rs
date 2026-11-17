@@ -1,12 +1,50 @@
 //! `hestia plugin …` — the plugin registry.
 
 use anyhow::{bail, Context, Result};
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 use proto::plugin::{
-    Inspection, PermissionScope, PluginReleaseParams, PluginSource, PluginState, Tier,
+    Choice, EntryScope, Grant, GrantedPermission, Inspection, PermissionScope, PluginInfo,
+    PluginReleaseParams, PluginSource, PluginState, Tier,
 };
 
+use client::Client;
+
 use crate::ui::{self, View};
+
+/// The servers and instances a plugin may reach, as flags. A reference is an
+/// id or a name; the daemon resolves it.
+#[derive(Args, Default)]
+pub struct EntryArgs {
+    /// Let it reach this server or instance; repeat for more
+    #[arg(long = "entry", value_name = "ENTRY", conflicts_with = "all_entries")]
+    entries: Vec<String>,
+    /// Let it reach every server and instance
+    #[arg(long)]
+    all_entries: bool,
+}
+
+impl EntryArgs {
+    /// The scope the flags name; `None` when none was given.
+    fn scope(self) -> Option<EntryScope> {
+        match (self.all_entries, self.entries.is_empty()) {
+            (false, true) => None,
+            (all, _) => Some(EntryScope {
+                all,
+                ids: self.entries,
+            }),
+        }
+    }
+}
+
+/// What you decide at approval beyond the permissions it lists.
+#[derive(Args)]
+pub struct ChoiceArgs {
+    /// Grant an optional permission; none is granted unless named
+    #[arg(long = "optional", value_name = "PERMISSION")]
+    optional: Vec<String>,
+    #[command(flatten)]
+    entries: EntryArgs,
+}
 
 #[derive(Subcommand)]
 pub enum PluginCmd {
@@ -20,6 +58,8 @@ pub enum PluginCmd {
     /// needs `plugins.developer`
     Add {
         path: String,
+        #[command(flatten)]
+        choice: ChoiceArgs,
         /// Approve what it asks for without prompting
         #[arg(long)]
         yes: bool,
@@ -31,6 +71,8 @@ pub enum PluginCmd {
         /// A version other than the newest
         #[arg(long)]
         version: Option<String>,
+        #[command(flatten)]
+        choice: ChoiceArgs,
         /// Approve what it asks for without prompting
         #[arg(long)]
         yes: bool,
@@ -40,6 +82,8 @@ pub enum PluginCmd {
     /// Update a plugin; one that asks for more than you approved shows it first
     Update {
         id: String,
+        #[command(flatten)]
+        entries: EntryArgs,
         /// Approve a widened update without prompting
         #[arg(long)]
         yes: bool,
@@ -49,6 +93,30 @@ pub enum PluginCmd {
         #[command(subcommand)]
         cmd: RepoCmd,
     },
+    /// Grant an optional permission of an installed plugin; for one that takes
+    /// entries, shows what it may reach and accepts the entry flags
+    Grant {
+        id: String,
+        permission: String,
+        #[command(flatten)]
+        entries: EntryArgs,
+    },
+    /// Choose the servers and instances an installed plugin may reach
+    #[command(group(clap::ArgGroup::new("scope").required(true).multiple(false).args(["all", "entry", "none"])))]
+    Entries {
+        id: String,
+        /// Let it reach every server and instance
+        #[arg(long)]
+        all: bool,
+        /// Let it reach this server or instance; repeat for more
+        #[arg(long, value_name = "ENTRY")]
+        entry: Vec<String>,
+        /// Let it reach none
+        #[arg(long)]
+        none: bool,
+    },
+    /// Revoke an optional permission of an installed plugin
+    Revoke { id: String, permission: String },
     /// Delete an installed plugin
     Remove { id: String },
     /// A plugin's secrets
@@ -122,12 +190,38 @@ fn scope_text(scope: &PermissionScope) -> String {
     hosts.chain(programs).collect::<Vec<_>>().join(", ")
 }
 
+fn scope_text_of(scope: Option<&EntryScope>) -> String {
+    match scope {
+        None => String::new(),
+        Some(scope) if scope.all => "all".to_owned(),
+        Some(scope) => format!("{} chosen", scope.ids.len()),
+    }
+}
+
 fn source_name(source: PluginSource) -> &'static str {
     match source {
         PluginSource::Builtin => "built in",
         PluginSource::Dev => "dev",
         PluginSource::Repository => "repository",
     }
+}
+
+fn permission_rows(permissions: &[&GrantedPermission]) -> Vec<Vec<String>> {
+    permissions
+        .iter()
+        .map(|p| {
+            let tier = match p.tier {
+                Tier::Sandboxed => "sandboxed",
+                Tier::Unrestricted => "UNRESTRICTED",
+            };
+            let scope = match (&p.scope, p.entries) {
+                (Some(scope), _) => scope_text(scope),
+                (None, true) => "the entries you choose".to_owned(),
+                (None, false) => String::new(),
+            };
+            vec![p.permission.clone(), tier.into(), scope, p.prompt.clone()]
+        })
+        .collect()
 }
 
 fn show_grant(inspection: &Inspection) -> Result<()> {
@@ -151,30 +245,21 @@ fn show_grant(inspection: &Inspection) -> Result<()> {
         ui::show(View::note(format!("{warning}: {}", warning.hint())))?;
     }
     let grant = &inspection.grant;
-    if grant.permissions.is_empty() {
-        ui::show(View::note("it asks for no permissions"))?;
+    let (optional, required): (Vec<_>, Vec<_>) = grant.permissions.iter().partition(|p| p.optional);
+    if required.is_empty() {
+        ui::show(View::note("it asks for no required permissions"))?;
     } else {
-        let rows = grant
-            .permissions
-            .iter()
-            .map(|p| {
-                let tier = match p.tier {
-                    Tier::Sandboxed => "sandboxed",
-                    Tier::Unrestricted => "UNRESTRICTED",
-                };
-                let scope = p.scope.as_ref().map(scope_text);
-                vec![
-                    p.permission.clone(),
-                    tier.into(),
-                    scope.unwrap_or_default(),
-                    p.prompt.clone(),
-                ]
-            })
-            .collect();
         ui::show(View::table(
             "permissions",
             ["PERMISSION", "TIER", "SCOPE", "ALLOWS"],
-            rows,
+            permission_rows(&required),
+        ))?;
+    }
+    if !optional.is_empty() {
+        ui::show(View::table(
+            "optional permissions, declined unless you grant them",
+            ["PERMISSION", "TIER", "SCOPE", "ALLOWS"],
+            permission_rows(&optional),
         ))?;
     }
     if !grant.schedules.is_empty() {
@@ -208,6 +293,101 @@ fn approve(question: &str, yes: bool) -> Result<()> {
     Ok(())
 }
 
+/// Which servers and instances to let a plugin reach, picked on a terminal.
+async fn pick_entries(client: &Client) -> Result<EntryScope> {
+    let options = [
+        "none yet".to_owned(),
+        "every server and instance".to_owned(),
+        "choose which".to_owned(),
+    ];
+    match ui::prompt_select("Which servers and instances may it reach", &options)? {
+        0 => Ok(EntryScope::default()),
+        1 => Ok(EntryScope {
+            all: true,
+            ids: Vec::new(),
+        }),
+        _ => {
+            let mut labels = Vec::new();
+            let mut ids = Vec::new();
+            for server in client.server().list().await? {
+                labels.push(format!("server {}", server.name));
+                ids.push(server.id);
+            }
+            for instance in client.instance().list().await? {
+                labels.push(format!("instance {}", instance.name));
+                ids.push(instance.id);
+            }
+            if labels.is_empty() {
+                bail!("there is no server or instance to choose from");
+            }
+            let chosen = ui::multi_select("Entries it may reach", &labels)?;
+            Ok(EntryScope {
+                all: false,
+                ids: chosen.into_iter().map(|index| ids[index].clone()).collect(),
+            })
+        }
+    }
+}
+
+/// What the user decides at an install: the optional permissions named by flag
+/// (or, on a terminal, each one agreed to), and the entries it may reach (the
+/// flags, or picked on a terminal when it holds a permission that takes them).
+/// Without a terminal, or with `--yes`, nothing optional is granted and no entry
+/// is reachable unless a flag says so.
+async fn choose(client: &Client, grant: &Grant, args: ChoiceArgs, yes: bool) -> Result<Choice> {
+    let ask = ui::is_interactive() && !yes;
+    let mut optional = args.optional;
+    if ask {
+        let named = optional.clone();
+        for p in grant
+            .permissions
+            .iter()
+            .filter(|p| p.optional && !named.contains(&p.permission))
+        {
+            if ui::prompt_confirm(&format!(
+                "Grant the optional {}: {}?",
+                p.permission, p.prompt
+            ))? {
+                optional.push(p.permission.clone());
+            }
+        }
+    }
+    let takes_entries = grant
+        .permissions
+        .iter()
+        .any(|p| p.entries && (!p.optional || optional.contains(&p.permission)));
+    let entries = match args.entries.scope() {
+        Some(scope) => scope,
+        None if takes_entries && ask => pick_entries(client).await?,
+        None => EntryScope::default(),
+    };
+    Ok(Choice { optional, entries })
+}
+
+/// What the user granted within the plugin's grant: its optional permissions and
+/// the entries it may reach.
+fn show_granted(plugin: &PluginInfo) -> Result<()> {
+    let optional = match plugin.optional.is_empty() {
+        true => "none".to_owned(),
+        false => plugin.optional.join(", "),
+    };
+    ui::show(View::note(format!(
+        "optional permissions granted: {optional}"
+    )))?;
+    if let Some(scope) = &plugin.entries {
+        ui::show(View::note(format!("it may reach {}", entries_text(scope))))?;
+    }
+    Ok(())
+}
+
+fn entries_text(scope: &EntryScope) -> String {
+    match (scope.all, scope.ids.len()) {
+        (true, _) => "every server and instance".to_owned(),
+        (false, 0) => "no server or instance".to_owned(),
+        (false, count) => format!("{count} server or instance entries"),
+    }
+}
+
 pub async fn run(cmd: PluginCmd) -> Result<()> {
     let client = super::connect().await?;
     match cmd {
@@ -226,12 +406,16 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                         state_name(p.state).to_string(),
                         source_name(p.source).to_string(),
                         p.requires.join(", "),
+                        p.optional.join(", "),
+                        scope_text_of(p.entries.as_ref()),
                     ]
                 })
                 .collect();
             ui::show(View::table(
                 "plugins",
-                ["ID", "NAME", "VERSION", "STATE", "SOURCE", "REQUIRES"],
+                [
+                    "ID", "NAME", "VERSION", "STATE", "SOURCE", "REQUIRES", "OPTIONAL", "ENTRIES",
+                ],
                 rows,
             ))?;
         }
@@ -243,7 +427,7 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
             let plugin = client.plugin().disable(&id).await?;
             ui::show(View::line(format!("disabled {}", plugin.id)))?;
         }
-        PluginCmd::Add { path, yes } => {
+        PluginCmd::Add { path, choice, yes } => {
             let path = std::fs::canonicalize(&path)
                 .with_context(|| format!("cannot read {path}"))?
                 .to_string_lossy()
@@ -251,20 +435,23 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
             let inspection = client.plugin().inspect(&path).await?;
             show_grant(&inspection)?;
             approve("Install it with these permissions?", yes)?;
+            let choice = choose(&client, &inspection.grant, choice, yes).await?;
             let plugin = client
                 .plugin()
-                .install(&path, &inspection.approval_digest)
+                .install(&path, &inspection.approval_digest, choice)
                 .await?;
             ui::show(View::line(format!(
                 "installed {} ({})",
                 plugin.id,
                 state_name(plugin.state)
             )))?;
+            show_granted(&plugin)?;
         }
         PluginCmd::Get {
             repository,
             id,
             version,
+            choice,
             yes,
         } => {
             let release = PluginReleaseParams {
@@ -275,9 +462,10 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
             let inspection = client.plugin().inspect_release(&release).await?;
             show_grant(&inspection)?;
             approve("Install it with these permissions?", yes)?;
+            let choice = choose(&client, &inspection.grant, choice, yes).await?;
             let plugin = client
                 .plugin()
-                .install_release(release, &inspection.approval_digest)
+                .install_release(release, &inspection.approval_digest, choice)
                 .await?;
             ui::show(View::line(format!(
                 "installed {} {} ({})",
@@ -285,6 +473,45 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                 plugin.version,
                 state_name(plugin.state)
             )))?;
+            show_granted(&plugin)?;
+        }
+        PluginCmd::Grant {
+            id,
+            permission,
+            entries,
+        } => {
+            let mut plugin = client
+                .plugin()
+                .set_permission(&id, &permission, true)
+                .await?;
+            if let Some(scope) = entries.scope() {
+                plugin = client.plugin().set_entries(&id, scope).await?;
+            }
+            ui::show(View::line(format!("granted {permission} to {id}")))?;
+            if let Some(scope) = &plugin.entries {
+                ui::show(View::note(format!("it may reach {}", entries_text(scope))))?;
+            }
+        }
+        PluginCmd::Entries {
+            id,
+            all,
+            entry,
+            none: _,
+        } => {
+            let scope = EntryScope { all, ids: entry };
+            let plugin = client.plugin().set_entries(&id, scope).await?;
+            let reach = plugin.entries.unwrap_or_default();
+            ui::show(View::line(format!(
+                "{id} may reach {}",
+                entries_text(&reach)
+            )))?;
+        }
+        PluginCmd::Revoke { id, permission } => {
+            client
+                .plugin()
+                .set_permission(&id, &permission, false)
+                .await?;
+            ui::show(View::line(format!("revoked {permission} from {id}")))?;
         }
         PluginCmd::Updates => {
             let found = client.plugin().updates().await?;
@@ -320,7 +547,7 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                 rows,
             ))?;
         }
-        PluginCmd::Update { id, yes } => {
+        PluginCmd::Update { id, entries, yes } => {
             let update = client.plugin().inspect_update(&id).await?;
             if update.widened {
                 ui::show(View::note(format!(
@@ -330,9 +557,30 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                 show_grant(&update.inspection)?;
                 approve("Update with these permissions?", yes)?;
             }
+            let held = client
+                .plugin()
+                .list()
+                .await?
+                .into_iter()
+                .find(|p| p.id == id)
+                .and_then(|p| p.entries);
+            let adds_entries = held.is_none()
+                && update
+                    .inspection
+                    .grant
+                    .permissions
+                    .iter()
+                    .any(|p| p.entries && !p.optional);
+            let scope = match entries.scope() {
+                Some(scope) => Some(scope),
+                None if adds_entries && ui::is_interactive() && !yes => {
+                    Some(pick_entries(&client).await?)
+                }
+                None => None,
+            };
             let plugin = client
                 .plugin()
-                .update(&id, &update.inspection.approval_digest)
+                .update(&id, &update.inspection.approval_digest, scope)
                 .await?;
             ui::show(View::line(format!(
                 "updated {} to {} ({})",

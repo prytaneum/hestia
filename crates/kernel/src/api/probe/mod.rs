@@ -15,7 +15,7 @@ use crate::builtin::{Builtin, Busy, Descriptor};
 use crate::grant::Table;
 
 pub use calls::{ProbeCalls, Recorded};
-pub use contract::{Echo, EchoParams, Echoed, Shout};
+pub use contract::{Build, Create, Echo, EchoParams, Echoed, EntryRef, Open, Shout};
 pub(crate) use exports::check_exports;
 pub use exports::FILLER;
 pub(crate) use host::link;

@@ -152,7 +152,10 @@ async fn a_plugin_runs_declared_commands_for_a_person_and_wakes_itself_within_it
     std::fs::create_dir_all(home.path().join("plugin-data/tour")).unwrap();
     std::fs::write(home.path().join("plugin-data/tour/mode"), "free").unwrap();
     let approved = plugins.inspect(&pkg).await.unwrap().approval_digest;
-    plugins.install(&pkg, &approved).await.unwrap();
+    plugins
+        .install(&pkg, &approved, Default::default())
+        .await
+        .unwrap();
 
     let listed = plugins.list().into_iter().find(|p| p.id == "tour").unwrap();
     let echo = &listed.commands[0];
@@ -293,11 +296,15 @@ async fn a_command_that_ignores_its_cancel_is_dropped_and_one_running_keeps_its_
     let home = tempfile::tempdir().unwrap();
     let plugins = plugins(home.path(), Arc::new(Host::new(home.path())));
     let pkg = home.path().join("pkg");
-    package(&pkg, "tour", service_guest("tour"), MANIFEST);
+    let optional = format!("{MANIFEST}[permissions.\"secrets\"]\noptional = true\n");
+    package(&pkg, "tour", service_guest("tour"), &optional);
     std::fs::create_dir_all(home.path().join("plugin-data/tour")).unwrap();
     std::fs::write(home.path().join("plugin-data/tour/mode"), "free").unwrap();
     let approved = plugins.inspect(&pkg).await.unwrap().approval_digest;
-    plugins.install(&pkg, &approved).await.unwrap();
+    plugins
+        .install(&pkg, &approved, Default::default())
+        .await
+        .unwrap();
 
     let cancelled = Invocation {
         cancelled: Arc::new(AtomicBool::new(true)),
@@ -324,6 +331,13 @@ async fn a_command_that_ignores_its_cancel_is_dropped_and_one_running_keeps_its_
         plugins.remove("tour").await,
         Err(PluginError::Busy(_))
     ));
+    assert!(
+        matches!(
+            plugins.set_permission("tour", "secrets", true).await,
+            Err(PluginError::Busy(_))
+        ),
+        "a grant waits for the work to end"
+    );
     let (stopped, changed) = tokio::join!(&mut waiting, plugins.set_developer(false));
     assert!(matches!(
         reached(stopped.unwrap_err()),
@@ -331,6 +345,27 @@ async fn a_command_that_ignores_its_cancel_is_dropped_and_one_running_keeps_its_
     ));
     assert_eq!(changed, ["tour"]);
     plugins.set_developer(true).await;
+
+    plugins
+        .set_permission("tour", "secrets", true)
+        .await
+        .unwrap();
+    let mut waiting =
+        std::pin::pin!(plugins.run_command("tour", "wait", "{}", Invocation::default()));
+    tokio::select! {
+        biased;
+        _ = &mut waiting => panic!("it waits for ever"),
+        () = async {} => {}
+    }
+    let (stopped, revoked) = tokio::join!(
+        &mut waiting,
+        plugins.set_permission("tour", "secrets", false)
+    );
+    assert!(
+        matches!(reached(stopped.unwrap_err()), SandboxError::Stopped),
+        "a revoke narrows, so it stops the running command instead of waiting"
+    );
+    assert!(revoked.unwrap().optional.is_empty());
 
     for attempt in 1..=3 {
         let trapped = plugins

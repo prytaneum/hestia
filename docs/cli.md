@@ -532,19 +532,31 @@ hestia job cancel <id>           # cancel one by the id `job list` shows
 ## Plugins
 
 ```bash
-hestia plugin list               # every plugin: id, name, version, state, source, requires
+hestia plugin list               # every plugin: id, name, version, state, source, requires, optional granted, entries
 hestia plugin enable <id>        # also enables what it requires, first
 hestia plugin disable <id>       # refused while an enabled plugin requires it
 hestia plugin add <dir>          # install from a directory (developer mode); shows what it asks for first (--yes skips)
 hestia plugin repo add <id> <url> --key <minisign key>   # add a repository under a pinned key
 hestia plugin repo list|remove <id>
-hestia plugin get <repo> <id> [--version V]   # install from a repository after the same prompt
+hestia plugin get <repo> <id> [--version V]   # install from a repository after the same prompt; prints what was granted
 hestia plugin updates            # fetch every index; lists newer versions, disables revoked ones
 hestia plugin update <id>        # apply an update; one that asks for more shows the prompt again (--yes skips)
+hestia plugin grant <id> <permission>    # grant an optional permission later; the plugin is relinked at once
+hestia plugin revoke <id> <permission>   # revoke it; halts the plugin's running commands
+hestia plugin entries <id> --all|--entry <ref>...|--none   # the servers and instances it may reach
 hestia plugin remove <id>        # delete an installed plugin; a built-in cannot be removed
 hestia plugin secret set <id> <key>   # store a secret for a plugin that asks for `secrets`; typed without echo
 hestia <plugin> <command> [--arg value]   # run a command the plugin declares; `hestia <plugin> --help` lists them
 ```
+
+`add` and `get` finish by printing the optional permissions granted and the entries the plugin may reach.
+The install prompt lists a plugin's optional permissions apart from the required ones, all declined. `add` and `get`
+take `--optional <permission>` (repeatable) to grant one and `--entry <id or name>` (repeatable) or `--all-entries` to
+choose the servers and instances it may reach; on a terminal, without `--yes`, each optional permission is asked and
+the entries are picked when the plugin holds a permission that takes them. Without a terminal, only the flags apply and
+the default is nothing optional and no entry. `update` takes the entry flags too and asks for the entries when the
+update adds a permission that takes them; `grant` takes them for an optional permission that does, and shows what the
+plugin may reach. An optional permission survives an update only while it stays optional with no wider scope.
 
 `add` takes a directory holding `plugin.toml` (id, name, version, optionally the `api` version it was built against, and
 the scope of each permission that takes one) and `plugin.wasm`. The permissions are read from the component, never

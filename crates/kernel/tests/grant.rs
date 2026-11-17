@@ -306,7 +306,9 @@ async fn an_ungranted_interface_answers_denied_naming_its_permission() {
     let denied = denials(&Table::kernel(), &shape, &[]);
     assert_eq!(denied.values().collect::<Vec<_>>(), ["secrets"]);
     let opened = sandbox.open("grant-denied", tour).await.unwrap();
-    let loaded = sandbox.link(&opened, &denied, &Default::default()).unwrap();
+    let loaded = sandbox
+        .link(&opened, &denied, &Default::default(), Default::default())
+        .unwrap();
     let data = kernel::sandbox_root(home.path()).join("grant-denied");
     std::fs::create_dir_all(&data).unwrap();
     std::fs::write(data.join("mode"), "secret").unwrap();
@@ -323,7 +325,7 @@ async fn an_ungranted_interface_answers_denied_naming_its_permission() {
     let opened = sandbox.open("grant-undeniable", hello).await.unwrap();
     assert!(
         matches!(
-            sandbox.link(&opened, &denied, &Default::default()),
+            sandbox.link(&opened, &denied, &Default::default(), Default::default()),
             Err(SandboxError::Load(_))
         ),
         "a function with no error to answer cannot be denied, only refused"
@@ -340,7 +342,7 @@ async fn an_ungranted_interface_answers_denied_naming_its_permission() {
     let opened = sandbox.open("grant-resource", reach).await.unwrap();
     assert!(
         matches!(
-            sandbox.link(&opened, &denied, &Default::default()),
+            sandbox.link(&opened, &denied, &Default::default(), Default::default()),
             Err(SandboxError::Load(_))
         ),
         "an interface that holds a resource cannot be denied, only refused"
@@ -378,12 +380,12 @@ async fn an_installed_plugin_survives_restarts_and_removal_takes_its_cache() {
     package(&pkg, "grant-keep", guest("hello"), "");
     let approved = registry.inspect(&pkg).await.unwrap().approval_digest;
     assert!(matches!(
-        registry.install(&pkg, "stale").await,
+        registry.install(&pkg, "stale", Default::default()).await,
         Err(PluginError::Changed(_))
     ));
     let (first, second) = tokio::join!(
-        registry.install(&pkg, &approved),
-        registry.install(&pkg, &approved)
+        registry.install(&pkg, &approved, Default::default()),
+        registry.install(&pkg, &approved, Default::default())
     );
     let installed: Vec<_> = [first, second].into_iter().filter_map(Result::ok).collect();
     assert_eq!(installed.len(), 1, "one of two racing installs wins");
@@ -394,7 +396,7 @@ async fn an_installed_plugin_survives_restarts_and_removal_takes_its_cache() {
     package(&pkg, "core", guest("hello"), "");
     let digest = registry.inspect(&pkg).await.unwrap().approval_digest;
     assert!(matches!(
-        registry.install(&pkg, &digest).await,
+        registry.install(&pkg, &digest, Default::default()).await,
         Err(PluginError::Exists(_))
     ));
     assert!(matches!(
@@ -467,7 +469,7 @@ async fn a_secret_is_stored_only_for_a_plugin_that_asks_for_it() {
         std::fs::write(data.join("mode"), "free").unwrap();
         let inspection = registry.inspect(&pkg).await.unwrap();
         registry
-            .install(&pkg, &inspection.approval_digest)
+            .install(&pkg, &inspection.approval_digest, Default::default())
             .await
             .unwrap();
     }
@@ -492,7 +494,10 @@ async fn a_plugin_that_reaches_its_trap_limit_is_disabled_for_good() {
 
     package(&pkg, "grant-trap", guest("trap"), "");
     let approved = registry.inspect(&pkg).await.unwrap().approval_digest;
-    let installed = registry.install(&pkg, &approved).await.unwrap();
+    let installed = registry
+        .install(&pkg, &approved, Default::default())
+        .await
+        .unwrap();
     assert_eq!(installed.state, PluginState::Failed);
     assert!(matches!(
         registry.enable("grant-trap").await,
@@ -546,7 +551,7 @@ async fn a_plugin_reaches_only_what_it_was_granted_and_a_moved_program_loses_its
     );
     assert!(inspection.grant.requires.is_empty());
     let installed = registry
-        .install(&pkg, &inspection.approval_digest)
+        .install(&pkg, &inspection.approval_digest, Default::default())
         .await
         .unwrap();
     assert_eq!(
@@ -603,7 +608,7 @@ async fn a_wasi_http_plugin_installs_without_requiring_a_package() {
     let inspection = registry.inspect(&pkg).await.unwrap();
     assert!(inspection.grant.requires.is_empty());
     let installed = registry
-        .install(&pkg, &inspection.approval_digest)
+        .install(&pkg, &inspection.approval_digest, Default::default())
         .await
         .unwrap();
     assert_eq!(installed.state, PluginState::Enabled);

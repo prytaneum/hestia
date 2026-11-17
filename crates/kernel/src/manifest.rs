@@ -36,6 +36,8 @@ pub struct Manifest {
 #[derive(Deserialize, Default, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Scopes {
+    /// The user may decline the permission; it then arrives declined.
+    pub optional: bool,
     pub hosts: Vec<String>,
     /// Of `hosts`, those that may serve a body nothing verifies.
     pub unhashed: Vec<String>,
@@ -84,7 +86,7 @@ impl Scopes {
             ScopeKind::Hosts => &self.hosts,
             ScopeKind::Paths => &self.paths,
             ScopeKind::Endpoints => &self.endpoints,
-            ScopeKind::Programs => &[],
+            ScopeKind::Programs | ScopeKind::Entries => &[],
         }
     }
 
@@ -92,6 +94,7 @@ impl Scopes {
     pub fn listed(&self, kind: ScopeKind) -> usize {
         match kind {
             ScopeKind::Programs => self.programs.len(),
+            ScopeKind::Entries => 0,
             _ => self.values(kind).len(),
         }
     }
