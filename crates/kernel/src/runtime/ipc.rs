@@ -28,8 +28,11 @@ mod platform {
 
     /// A grant names a path, but what the path leads to can change after the
     /// approval, so it is judged again as the file it resolves to: a symlink, or a
-    /// path through one, to Hestia's own socket is refused. The socket is then
-    /// reached by the resolved path.
+    /// path through one, to Hestia's own socket is refused. A directory can still
+    /// be swapped for a symlink between that check and the connect, so the path
+    /// the server is bound to is read back from the connection and judged too.
+    /// An unnamed or abstract address is allowed: Hestia's sockets are always
+    /// bound to a path.
     pub async fn open(endpoint: &str, own: &Reserved) -> Result<Stream, Opening> {
         let path = Path::new(endpoint);
         let linked = std::fs::symlink_metadata(path)
@@ -45,7 +48,16 @@ mod platform {
         {
             return Err(Opening::Refused);
         }
-        Stream::connect(resolved).await.map_err(Opening::Failed)
+        let stream = Stream::connect(resolved).await.map_err(Opening::Failed)?;
+        let bound = stream.peer_addr().map_err(Opening::Failed)?;
+        if bound.as_pathname().is_some_and(|bound| {
+            bound
+                .to_str()
+                .is_none_or(|bound| own.covers_endpoint(bound))
+        }) {
+            return Err(Opening::Refused);
+        }
+        Ok(stream)
     }
 }
 

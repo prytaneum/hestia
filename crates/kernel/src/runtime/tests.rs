@@ -463,6 +463,7 @@ async fn an_endpoint_that_leads_to_hestia_is_refused_when_connecting() {
     std::fs::create_dir(&sandbox).unwrap();
     std::os::unix::fs::symlink(dir.path(), sandbox.join("up")).unwrap();
     std::os::unix::fs::symlink(&own, sandbox.join("link.sock")).unwrap();
+    std::fs::hard_link(&own, lane.join("hard.sock")).unwrap();
 
     for (case, endpoint) in [
         ("a symlink to it", sandbox.join("link.sock")),
@@ -475,6 +476,10 @@ async fn an_endpoint_that_leads_to_hestia_is_refused_when_connecting() {
             lane.join("../hestiad.sock"),
         ),
         ("itself", PathBuf::from(&own)),
+        (
+            "a hard link, caught by the bound address",
+            lane.join("hard.sock"),
+        ),
     ] {
         let endpoint = endpoint.to_str().unwrap().to_owned();
         let mut plugin = state(
