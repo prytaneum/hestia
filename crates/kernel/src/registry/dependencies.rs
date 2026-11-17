@@ -24,8 +24,6 @@ const DEPTH_MAX: usize = 8;
 /// One prompt brings at most this many plugins besides the one asked for.
 const MEMBERS_MAX: usize = 32;
 
-/// What one resolution has seen: the chain being walked, what it brings so far,
-/// and each repository's index, fetched once (`None` when it could not be).
 #[derive(Default)]
 struct Walk {
     path: Vec<String>,
@@ -205,7 +203,6 @@ impl Plugins {
         Ok(None)
     }
 
-    /// What the installed plugin `id` declares in `[dependencies]`.
     fn dependencies_of(&self, id: &str) -> Vec<Dependency> {
         self.guests()
             .into_iter()

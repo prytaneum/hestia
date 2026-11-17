@@ -159,7 +159,6 @@ impl Plugins {
         Ok(info(&slots[find(&slots, id)?]))
     }
 
-    /// Brings back the version an update set aside and drops the compiled one.
     async fn roll_back(&self, sandbox: &Sandbox, id: &str) {
         let (store, owned) = (self.store.clone(), id.to_owned());
         match tokio::task::spawn_blocking(move || store.rollback(&owned)).await {

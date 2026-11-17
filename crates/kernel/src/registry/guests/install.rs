@@ -134,9 +134,7 @@ impl Plugins {
         outcome
     }
 
-    /// Installs what a plan brings, in order, the caller holding `changes`,
-    /// noting each id in `installed` as it starts. One that fails, or does not
-    /// start, is an error.
+    /// The caller holds `changes`. One that fails, or does not start, is an error.
     async fn install_members(
         &self,
         members: Vec<Member>,
@@ -165,8 +163,7 @@ impl Plugins {
         Ok(())
     }
 
-    /// Refuses an id that is installed or a built-in's, so a plan never undoes
-    /// a plugin it did not create.
+    /// So a plan never undoes a plugin it did not create.
     fn ensure_absent(&self, id: &str) -> Result<(), PluginError> {
         match self.slots().iter().any(|slot| slot.id() == id) || self.store.dir(id).exists() {
             true => Err(PluginError::Exists(id.to_owned())),
@@ -174,8 +171,7 @@ impl Plugins {
         }
     }
 
-    /// Installs `package` and starts it, the caller holding `changes`.
-    /// `own` is the digest it is stored under.
+    /// The caller holds `changes`. `own` is the digest it is stored under.
     async fn install_one(
         &self,
         package: Package,
@@ -231,8 +227,7 @@ impl Plugins {
         Ok(info(&slots[find(&slots, &id)?]))
     }
 
-    /// Removes what an install brought before it failed, last first, with its
-    /// data, the caller holding `changes`. Whether all of it is gone.
+    /// The caller holds `changes`. Returns whether all of it is gone.
     async fn undo(&self, installed: &[String]) -> bool {
         let mut clean = true;
         for id in installed.iter().rev() {
@@ -290,7 +285,6 @@ impl Plugins {
         })
     }
 
-    /// Who vouches for a package of `source`, as the prompt shows it.
     fn signer_info(&self, source: &Source) -> Option<SignerInfo> {
         let (repository, author) = source.signer()?;
         let author = Signer::parse(author).ok()?;

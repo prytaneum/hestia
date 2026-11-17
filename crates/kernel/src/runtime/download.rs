@@ -159,7 +159,6 @@ impl Drop for Staged {
     }
 }
 
-/// The bytes of the files under `dir`, links not followed.
 fn stored(dir: &Dir, depth: usize) -> std::io::Result<u64> {
     if depth > DEPTH_MAX {
         return Err(std::io::Error::other(

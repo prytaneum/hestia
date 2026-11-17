@@ -31,7 +31,6 @@ pub(crate) struct Guest {
     granted: Vec<String>,
     /// The packages its imports need an enabled built-in to provide.
     pub requires: Vec<String>,
-    /// The ids of the built-ins that provide `requires`.
     providers: Vec<String>,
     pub dependencies: Vec<Dependency>,
     pub commands: Vec<CommandDecl>,

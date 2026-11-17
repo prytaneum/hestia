@@ -26,7 +26,6 @@ fn repository_info(repository: &Repository, signer: &str) -> RepositoryInfo {
     }
 }
 
-/// Runs file work off the async executor.
 async fn blocking<T: Send + 'static>(
     operation: IoOp,
     work: impl FnOnce() -> T + Send + 'static,

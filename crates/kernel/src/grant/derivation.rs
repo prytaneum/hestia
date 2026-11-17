@@ -244,8 +244,7 @@ fn scope_of(
     Ok(scope)
 }
 
-/// Whether `entry`, an absolute unix path or a Windows pipe name, is the form
-/// this platform connects to. One manifest can list both.
+/// One manifest can list both forms.
 fn endpoint_here(entry: &str) -> Result<bool, GrantError> {
     let unix = entry.starts_with('/');
     let pipe = endpoint::pipe_name(entry);

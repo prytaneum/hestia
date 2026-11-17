@@ -23,7 +23,6 @@ pub trait HostCalls: Send + Sync {
         touched: &'a [EntryTarget],
     ) -> Reply<'a>;
 
-    /// Starts the job `channel` names and answers its `done` payload.
     fn run_job<'a>(
         &'a self,
         chain: &'a Chain,
@@ -32,6 +31,5 @@ pub trait HostCalls: Send + Sync {
         touched: &'a [EntryTarget],
     ) -> Reply<'a>;
 
-    /// Adds the entries a call of the plugin ending `chain` made to its scope.
     fn created<'a>(&'a self, chain: &'a Chain, created: &'a [EntryTarget]) -> Settled<'a>;
 }

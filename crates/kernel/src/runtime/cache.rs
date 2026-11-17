@@ -108,7 +108,7 @@ impl Cache {
     }
 }
 
-/// Feeds a `Hash` value into the tag; `finish` is never read.
+/// `finish` is never read.
 struct MacHasher<'a>(&'a mut Tag);
 
 impl Hasher for MacHasher<'_> {

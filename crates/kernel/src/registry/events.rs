@@ -189,8 +189,6 @@ impl Plugins {
         }
     }
 
-    /// Whether `guest` exports the point's interface, holds the permission the
-    /// table gives it and has every entry it names in scope.
     fn hears(&self, guest: &Guest, point: &dyn Point) -> bool {
         let interface = point.interface();
         let permission = match self.table.gate(unversioned(interface)) {

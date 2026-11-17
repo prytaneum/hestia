@@ -81,7 +81,6 @@ const COMMANDS: &str = "hestia:kernel/commands@0.1.0";
 const ON_SCHEDULE: &str = "hestia:kernel/on-schedule@0.1.0";
 const ON_JOB_DONE: &str = "hestia:kernel/on-job-done@0.1.0";
 
-/// The export a call runs.
 enum Entry<'a> {
     Init(&'a lifecycle::GuestIndices),
     SettingChanged(&'a settings_changed::GuestIndices, &'a str, &'a str),

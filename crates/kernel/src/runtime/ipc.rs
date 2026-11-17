@@ -10,7 +10,6 @@ const WRITE_BYTES: usize = 1024 * 1024;
 const READ_BYTES: u32 = 64 * 1024;
 const CONNECTIONS_MAX: usize = 8;
 
-/// Why an endpoint was not opened: the host refused it, or the system did.
 enum Opening {
     Refused,
     Failed(std::io::Error),

@@ -130,7 +130,6 @@ pub fn widens(old: &Grant, new: &Grant) -> bool {
         })
 }
 
-/// Whether `now` reaches more than `before` did.
 fn scope_widens(before: &GrantedPermission, now: &GrantedPermission) -> bool {
     match (&now.scope, &before.scope) {
         (None, _) => false,

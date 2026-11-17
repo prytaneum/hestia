@@ -15,7 +15,6 @@ const VALUE_BYTES: usize = 64 << 10;
 const KEYS: usize = 256;
 const FILE_BYTES: usize = 1 << 20;
 
-/// A plugin's settings, as JSON values the manifest describes.
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
 struct Settings {
@@ -26,7 +25,7 @@ impl Document for Settings {
     const NAME: &'static str = "settings.json";
 }
 
-/// A plugin's secrets, written owner-only.
+/// Written owner-only.
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
 struct Secrets {
@@ -156,7 +155,6 @@ fn state_dir(shared: &Shared, plugin: &str) -> Result<PathBuf, PluginError> {
         .ok_or(PluginError::Unsupported)
 }
 
-/// Runs blocking file work off the async executor.
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, PluginError> + Send + 'static,
 ) -> Result<T, PluginError> {
