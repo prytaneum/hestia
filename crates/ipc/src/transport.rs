@@ -238,6 +238,7 @@ mod platform {
 
     use super::{Connection, Peer};
     use crate::errors::IpcError;
+    use crate::identity::{ensure_served_by_current_user, PipeSecurity};
 
     const ERROR_PIPE_BUSY: i32 = 231;
     const BUSY_RETRIES: u32 = 20;
@@ -248,7 +249,10 @@ mod platform {
         let mut attempt = 0;
         loop {
             match ClientOptions::new().open(&name) {
-                Ok(client) => return Ok(Connection::from_stream(Box::new(client))),
+                Ok(client) => {
+                    ensure_served_by_current_user(&client)?;
+                    return Ok(Connection::from_stream(Box::new(client)));
+                }
                 Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY) && attempt < BUSY_RETRIES => {
                     attempt += 1;
                     tokio::time::sleep(BUSY_BACKOFF).await;
@@ -259,9 +263,25 @@ mod platform {
     }
 
     /// Server side: a fresh pipe instance is created per accepted connection.
+    /// Every instance carries the same access list (the current user and the
+    /// system) and refuses remote clients.
     pub struct Listener {
         name: String,
+        security: PipeSecurity,
         next: std::sync::Mutex<Option<NamedPipeServer>>,
+    }
+
+    fn create(
+        name: &str,
+        security: &PipeSecurity,
+        first: bool,
+    ) -> std::io::Result<NamedPipeServer> {
+        let mut options = ServerOptions::new();
+        options
+            .first_pipe_instance(first)
+            .reject_remote_clients(true);
+        // SAFETY: the attributes point at a descriptor that `security` keeps alive.
+        unsafe { options.create_with_security_attributes_raw(name, security.attributes()) }
     }
 
     impl Listener {
@@ -269,7 +289,7 @@ mod platform {
             let server = self.armed()?;
             let connected = server.connect().await;
             // Without a listening instance the pipe name vanishes: clients read the daemon as down.
-            *self.next.lock().unwrap() = Some(ServerOptions::new().create(&self.name)?);
+            *self.next.lock().unwrap() = Some(create(&self.name, &self.security, false)?);
             connected?;
             let peer = Peer {
                 local: true,
@@ -280,28 +300,56 @@ mod platform {
 
         fn armed(&self) -> std::io::Result<NamedPipeServer> {
             let parked = self.next.lock().unwrap().take();
-            parked.map_or_else(|| ServerOptions::new().create(&self.name), Ok)
+            parked.map_or_else(|| create(&self.name, &self.security, false), Ok)
         }
     }
 
     pub async fn bind(endpoint: &Path) -> Result<Listener, IpcError> {
         let name = endpoint.to_string_lossy().to_string();
-        let first = ServerOptions::new()
-            .first_pipe_instance(true)
-            .create(&name)
-            .map_err(|e| {
-                if e.kind() == std::io::ErrorKind::PermissionDenied {
-                    IpcError::Io(std::io::Error::new(
-                        std::io::ErrorKind::AddrInUse,
-                        "hestiad is already running",
-                    ))
-                } else {
-                    IpcError::Io(e)
-                }
-            })?;
+        let security = PipeSecurity::current_user()?;
+        let first = create(&name, &security, true).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                IpcError::Io(std::io::Error::new(
+                    std::io::ErrorKind::AddrInUse,
+                    "hestiad is already running",
+                ))
+            } else {
+                IpcError::Io(e)
+            }
+        })?;
         Ok(Listener {
             name,
+            security,
             next: std::sync::Mutex::new(Some(first)),
         })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn a_pipe_round_trips_frames_and_has_one_owner() {
+            let name = format!(
+                r"{}test-{}",
+                common::app::PIPE_NAMESPACE,
+                std::process::id()
+            );
+            let endpoint = Path::new(&name);
+            let listener = bind(endpoint).await.unwrap();
+            assert!(bind(endpoint).await.is_err(), "a second owner is refused");
+
+            let served = tokio::spawn(async move {
+                let (connection, _) = listener.accept().await.unwrap();
+                let (mut reader, mut writer) = connection.into_split();
+                let frame = reader.recv().await.unwrap().unwrap();
+                writer.send(&format!("re:{frame}")).await.unwrap();
+                listener
+            });
+            let (mut reader, mut writer) = connect(endpoint).await.unwrap().into_split();
+            writer.send("ping").await.unwrap();
+            assert_eq!(reader.recv().await.unwrap().as_deref(), Some("re:ping"));
+            served.await.unwrap();
+        }
     }
 }

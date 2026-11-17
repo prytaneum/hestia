@@ -62,7 +62,7 @@ and writes `frontend/src/api/types/channels.ts`: `Channels` (channel to params a
 |-------------|-------------------------------------------------------------------------------------------------------------------------|
 | `transport` | Unix socket or Windows named pipe, length-framed reader and writer, `Peer` (the verified identity)                      |
 | `protocol`  | the JSON envelope, encoded and decoded in one place: request `{v, channel, payload, id?}`, response `{v, ok, payload \| error, id?}`, event `{event, payload}` |
-| `endpoint`  | `$XDG_RUNTIME_DIR/hestia/hestiad.sock`, else `/tmp/hestia-<uid>/...`; a named pipe on Windows; scoped by `install_scope` for portable and debug builds |
+| `endpoint`  | `$XDG_RUNTIME_DIR/hestia/hestiad.sock`, else `/tmp/hestia-<uid>/...`; on Windows the pipe `\\.\pipe\hestia-<user SID>-hestiad`, created first-instance-only, local clients only, with an access list for the user and the system, and a client checks that the server process is the same user; scoped by `install_scope` for portable and debug builds |
 | `errors`    | the client-facing `IpcError` and the two codes a client branches on                                                     |
 
 `PROTOCOL_VERSION` is `1`, same major only. The decode functions return a typed `DecodeError` (`Malformed` or

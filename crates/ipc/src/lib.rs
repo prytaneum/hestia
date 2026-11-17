@@ -3,6 +3,8 @@
 
 pub mod endpoint;
 pub mod errors;
+#[cfg(windows)]
+mod identity;
 pub mod protocol;
 pub mod transport;
 

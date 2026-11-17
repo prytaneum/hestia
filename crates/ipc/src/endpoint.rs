@@ -53,6 +53,12 @@ pub fn default_endpoint() -> PathBuf {
 
 #[cfg(windows)]
 pub fn default_endpoint() -> PathBuf {
-    endpoint_override()
-        .unwrap_or_else(|| PathBuf::from(format!(r"\\.\pipe\hestia-hestiad{}", scope_suffix())))
+    endpoint_override().unwrap_or_else(|| {
+        PathBuf::from(format!(
+            r"{}{}-hestiad{}",
+            common::app::PIPE_NAMESPACE,
+            crate::identity::user_tag(),
+            scope_suffix()
+        ))
+    })
 }
