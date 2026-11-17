@@ -9,7 +9,7 @@ use proto::job::{JobEvent, JobStarted, JobState};
 use serde_json::Value;
 use tokio::sync::mpsc::unbounded_channel;
 
-use super::entries::stable_id;
+use super::entries::{stable_id, Pinned};
 use super::{Caller, Changed, HandlerContext, Router, Runtime};
 
 /// Holds the runtime weakly: the runtime owns the sandbox that owns this.
@@ -35,16 +35,22 @@ impl RouterCalls {
     /// Refuses a call that touches an entry no plugin in `chain` may reach, or
     /// one that resolves to none. The router never learns of entries: only here
     /// does a call carry what it touches.
-    fn gate(&self, chain: &Chain, channel: &str, touched: &[EntryTarget]) -> Result<(), ErrorInfo> {
+    fn gate(
+        &self,
+        chain: &Chain,
+        channel: &str,
+        touched: &[EntryTarget],
+    ) -> Result<Pinned, ErrorInfo> {
         if touched.is_empty() {
-            return Ok(());
+            return Ok(Pinned::default());
         }
         let runtime = self.runtime()?;
         let ids = touched
             .iter()
             .map(|target| stable_id(runtime.engine(), target))
             .collect::<Result<Vec<_>, _>>()?;
-        kernel::entries::guard(runtime.plugins(), chain, channel, &ids)
+        kernel::entries::guard(runtime.plugins(), chain, channel, &ids)?;
+        Ok(Pinned::new(touched.iter().cloned().zip(ids).collect()))
     }
 
     async fn record(&self, chain: &Chain, created: &[EntryTarget]) {
@@ -69,6 +75,7 @@ impl RouterCalls {
         chain: &Chain,
         channel: &str,
         params: Value,
+        pinned: Pinned,
     ) -> Result<Value, ErrorInfo> {
         let runtime = self.runtime()?;
         let (out, _) = unbounded_channel();
@@ -78,6 +85,7 @@ impl RouterCalls {
             out,
             caller: Caller::Plugin(chain.clone()),
             changed: Changed::default(),
+            pinned,
         };
         let response = self
             .router
@@ -103,11 +111,12 @@ impl RouterCalls {
         chain: &Chain,
         channel: &'static str,
         params: Value,
+        pinned: Pinned,
     ) -> Result<Value, ErrorInfo> {
         let runtime = self.runtime()?;
         let (events, mut arrived) = unbounded_channel::<Value>();
         let mut running = Running::listen(runtime, channel, events);
-        let started = self.dispatch(chain, channel, params).await?;
+        let started = self.dispatch(chain, channel, params, pinned).await?;
         let JobStarted { id } =
             serde_json::from_value(started).map_err(|e| ErrorInfo::Internal {
                 detail: format!("not a job: {e}"),
@@ -187,8 +196,8 @@ impl HostCalls for RouterCalls {
         touched: &'a [EntryTarget],
     ) -> Reply<'a> {
         Box::pin(async move {
-            self.gate(chain, channel, touched)?;
-            self.dispatch(chain, channel, params).await
+            let pinned = self.gate(chain, channel, touched)?;
+            self.dispatch(chain, channel, params, pinned).await
         })
     }
 
@@ -200,8 +209,8 @@ impl HostCalls for RouterCalls {
         touched: &'a [EntryTarget],
     ) -> Reply<'a> {
         Box::pin(async move {
-            self.gate(chain, channel, touched)?;
-            self.finish(chain, channel, params).await
+            let pinned = self.gate(chain, channel, touched)?;
+            self.finish(chain, channel, params, pinned).await
         })
     }
 

@@ -149,6 +149,7 @@ async fn serve_connection(
             out: out_tx.clone(),
             caller: Caller::Client,
             changed: Changed::default(),
+            pinned: Default::default(),
         };
         let router = router.clone();
         tokio::spawn(async move {

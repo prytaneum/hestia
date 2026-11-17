@@ -219,6 +219,7 @@ mod tests {
             out,
             caller: Caller::Client,
             changed: Changed::default(),
+            pinned: Default::default(),
         };
         let response = crate::services::make_router()
             .route(Request::new(channel, payload, None), ctx)
@@ -257,6 +258,7 @@ mod tests {
             out,
             caller: Caller::Client,
             changed: Changed::default(),
+            pinned: Default::default(),
         };
 
         let response = router
@@ -283,6 +285,7 @@ mod tests {
                 out,
                 caller,
                 changed: Changed::default(),
+                pinned: Default::default(),
             };
             router.route(Request::new("plugin.list", json!({}), None), ctx)
         };

@@ -235,6 +235,7 @@ pub(super) fn find_server(
             entry: EntryKind::Server,
             reference: reference.to_string(),
         })?;
+    refuse_renamed(ctx, EntryKind::Server, reference, &record.id)?;
     ctx.changed.add(&record.id);
     Ok(record)
 }
@@ -252,6 +253,7 @@ pub(super) fn find_instance(
             entry: EntryKind::Instance,
             reference: reference.to_string(),
         })?;
+    refuse_renamed(ctx, EntryKind::Instance, reference, &record.id)?;
     ctx.changed.add(&record.id);
     Ok(record)
 }
@@ -339,11 +341,77 @@ pub(super) fn require_backup(
     }
 }
 
+/// A plugin's call was scope-checked against the entry its reference named at
+/// the gate; a reference that now names another entry was renamed in between.
+fn refuse_renamed(
+    ctx: &HandlerContext,
+    kind: EntryKind,
+    reference: &str,
+    id: &str,
+) -> Result<(), ErrorInfo> {
+    if ctx.pinned.holds(kind, reference, id) {
+        return Ok(());
+    }
+    tracing::warn!(
+        reference,
+        "an entry was renamed between a plugin call's scope check and its handler"
+    );
+    Err(ErrorInfo::EntryNotFound {
+        entry: kind,
+        reference: reference.to_string(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use proto::content::{ContentAddItem, ContentAddSpec, ContentKind};
 
-    use super::{require_content_items, require_item_names};
+    use std::sync::Arc;
+
+    use proto::error::{EntryKind, EntryTarget, ErrorInfo};
+    use proto::profile::ServerProfile;
+    use tokio::sync::mpsc::unbounded_channel;
+
+    use super::{find_server, require_content_items, require_item_names};
+    use crate::runtime::entries::Pinned;
+    use crate::runtime::{Caller, Changed, HandlerContext, Runtime};
+
+    #[test]
+    fn a_reference_renamed_after_the_scope_check_is_refused() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = engine::Engine::new(Some(home.path()));
+        let mut ids = Vec::new();
+        for name in ["Alpha", "Beta"] {
+            let record = engine
+                .servers()
+                .create(name, Default::default(), ServerProfile::default(), None)
+                .unwrap();
+            engine.servers().mark_ready(&record.id).unwrap();
+            ids.push(record.id);
+        }
+        let runtime = Arc::new(Runtime::over(engine, home.path().join("d.log")));
+        let (out, _) = unbounded_channel();
+        let ctx = |pinned| HandlerContext {
+            runtime: runtime.clone(),
+            conn_id: 0,
+            out: out.clone(),
+            caller: Caller::Client,
+            changed: Changed::default(),
+            pinned,
+        };
+        let pin = |id: &str| {
+            Pinned::new(vec![(
+                EntryTarget::new(EntryKind::Server, "Beta"),
+                id.into(),
+            )])
+        };
+
+        assert_eq!(find_server(&ctx(pin(&ids[1])), "Beta").unwrap().id, ids[1]);
+        assert!(matches!(
+            find_server(&ctx(pin(&ids[0])), "Beta"),
+            Err(ErrorInfo::EntryNotFound { .. })
+        ));
+    }
 
     #[test]
     fn a_blank_reference_in_a_batch_is_refused() {

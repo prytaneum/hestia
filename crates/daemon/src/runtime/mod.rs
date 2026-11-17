@@ -25,6 +25,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use engine::{Engine, InstanceRecord, ProcessIo, ServerRecord};
+use entries::Pinned;
 use kernel::{Limits, Plugins, Sandbox};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
@@ -468,4 +469,5 @@ pub struct HandlerContext {
     pub out: UnboundedSender<String>,
     pub caller: Caller,
     pub changed: Changed,
+    pub pinned: Pinned,
 }

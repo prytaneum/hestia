@@ -19,6 +19,25 @@ pub fn stable_id(engine: &Engine, target: &EntryTarget) -> Result<String, ErrorI
     })
 }
 
+/// The entries a plugin's call named, each with the id the gate resolved it to.
+/// A handler resolves the same names again, so one that now means another
+/// entry (renamed in between) is refused rather than acted on.
+#[derive(Clone, Debug, Default)]
+pub struct Pinned(Vec<(EntryTarget, String)>);
+
+impl Pinned {
+    pub fn new(pins: Vec<(EntryTarget, String)>) -> Self {
+        Pinned(pins)
+    }
+
+    pub fn holds(&self, kind: EntryKind, reference: &str, id: &str) -> bool {
+        self.0
+            .iter()
+            .filter(|(target, _)| target.kind == kind && target.entry == reference)
+            .all(|(_, pinned)| pinned == id)
+    }
+}
+
 /// `scope` with each reference replaced by the id of the server or instance it
 /// names. A reference that names both, or neither, or a scope past
 /// [`EntryScope::MAX_IDS`], is refused.
