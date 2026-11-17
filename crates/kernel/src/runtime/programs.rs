@@ -1,29 +1,27 @@
 use std::process::Stdio;
+use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncReadExt};
-use tokio::process::Command;
 
 use super::bindings::hestia::kernel::programs::{self, Output};
 use super::bindings::hestia::kernel::types::PluginError;
 use super::host::State;
+use super::launch::Program;
 use super::tree::{isolate, Tree};
-use crate::grant::digest;
 
 const PERMISSION: &str = "process:spawn";
 const OUTPUT_BYTES: u64 = 1024 * 1024;
+/// How long output still in flight is read after the program ended; a process
+/// that left its group (`setsid`) may hold the pipes open for good.
+const DRAIN: Duration = Duration::from_millis(250);
 
 fn denied() -> PluginError {
     PluginError::Denied(PERMISSION.to_owned())
 }
 
-async fn kept(mut stream: impl AsyncRead + Unpin) -> Vec<u8> {
-    let mut kept = Vec::new();
-    let _ = (&mut stream)
-        .take(OUTPUT_BYTES)
-        .read_to_end(&mut kept)
-        .await;
+async fn kept(mut stream: impl AsyncRead + Unpin, into: &mut Vec<u8>) {
+    let _ = (&mut stream).take(OUTPUT_BYTES).read_to_end(into).await;
     let _ = tokio::io::copy(&mut stream, &mut tokio::io::sink()).await;
-    kept
 }
 
 impl programs::Host for State {
@@ -40,10 +38,10 @@ impl programs::Host for State {
             return Err(denied());
         };
         let (file, pinned) = (program.clone(), granted.sha256.clone());
-        let current = tokio::task::spawn_blocking(move || digest(file.as_ref()))
+        let verified = tokio::task::spawn_blocking(move || Program::verify(&file, &pinned))
             .await
             .map_err(|error| PluginError::Failed(error.to_string()))?;
-        if current.as_deref().ok() != Some(pinned.as_str()) {
+        let Some(verified) = verified.ok().flatten() else {
             tracing::warn!(
                 plugin,
                 program,
@@ -51,18 +49,17 @@ impl programs::Host for State {
             );
             self.log.denied("hestia:kernel/programs", "run", PERMISSION);
             return Err(denied());
-        }
+        };
         let data = self
             .shared
             .services
             .data_dir(plugin)
             .filter(|dir| dir.is_dir())
             .ok_or_else(|| PluginError::Failed("the plugin has no data directory".into()))?;
-        let mut command = Command::new(&program);
+        let mut command = verified.command(&data);
         command
             .args(&args)
             .current_dir(data)
-            .env_clear()
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -72,21 +69,38 @@ impl programs::Host for State {
             .spawn()
             .map_err(|error| PluginError::Failed(error.to_string()))?;
         let tree = Tree::of(&child).map_err(|error| PluginError::Failed(error.to_string()))?;
+        tree.start(&child)
+            .map_err(|error| PluginError::Failed(error.to_string()))?;
+        drop(verified);
         let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
             return Err(PluginError::Failed("no output pipes".into()));
         };
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let (exited, ended) = tokio::sync::oneshot::channel();
         let finished = async {
             let status = child.wait().await;
             tree.kill();
+            let _ = exited.send(());
             status
         };
-        let (stdout, stderr, status) = tokio::join!(kept(stdout), kept(stderr), finished);
+        let drained = async {
+            let readers = async { tokio::join!(kept(stdout, &mut out), kept(stderr, &mut err)) };
+            let abandoned = async {
+                let _ = ended.await;
+                tokio::time::sleep(DRAIN).await;
+            };
+            tokio::select! {
+                _ = readers => {}
+                _ = abandoned => tracing::warn!(plugin, program, "output cut off: something outside the program's group holds its pipes"),
+            }
+        };
+        let (status, ()) = tokio::join!(finished, drained);
         let status = status.map_err(|error| PluginError::Failed(error.to_string()))?;
         tracing::info!(plugin, program, status = ?status.code(), "plugin program ran");
         Ok(Output {
             status: status.code().unwrap_or(-1),
-            stdout,
-            stderr,
+            stdout: out,
+            stderr: err,
         })
     }
 }

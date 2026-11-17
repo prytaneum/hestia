@@ -14,6 +14,7 @@ mod host;
 mod http;
 mod ipc;
 mod jobs;
+mod launch;
 mod limits;
 mod messages;
 mod notify;

@@ -265,11 +265,11 @@ async fn wasi_http_reaches_any_granted_host_through_the_plugins_policy_and_leave
 }
 
 #[cfg(unix)]
-const SCRIPT: &str = "#!/bin/sh\necho \"$1\"\n( while :; do :; done ) &\n";
+const SCRIPT: &str = "#!/bin/sh\necho \"$1\"\n( while :; do :; done ) &\nsetsid sleep 30 &\n";
 #[cfg(unix)]
 const SCRIPT_ARGS: &[&str] = &["--list"];
 #[cfg(windows)]
-const SCRIPT_ARGS: &[&str] = &[];
+const SCRIPT_ARGS: &[&str] = &["/c", "start /b ping -n 60 127.0.0.1"];
 
 fn tool(dir: &Path) -> PathBuf {
     #[cfg(unix)]
@@ -283,7 +283,7 @@ fn tool(dir: &Path) -> PathBuf {
     #[cfg(windows)]
     {
         let _ = dir;
-        PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join(r"System32\whoami.exe")
+        PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join(r"System32\cmd.exe")
     }
 }
 

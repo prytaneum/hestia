@@ -23,8 +23,10 @@ use crate::commands::{self, ScheduleDecl};
 use crate::manifest::{Manifest, Scopes};
 use crate::shape::Shape;
 pub(crate) use kernel::table as kernel_table;
-#[cfg(feature = "sandbox")]
+#[cfg(all(feature = "sandbox", test))]
 pub(crate) use pin::digest;
+#[cfg(feature = "sandbox")]
+pub(crate) use pin::{hash, open};
 #[cfg(feature = "sandbox")]
 pub use pin::{pin, Reserved};
 #[cfg(feature = "sandbox")]
