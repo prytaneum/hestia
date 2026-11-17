@@ -124,17 +124,15 @@ impl Plugins {
     /// refuses programs under its `sandbox/` directory.
     ///
     /// WASM plugins load through `sandbox` once [`Plugins::restore`] runs;
-    /// without one they are listed and never run. `table` says what their
-    /// imports need.
+    /// without one they are listed and never run.
     pub fn new(
         data_home: &Path,
         builtins: Vec<Arc<dyn Builtin>>,
         sandbox: Option<Arc<Sandbox>>,
-        table: Table,
     ) -> Result<Self, PluginError> {
         let path = data_home.join(FILE);
         let ordered = order(builtins)?;
-        let mut table = table;
+        let mut table = crate::api::kernel::table();
         for plugin in &ordered {
             let descriptor = plugin.descriptor();
             let invalid =

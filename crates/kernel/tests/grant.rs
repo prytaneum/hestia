@@ -6,8 +6,7 @@ use std::sync::Arc;
 
 use kernel::{
     denials, Builtin, Busy, Descriptor, GrantError, GuestError, Limits, ManifestError,
-    PackageError, Permission, PluginError, Plugins, Sandbox, SandboxError, Services, Shape,
-    ShapeError, Table,
+    PackageError, PluginError, Plugins, Sandbox, SandboxError, Services, Shape, ShapeError,
 };
 use proto::plugin::{PluginKind, PluginState, ScopeKind, Tier};
 use sha2::{Digest, Sha256};
@@ -41,31 +40,6 @@ fn sandbox(home: &Path) -> Arc<Sandbox> {
     )
 }
 
-fn gated() -> Table {
-    Table::new(
-        vec![
-            ("hestia:kernel/types", None),
-            ("hestia:kernel/log", Some("log:sink")),
-            ("hestia:kernel/app", Some("app:read")),
-            ("hestia:kernel/lifecycle", None),
-        ],
-        vec![
-            Permission {
-                name: "app:read",
-                tier: Tier::Unrestricted,
-                scope: None,
-                prompt: "Read the app info",
-            },
-            Permission {
-                name: "log:sink",
-                tier: Tier::Sandboxed,
-                scope: Some(ScopeKind::Hosts),
-                prompt: "Send its log lines",
-            },
-        ],
-    )
-}
-
 fn manifest(dir: &Path, id: &str, extra: &str) {
     std::fs::create_dir_all(dir).unwrap();
     std::fs::write(
@@ -80,8 +54,8 @@ fn package(dir: &Path, id: &str, component: PathBuf, extra: &str) {
     std::fs::copy(component, dir.join("plugin.wasm")).unwrap();
 }
 
-fn plugins(home: &Path, table: Table, builtins: Vec<Arc<dyn Builtin>>) -> Plugins {
-    Plugins::new(home, builtins, Some(sandbox(home)), table)
+fn plugins(home: &Path, builtins: Vec<Arc<dyn Builtin>>) -> Plugins {
+    Plugins::new(home, builtins, Some(sandbox(home)))
         .unwrap()
         .with_developer(true)
 }
@@ -112,11 +86,11 @@ fn refusal(result: Result<proto::plugin::Inspection, PluginError>) -> PackageErr
 #[tokio::test]
 async fn a_package_is_refused_at_the_edge_for_what_it_says_and_what_it_is() {
     let home = tempfile::tempdir().unwrap();
-    let plugins = plugins(home.path(), gated(), Vec::new());
+    let plugins = plugins(home.path(), Vec::new());
     let pkg = home.path().join("pkg");
-    let hosts = |hosts: &str| format!("[permissions.\"log:sink\"]\nhosts = [{hosts}]\n");
+    let hosts = |hosts: &str| format!("[permissions.\"network:connect\"]\nhosts = [{hosts}]\n");
     std::fs::create_dir_all(&pkg).unwrap();
-    std::fs::copy(guest("hello"), pkg.join("plugin.wasm")).unwrap();
+    std::fs::copy(guest("net"), pkg.join("plugin.wasm")).unwrap();
 
     type Check = fn(&PackageError) -> bool;
     let long = "a".repeat(65);
@@ -151,14 +125,14 @@ async fn a_package_is_refused_at_the_edge_for_what_it_says_and_what_it_is() {
         (
             "ok",
             format!(
-                "{}[permissions.\"app:read\"]\nhosts = [\"a.example\"]\n",
+                "{}[permissions.\"secrets\"]\nhosts = [\"a.example\"]\n",
                 hosts("\"a.example\"")
             ),
             |e| matches!(e, PackageError::Grant(GrantError::ScopeNotNeeded(_))),
         ),
         (
             "ok",
-            "[permissions.\"log:sink\"]\npaths = [\"x\"]\n".into(),
+            "[permissions.\"network:connect\"]\npaths = [\"x\"]\n".into(),
             |e| matches!(e, PackageError::Grant(GrantError::ScopeKind { .. })),
         ),
         (
@@ -223,16 +197,11 @@ async fn a_package_is_refused_at_the_edge_for_what_it_says_and_what_it_is() {
 #[tokio::test]
 async fn the_grant_comes_from_the_component_and_the_digest_from_what_it_reaches() {
     let home = tempfile::tempdir().unwrap();
-    let plugins = plugins(home.path(), gated(), Vec::new());
+    let plugins = plugins(home.path(), Vec::new());
     let pkg = home.path().join("pkg");
-    let scoped = |hosts: &str| format!("[permissions.\"log:sink\"]\nhosts = [{hosts}]\n");
+    let scoped = |hosts: &str| format!("[permissions.\"network:connect\"]\nhosts = [{hosts}]\n");
 
-    package(
-        &pkg,
-        "grant-hello",
-        guest("hello"),
-        &scoped("\"a.example\""),
-    );
+    package(&pkg, "grant-net", guest("net"), &scoped("\"a.example\""));
     let inspection = plugins.inspect(&pkg).await.unwrap();
     let names: Vec<_> = inspection
         .grant
@@ -240,9 +209,8 @@ async fn the_grant_comes_from_the_component_and_the_digest_from_what_it_reaches(
         .iter()
         .map(|p| p.permission.as_str())
         .collect();
-    assert_eq!(names, ["app:read", "log:sink"]);
-    assert_eq!(inspection.grant.permissions[0].tier, Tier::Unrestricted);
-    let scope = inspection.grant.permissions[1].scope.as_ref().unwrap();
+    assert_eq!(names, ["network:connect", "secrets"]);
+    let scope = inspection.grant.permissions[0].scope.as_ref().unwrap();
     assert_eq!(
         (scope.kind, scope.values.as_slice()),
         (ScopeKind::Hosts, ["a.example".to_string()].as_slice())
@@ -253,44 +221,15 @@ async fn the_grant_comes_from_the_component_and_the_digest_from_what_it_reaches(
         .iter()
         .any(|name| name.contains("lifecycle")));
     assert!(
-        state(&plugins, "grant-hello").is_none(),
+        state(&plugins, "grant-net").is_none(),
         "inspecting installs nothing"
-    );
-
-    let reworded = Table::new(
-        vec![
-            ("hestia:kernel/types", None),
-            ("hestia:kernel/log", Some("log:sink")),
-            ("hestia:kernel/app", Some("app:read")),
-            ("hestia:kernel/lifecycle", None),
-        ],
-        vec![
-            Permission {
-                name: "app:read",
-                tier: Tier::Unrestricted,
-                scope: None,
-                prompt: "Hestia's new wording",
-            },
-            Permission {
-                name: "log:sink",
-                tier: Tier::Sandboxed,
-                scope: Some(ScopeKind::Hosts),
-                prompt: "Other wording too",
-            },
-        ],
-    );
-    let after_update = self::plugins(home.path(), reworded, Vec::new());
-    assert_eq!(
-        after_update.inspect(&pkg).await.unwrap().approval_digest,
-        inspection.approval_digest,
-        "rewording Hestia's prompt keeps every approval"
     );
 
     for widened in [
         scoped("\"b.example\""),
         format!("{}# a comment\n", scoped("\"a.example\"")),
     ] {
-        package(&pkg, "grant-hello", guest("hello"), &widened);
+        package(&pkg, "grant-net", guest("net"), &widened);
         let changed = plugins.inspect(&pkg).await.unwrap();
         assert_ne!(changed.approval_digest, inspection.approval_digest);
     }
@@ -300,10 +239,11 @@ async fn the_grant_comes_from_the_component_and_the_digest_from_what_it_reaches(
 async fn an_ungranted_interface_answers_denied_naming_its_permission() {
     let home = tempfile::tempdir().unwrap();
     let sandbox = sandbox(home.path());
+    let registry = plugins(home.path(), Vec::new());
 
     let tour = wasm(service_guest("tour"));
     let shape = Shape::read(&tour).unwrap();
-    let denied = denials(&Table::kernel(), &shape, &[]);
+    let denied = denials(registry.table(), &shape, &[]);
     assert_eq!(denied.values().collect::<Vec<_>>(), ["secrets"]);
     let opened = sandbox.open("grant-denied", tour).await.unwrap();
     let loaded = sandbox
@@ -320,8 +260,7 @@ async fn an_ungranted_interface_answers_denied_naming_its_permission() {
     }
 
     let hello = wasm(guest("hello"));
-    let shape = Shape::read(&hello).unwrap();
-    let denied = denials(&gated(), &shape, &["log:sink"]);
+    let denied = std::collections::HashMap::from([("hestia:kernel/log@0.1.0".into(), "x".into())]);
     let opened = sandbox.open("grant-undeniable", hello).await.unwrap();
     assert!(
         matches!(
@@ -334,7 +273,7 @@ async fn an_ungranted_interface_answers_denied_naming_its_permission() {
     let reach = wasm(service_guest("reach"));
     let shape = Shape::read(&reach).unwrap();
     let denied = denials(
-        &Table::kernel(),
+        registry.table(),
         &shape,
         &["network:connect", "process:spawn"],
     );
@@ -374,7 +313,7 @@ impl Builtin for Core {
 async fn an_installed_plugin_survives_restarts_and_removal_takes_its_cache() {
     let home = tempfile::tempdir().unwrap();
     let pkg = home.path().join("pkg");
-    let build = || plugins(home.path(), Table::kernel(), vec![Arc::new(Core)]);
+    let build = || plugins(home.path(), vec![Arc::new(Core)]);
     let registry = build();
 
     package(&pkg, "grant-keep", guest("hello"), "");
@@ -417,7 +356,7 @@ async fn an_installed_plugin_survives_restarts_and_removal_takes_its_cache() {
         PluginState::Enabled
     );
 
-    let blind = Plugins::new(home.path(), Vec::new(), None, Table::kernel()).unwrap();
+    let blind = Plugins::new(home.path(), Vec::new(), None).unwrap();
     blind.restore().await;
     assert_eq!(
         state(&blind, "grant-keep"),
@@ -457,7 +396,7 @@ async fn an_installed_plugin_survives_restarts_and_removal_takes_its_cache() {
 #[tokio::test]
 async fn a_secret_is_stored_only_for_a_plugin_that_asks_for_it() {
     let home = tempfile::tempdir().unwrap();
-    let registry = plugins(home.path(), Table::kernel(), Vec::new());
+    let registry = plugins(home.path(), Vec::new());
     for (id, component) in [
         ("grant-asks", service_guest("tour")),
         ("grant-quiet", guest("hello")),
@@ -490,7 +429,7 @@ async fn a_secret_is_stored_only_for_a_plugin_that_asks_for_it() {
 async fn a_plugin_that_reaches_its_trap_limit_is_disabled_for_good() {
     let home = tempfile::tempdir().unwrap();
     let pkg = home.path().join("pkg");
-    let registry = plugins(home.path(), Table::kernel(), Vec::new());
+    let registry = plugins(home.path(), Vec::new());
 
     package(&pkg, "grant-trap", guest("trap"), "");
     let approved = registry.inspect(&pkg).await.unwrap().approval_digest;
@@ -507,7 +446,7 @@ async fn a_plugin_that_reaches_its_trap_limit_is_disabled_for_good() {
     assert!(registry.enable("grant-trap").await.is_err());
     assert_eq!(state(&registry, "grant-trap"), Some(PluginState::Disabled));
 
-    let restarted = plugins(home.path(), Table::kernel(), Vec::new());
+    let restarted = plugins(home.path(), Vec::new());
     restarted.restore().await;
     assert_eq!(state(&restarted, "grant-trap"), Some(PluginState::Disabled));
 }
@@ -531,7 +470,7 @@ async fn a_plugin_reaches_only_what_it_was_granted_and_a_moved_program_loses_its
     );
     let pkg = home.path().join("pkg");
     package(&pkg, "grant-reach", service_guest("reach"), &extra);
-    let build = || plugins(home.path(), Table::kernel(), Vec::new());
+    let build = || plugins(home.path(), Vec::new());
 
     let registry = build();
     let inspection = registry.inspect(&pkg).await.unwrap();
@@ -604,7 +543,7 @@ async fn a_wasi_http_plugin_installs_without_requiring_a_package() {
         "[permissions.\"network:connect\"]\nhosts = [\"api.example\"]\n",
     );
     std::fs::write(pkg.join("plugin.wasm"), http_component()).unwrap();
-    let registry = plugins(home.path(), Table::kernel(), Vec::new());
+    let registry = plugins(home.path(), Vec::new());
     let inspection = registry.inspect(&pkg).await.unwrap();
     assert!(inspection.grant.requires.is_empty());
     let installed = registry
@@ -614,7 +553,7 @@ async fn a_wasi_http_plugin_installs_without_requiring_a_package() {
     assert_eq!(installed.state, PluginState::Enabled);
     assert!(installed.requires.is_empty());
 
-    let restarted = plugins(home.path(), Table::kernel(), Vec::new());
+    let restarted = plugins(home.path(), Vec::new());
     restarted.restore().await;
     assert_eq!(state(&restarted, "grant-http"), Some(PluginState::Enabled));
 }
@@ -622,7 +561,7 @@ async fn a_wasi_http_plugin_installs_without_requiring_a_package() {
 #[tokio::test]
 async fn a_package_built_for_another_api_line_is_refused_at_inspect() {
     let home = tempfile::tempdir().unwrap();
-    let plugins = plugins(home.path(), Table::kernel(), Vec::new());
+    let plugins = plugins(home.path(), Vec::new());
     let pkg = home.path().join("pkg");
     for (api, accepted) in [
         ("", true),

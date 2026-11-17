@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use kernel::{
     Answer, GrantError, GuestError, Invocation, JobOutcome, Limits, ManifestError, PackageError,
-    PluginError, Plugins, Sandbox, SandboxError, Services, Table,
+    PluginError, Plugins, Sandbox, SandboxError, Services,
 };
 use proto::plugin::ArgKind;
 
@@ -32,7 +32,7 @@ fn plugins(home: &Path, host: Arc<Host>) -> Plugins {
     )
     .unwrap()
     .with_services(host);
-    Plugins::new(home, Vec::new(), Some(Arc::new(sandbox)), Table::kernel())
+    Plugins::new(home, Vec::new(), Some(Arc::new(sandbox)))
         .unwrap()
         .with_developer(true)
 }
@@ -385,7 +385,7 @@ async fn a_command_that_ignores_its_cancel_is_dropped_and_one_running_keeps_its_
 #[tokio::test]
 async fn a_manifest_may_not_shadow_a_cli_verb_or_declare_what_the_component_lacks() {
     let home = tempfile::tempdir().unwrap();
-    let plugins = Plugins::new(home.path(), Vec::new(), None, Table::kernel())
+    let plugins = Plugins::new(home.path(), Vec::new(), None)
         .unwrap()
         .with_developer(true);
     let pkg = home.path().join("pkg");

@@ -25,7 +25,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use engine::{Engine, InstanceRecord, ProcessIo, ServerRecord};
-use kernel::{Limits, Plugins, Sandbox, Table};
+use kernel::{Limits, Plugins, Sandbox};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
 use proto::process::{ProcessInfo, ProcessSpec};
@@ -221,7 +221,7 @@ impl Runtime {
             .to_string_lossy()
             .into_owned()];
         let plugins = Arc::new(
-            Plugins::new(home, engine::builtins(), sandbox.clone(), Table::kernel())
+            Plugins::new(home, engine::builtins(), sandbox.clone())
                 .expect(
                     "engine::builtins() must list unique ids whose requirements exist and do not cycle",
                 )

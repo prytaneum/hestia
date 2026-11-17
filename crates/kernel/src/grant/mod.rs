@@ -77,7 +77,7 @@ pub enum GrantError {
     },
 }
 
-const KERNEL_PACKAGE: &str = "hestia:kernel";
+pub(crate) const KERNEL_PACKAGE: &str = "hestia:kernel";
 
 fn unversioned(name: &str) -> &str {
     name.split_once('@').map_or(name, |(base, _)| base)
@@ -507,7 +507,7 @@ mod tests {
             imports: imports.iter().map(|s| s.to_string()).collect(),
             exports: exports.iter().map(|s| s.to_string()).collect(),
         };
-        let table = Table::kernel();
+        let table = crate::api::kernel::table();
         let refused = [
             (shape(&["foo:bar/baz@1.0.0"], &[]), "foo:bar"),
             (shape(&["just-a-function"], &[]), "a bare name"),
@@ -552,7 +552,7 @@ mod tests {
             imports: imports.iter().map(|s| s.to_string()).collect(),
             exports: Vec::new(),
         };
-        derive(&Table::kernel(), &manifest, &shape)
+        derive(&crate::api::kernel::table(), &manifest, &shape)
     }
 
     #[test]
@@ -701,6 +701,15 @@ mod tests {
                 "a changed scope needs a new approval"
             );
         }
+    }
+
+    #[test]
+    fn rewording_the_prompt_or_tier_keeps_an_approval() {
+        let mut grant = derived(&["hestia:kernel/secrets@0.1.0"], "").unwrap();
+        let before = approval_digest("t", b"m", b"w", &grant, None);
+        grant.permissions[0].prompt = "Hestia's new wording".into();
+        grant.permissions[0].tier = proto::plugin::Tier::Unrestricted;
+        assert_eq!(before, approval_digest("t", b"m", b"w", &grant, None));
     }
 
     #[test]

@@ -3,8 +3,10 @@
 //! under its version is the one `crates/sdk/wit/snapshot.txt` recorded.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use kernel::{Builtin, Stability, Table};
+use kernel::probe::Probe;
+use kernel::{Plugins, Stability, Table};
 use sha2::{Digest, Sha256};
 use wit_parser::Resolve;
 
@@ -12,18 +14,18 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 
-fn packages() -> [(&'static str, PathBuf, Table); 2] {
+fn table() -> Table {
+    let home = tempfile::tempdir().unwrap();
+    Plugins::new(home.path(), vec![Arc::new(Probe)], None)
+        .unwrap()
+        .table()
+        .clone()
+}
+
+fn packages() -> [(&'static str, PathBuf); 2] {
     [
-        (
-            "hestia:kernel",
-            root().join("sdk/wit/kernel"),
-            Table::kernel(),
-        ),
-        (
-            "hestia:probe",
-            root().join("kernel/src/api/probe/wit"),
-            kernel::probe::Probe.table().unwrap(),
-        ),
+        ("hestia:kernel", root().join("sdk/wit/kernel")),
+        ("hestia:probe", root().join("kernel/src/api/probe/wit")),
     ]
 }
 
@@ -54,11 +56,12 @@ fn the_tables_state_the_version_and_stability_the_wit_declares() {
         all_features: true,
         ..Resolve::default()
     };
-    for (_, dir, _) in packages() {
+    for (_, dir) in packages() {
         resolve.push_dir(dir).unwrap();
     }
 
-    for (name, _, table) in packages() {
+    let table = table();
+    for (name, _) in packages() {
         let package = resolve
             .packages
             .iter()
@@ -174,7 +177,8 @@ fn tokens(wit: &str) -> String {
 #[test]
 fn a_changed_wit_needs_a_new_version() {
     let snapshot = std::fs::read_to_string(root().join("sdk/wit/snapshot.txt")).unwrap();
-    for (name, dir, table) in packages() {
+    let table = table();
+    for (name, dir) in packages() {
         let mut files: Vec<_> = std::fs::read_dir(dir)
             .unwrap()
             .map(|entry| entry.unwrap().path())

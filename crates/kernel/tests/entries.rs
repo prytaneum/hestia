@@ -9,7 +9,6 @@ use std::sync::Arc;
 use kernel::probe::{Probe, ProbeCalls};
 use kernel::{
     GrantError, GuestError, Limits, PackageError, PluginError, Plugins, Sandbox, SandboxError,
-    Table,
 };
 use proto::error::{EntryKind, EntryTarget};
 use proto::plugin::{Choice, EntryScope};
@@ -32,14 +31,9 @@ fn plugins_over(home: &Path, calls: Arc<ProbeCalls>) -> Plugins {
     )
     .expect("sandbox");
     sandbox.set_calls(calls);
-    Plugins::new(
-        home,
-        vec![Arc::new(Probe)],
-        Some(Arc::new(sandbox)),
-        Table::kernel(),
-    )
-    .unwrap()
-    .with_developer(true)
+    Plugins::new(home, vec![Arc::new(Probe)], Some(Arc::new(sandbox)))
+        .unwrap()
+        .with_developer(true)
 }
 
 fn package(home: &Path, manifest_extra: &str) -> std::path::PathBuf {

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use kernel::probe::{Probe, ProbeCalls, Recorded};
 use kernel::{
     denials, Chain, ChainError, GuestError, Limits, PackageError, PluginError, Plugins, Sandbox,
-    SandboxError, Shape, Table,
+    SandboxError, Shape,
 };
 use proto::plugin::PluginState;
 
@@ -40,14 +40,9 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
     let home = tempfile::tempdir().unwrap();
     let calls = Arc::new(ProbeCalls::default());
     let sandbox = sandbox(&calls);
-    let plugins = Plugins::new(
-        home.path(),
-        vec![Arc::new(Probe)],
-        Some(sandbox.clone()),
-        Table::kernel(),
-    )
-    .unwrap()
-    .with_developer(true);
+    let plugins = Plugins::new(home.path(), vec![Arc::new(Probe)], Some(sandbox.clone()))
+        .unwrap()
+        .with_developer(true);
 
     let pkg = home.path().join("pkg");
     package(&pkg, "consumer", service_guest("consumer"));
@@ -76,14 +71,9 @@ async fn a_plugin_calls_a_built_ins_package_and_fills_its_extension_point() {
         plugins.disable("probe").await,
         Err(PluginError::Required { dependents, .. }) if dependents == ["consumer"]
     ));
-    let without_provider = Plugins::new(
-        home.path(),
-        Vec::new(),
-        Some(sandbox.clone()),
-        Table::kernel(),
-    )
-    .unwrap()
-    .with_developer(true);
+    let without_provider = Plugins::new(home.path(), Vec::new(), Some(sandbox.clone()))
+        .unwrap()
+        .with_developer(true);
     without_provider.restore().await;
     assert_eq!(
         without_provider

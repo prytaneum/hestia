@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use kernel::{Limits, Permission, PluginError, Plugins, Sandbox, Services, Table, TrustError};
-use proto::plugin::{Choice, PluginSource, PluginState, ScopeKind, Tier};
+use kernel::{Limits, PluginError, Plugins, Sandbox, Services, TrustError};
+use proto::plugin::{Choice, PluginSource, PluginState};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -33,38 +33,6 @@ impl Services for Files {
     }
 }
 
-fn gated() -> Table {
-    Table::new(
-        vec![
-            ("hestia:kernel/types", None),
-            ("hestia:kernel/log", Some("log:sink")),
-            ("hestia:kernel/app", Some("app:read")),
-            ("hestia:kernel/lifecycle", None),
-            ("hestia:kernel/settings", Some("settings:use")),
-        ],
-        vec![
-            Permission {
-                name: "app:read",
-                tier: Tier::Unrestricted,
-                scope: None,
-                prompt: "Read the app info",
-            },
-            Permission {
-                name: "settings:use",
-                tier: Tier::Sandboxed,
-                scope: Some(ScopeKind::Hosts),
-                prompt: "Read its settings",
-            },
-            Permission {
-                name: "log:sink",
-                tier: Tier::Sandboxed,
-                scope: Some(ScopeKind::Hosts),
-                prompt: "Send its log lines",
-            },
-        ],
-    )
-}
-
 fn plugins(home: &Path) -> Plugins {
     let sandbox = Sandbox::new(
         scratch().join("plugin-cache"),
@@ -73,7 +41,7 @@ fn plugins(home: &Path) -> Plugins {
     )
     .expect("sandbox")
     .with_services(Arc::new(Files(home.to_owned())));
-    Plugins::new(home, Vec::new(), Some(Arc::new(sandbox)), gated())
+    Plugins::new(home, Vec::new(), Some(Arc::new(sandbox)))
         .unwrap()
         .with_loopback()
 }
@@ -133,7 +101,7 @@ fn manifest(id: &str, version: &str, hosts: &[&str]) -> String {
     if !hosts.is_empty() {
         let hosts: Vec<String> = hosts.iter().map(|h| format!("\"{h}\"")).collect();
         text += &format!(
-            "[permissions.\"log:sink\"]\nhosts = [{}]\n",
+            "[permissions.\"network:connect\"]\nhosts = [{}]\n",
             hosts.join(", ")
         );
     }
@@ -143,7 +111,7 @@ fn manifest(id: &str, version: &str, hosts: &[&str]) -> String {
 fn optional_manifest(id: &str, version: &str, hosts: &[&str]) -> String {
     let hosts: Vec<String> = hosts.iter().map(|h| format!("\"{h}\"")).collect();
     format!(
-        "id = \"{id}\"\nname = \"{id}\"\nversion = \"{version}\"\n[permissions.\"settings:use\"]\noptional = true\nhosts = [{}]\n",
+        "id = \"{id}\"\nname = \"{id}\"\nversion = \"{version}\"\n[permissions.\"network:connect\"]\noptional = true\nhosts = [{}]\n",
         hosts.join(", ")
     )
 }
@@ -381,7 +349,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
         &author,
         "1.0.0",
         &manifest("rel", "1.0.0", &["a.example"]),
-        "hello",
+        "net",
     );
     repo.publish(1, now() + 3600);
     let added = registry
@@ -415,7 +383,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
         &author,
         "1.1.0",
         &manifest("rel", "1.1.0", &["a.example"]),
-        "hello",
+        "net",
     );
     repo.publish(2, now() + 3600);
     let found = registry.check_updates().await;
@@ -469,7 +437,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
         &author,
         "1.2.0",
         &manifest("rel", "1.2.0", &["a.example", "b.example"]),
-        "hello",
+        "net",
     );
     repo.publish(3, now() + 3600);
     let wider = registry.inspect_update("rel").await.unwrap();
@@ -531,7 +499,7 @@ async fn a_plugin_installs_from_a_signed_index_and_updates_only_as_far_as_it_was
         &author,
         "1.3.0",
         &manifest("rel", "1.3.0", &["a.example"]),
-        "hello",
+        "net",
     );
     repo.revoked
         .push(json!({ "id": "rel", "version": "1.2.0", "reason": "stolen key" }));
@@ -597,7 +565,7 @@ async fn an_update_keeps_an_optional_grant_only_while_the_permission_stays_optio
         &author,
         "1.0.0",
         &optional_manifest("rel", "1.0.0", &["a.example"]),
-        "settler",
+        "net",
     );
     repo.publish(1, now() + 3600);
     registry
@@ -606,14 +574,14 @@ async fn an_update_keeps_an_optional_grant_only_while_the_permission_stays_optio
         .unwrap();
     let inspection = registry.inspect_release("acme", "rel", None).await.unwrap();
     let chosen = Choice {
-        optional: vec!["settings:use".into()],
+        optional: vec!["network:connect".into()],
         ..Choice::default()
     };
     registry
         .install_release("acme", "rel", None, &inspection.approval_digest, chosen)
         .await
         .unwrap();
-    assert_eq!(granted(), ["settings:use"]);
+    assert_eq!(granted(), ["network:connect"]);
 
     let mut sequence = 1;
     let mut update = |version: &str, manifest: String, component: &str| {
@@ -624,10 +592,14 @@ async fn an_update_keeps_an_optional_grant_only_while_the_permission_stays_optio
     update(
         "1.1.0",
         optional_manifest("rel", "1.1.0", &["a.example"]),
-        "settler",
+        "net",
     );
     apply(&registry, false).await;
-    assert_eq!(granted(), ["settings:use"], "the same optional grant stays");
+    assert_eq!(
+        granted(),
+        ["network:connect"],
+        "the same optional grant stays"
+    );
 
     update("2.0.0", manifest("rel", "2.0.0", &[]), "nap");
     apply(&registry, false).await;
@@ -636,23 +608,23 @@ async fn an_update_keeps_an_optional_grant_only_while_the_permission_stays_optio
     update(
         "3.0.0",
         optional_manifest("rel", "3.0.0", &["evil.example"]),
-        "settler",
+        "net",
     );
-    apply(&registry, false).await;
+    apply(&registry, true).await;
     assert!(
         granted().is_empty(),
         "a permission dropped and added back optional arrives declined, whatever its scope"
     );
     let info = registry
-        .set_permission("rel", "settings:use", true)
+        .set_permission("rel", "network:connect", true)
         .await
         .unwrap();
-    assert_eq!(info.optional, ["settings:use"]);
+    assert_eq!(info.optional, ["network:connect"]);
 
     update(
         "3.1.0",
         optional_manifest("rel", "3.1.0", &["evil.example", "b.example"]),
-        "settler",
+        "net",
     );
     apply(&registry, true).await;
     assert!(
@@ -671,7 +643,7 @@ async fn an_update_that_never_finished_is_undone_at_start_and_nothing_else_is_to
         &author,
         "1.0.0",
         &manifest("rel", "1.0.0", &["a.example"]),
-        "hello",
+        "net",
     );
     repo.publish(1, now() + 3600);
     registry
@@ -745,7 +717,7 @@ async fn an_index_that_does_not_verify_is_refused() {
         &author,
         "1.0.0",
         &manifest("rel", "1.0.0", &[]),
-        "hello",
+        "net",
     );
     let other = minisign::KeyPair::generate_unencrypted_keypair().unwrap();
     let (soon, later) = (now() + 3600, now() + 7200);
@@ -827,10 +799,9 @@ async fn an_index_that_does_not_verify_is_refused() {
 async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_it() {
     let home = tempfile::tempdir().unwrap();
     let (mut repo, author, stranger) = (Publisher::new("acme").await, Author::new(), Author::new());
-    let (soon, hello) = (now() + 3600, wasm(guest("hello")));
-    let signed = |id: &str, version: &str| {
-        hplugin(&author, id, version, &manifest(id, version, &[]), &hello)
-    };
+    let (soon, net) = (now() + 3600, wasm(guest("net")));
+    let signed =
+        |id: &str, version: &str| hplugin(&author, id, version, &manifest(id, version, &[]), &net);
 
     repo.list(
         "liar",
@@ -848,7 +819,7 @@ async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_
             "stranger",
             "1.0.0",
             &manifest("stranger", "1.0.0", &[]),
-            &hello,
+            &net,
         ),
         None,
     );
@@ -868,7 +839,7 @@ async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_
     );
     let tampered = {
         let toml = manifest("tampered", "1.0.0", &[]);
-        let signature = author.sign(&statement("tampered", "1.0.0", toml.as_bytes(), &hello));
+        let signature = author.sign(&statement("tampered", "1.0.0", toml.as_bytes(), &net));
         zip_of(|zip| {
             entry(zip, "plugin.toml", toml.as_bytes());
             entry(zip, "plugin.wasm", &wasm(guest("chatty")));
@@ -878,10 +849,10 @@ async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_
     repo.list("tampered", &author.key(), "1.0.0", tampered, None);
 
     let toml = manifest("shape", "1.0.0", &[]);
-    let signature = author.sign(&statement("shape", "1.0.0", toml.as_bytes(), &hello));
+    let signature = author.sign(&statement("shape", "1.0.0", toml.as_bytes(), &net));
     let well_formed = |zip: &mut Zip| {
         entry(zip, "plugin.toml", toml.as_bytes());
-        entry(zip, "plugin.wasm", &hello);
+        entry(zip, "plugin.wasm", &net);
         entry(zip, "plugin.minisig", signature.as_bytes());
     };
     let shapes: Vec<(&str, Vec<u8>)> = vec![
@@ -897,7 +868,7 @@ async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_
             "a missing signature",
             zip_of(|z| {
                 entry(z, "plugin.toml", toml.as_bytes());
-                entry(z, "plugin.wasm", &hello);
+                entry(z, "plugin.wasm", &net);
                 entry(z, "other", b"x")
             }),
         ),
@@ -905,7 +876,7 @@ async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_
             "a path with a directory",
             zip_of(|z| {
                 entry(z, "plugin.toml", toml.as_bytes());
-                entry(z, "plugin.wasm", &hello);
+                entry(z, "plugin.wasm", &net);
                 entry(z, "dir/plugin.minisig", signature.as_bytes())
             }),
         ),
@@ -913,7 +884,7 @@ async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_
             "a path that climbs out",
             zip_of(|z| {
                 entry(z, "plugin.toml", toml.as_bytes());
-                entry(z, "plugin.wasm", &hello);
+                entry(z, "plugin.wasm", &net);
                 entry(z, "../plugin.minisig", signature.as_bytes())
             }),
         ),
@@ -921,7 +892,7 @@ async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_
             "a backslash path",
             zip_of(|z| {
                 entry(z, "plugin.toml", toml.as_bytes());
-                entry(z, "plugin.wasm", &hello);
+                entry(z, "plugin.wasm", &net);
                 entry(z, "a\\plugin.minisig", signature.as_bytes())
             }),
         ),
@@ -929,7 +900,7 @@ async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_
             "a directory entry",
             zip_of(|z| {
                 entry(z, "plugin.toml", toml.as_bytes());
-                entry(z, "plugin.wasm", &hello);
+                entry(z, "plugin.wasm", &net);
                 z.add_directory("plugin.minisig/", SimpleFileOptions::default())
                     .unwrap()
             }),
@@ -938,7 +909,7 @@ async fn a_package_is_trusted_only_as_its_author_signed_it_and_the_index_listed_
             "a symlink",
             zip_of(|z| {
                 entry(z, "plugin.toml", toml.as_bytes());
-                entry(z, "plugin.wasm", &hello);
+                entry(z, "plugin.wasm", &net);
                 z.add_symlink(
                     "plugin.minisig",
                     "/etc/passwd",
@@ -1021,7 +992,7 @@ async fn an_update_keeps_the_repository_and_the_author_that_vouched_for_the_inst
         &author,
         "1.0.0",
         &manifest("rel", "1.0.0", &["a.example"]),
-        "hello",
+        "net",
     );
     repo.publish(1, soon);
     registry
@@ -1045,7 +1016,7 @@ async fn an_update_keeps_the_repository_and_the_author_that_vouched_for_the_inst
         &successor,
         "1.1.0",
         &manifest("rel", "1.1.0", &["a.example"]),
-        "hello",
+        "net",
     );
     repo.publish(2, soon);
     assert!(
@@ -1092,14 +1063,14 @@ async fn a_key_that_stands_for_hestia_is_never_a_repository_key_and_an_index_can
         &hestia,
         "1.0.0",
         &manifest("rel", "1.0.0", &["a.example"]),
-        "hello",
+        "net",
     );
     repo.release(
         "mine",
         &community,
         "1.0.0",
         &manifest("mine", "1.0.0", &["a.example"]),
-        "hello",
+        "net",
     );
     repo.publish(1, now() + 3600);
     let official = hestia.key();

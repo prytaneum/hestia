@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use kernel::{Builtin, Busy, Descriptor, PluginError, Plugins, Table};
+use kernel::{Builtin, Busy, Descriptor, PluginError, Plugins};
 use proto::plugin::PluginState;
 
 type Log = Arc<Mutex<Vec<&'static str>>>;
@@ -53,7 +53,7 @@ impl Builtin for Fake {
 }
 
 fn open(home: &std::path::Path, builtins: Vec<Arc<dyn Builtin>>) -> Result<Plugins, PluginError> {
-    Plugins::new(home, builtins, None, Table::kernel())
+    Plugins::new(home, builtins, None)
 }
 
 fn states(plugins: &Plugins) -> Vec<(String, PluginState)> {

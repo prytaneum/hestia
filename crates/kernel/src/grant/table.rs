@@ -1,8 +1,5 @@
 use proto::plugin::{ScopeKind, Tier};
 
-/// The version of `crates/sdk/wit/kernel`; the WIT snapshot test keeps the two equal.
-const KERNEL_VERSION: &str = "0.1.0";
-
 /// What the user is asked to approve for one permission.
 #[derive(Debug, Clone, Copy)]
 pub struct Permission {
@@ -97,66 +94,6 @@ impl Table {
     /// Every interface the table marks with a stability.
     pub fn stabilities(&self) -> impl Iterator<Item = (&'static str, Stability)> + '_ {
         self.stability.iter().copied()
-    }
-
-    /// `hestia:kernel` and the `wasi:http` that rides on `network:connect`.
-    /// Beyond `secrets` and the network, programs and local endpoints, nothing
-    /// asks: the rest stays inside the plugin's own call, files and dialogs
-    /// Hestia draws.
-    pub fn kernel() -> Self {
-        Table::new(
-            vec![
-                ("hestia:kernel/types", None),
-                ("hestia:kernel/log", None),
-                ("hestia:kernel/app", None),
-                ("hestia:kernel/data", None),
-                ("hestia:kernel/settings", None),
-                ("hestia:kernel/permissions", None),
-                ("hestia:kernel/secrets", Some("secrets")),
-                ("hestia:kernel/messages", None),
-                ("hestia:kernel/progress", None),
-                ("hestia:kernel/notify", None),
-                ("hestia:kernel/download", Some("network:connect")),
-                ("hestia:kernel/programs", Some("process:spawn")),
-                ("hestia:kernel/ipc", Some("ipc:connect")),
-                ("wasi:http/types", Some("network:connect")),
-                ("wasi:http/outgoing-handler", Some("network:connect")),
-                ("hestia:kernel/lifecycle", None),
-                ("hestia:kernel/settings-changed", None),
-                ("hestia:kernel/jobs", None),
-                ("hestia:kernel/commands", None),
-                ("hestia:kernel/on-schedule", None),
-                ("hestia:kernel/on-job-done", None),
-            ],
-            vec![
-                Permission {
-                    name: "secrets",
-                    tier: Tier::Sandboxed,
-                    scope: None,
-                    prompt: "Keep secrets you enter for it, such as tokens",
-                },
-                Permission {
-                    name: "network:connect",
-                    tier: Tier::Sandboxed,
-                    scope: Some(ScopeKind::Hosts),
-                    prompt: "Connect to the listed hosts over https and download files from them",
-                },
-                Permission {
-                    name: "process:spawn",
-                    tier: Tier::Unrestricted,
-                    scope: Some(ScopeKind::Programs),
-                    prompt: "Run the listed programs on your computer, with the listed arguments",
-                },
-                Permission {
-                    name: "ipc:connect",
-                    tier: Tier::Unrestricted,
-                    scope: Some(ScopeKind::Endpoints),
-                    prompt:
-                        "Talk to the listed local sockets and pipes, which other programs serve",
-                },
-            ],
-        )
-        .versioned(super::KERNEL_PACKAGE, KERNEL_VERSION)
     }
 
     /// Adds `package`'s table. Refused when a row lies outside `package`, an
@@ -279,7 +216,7 @@ mod tests {
             ),
         ];
         for (interface, needs, extra, case) in refused {
-            let mut table = Table::kernel();
+            let mut table = crate::api::kernel::table();
             let other = Table::new(vec![(interface, needs)], extra.into_iter().collect())
                 .versioned("hestia:probe", "0.1.0");
             assert!(table.merge("hestia:probe", other).is_err(), "{case}");
@@ -300,11 +237,13 @@ mod tests {
             ),
         ] {
             assert!(
-                Table::kernel().merge("hestia:probe", other).is_err(),
+                crate::api::kernel::table()
+                    .merge("hestia:probe", other)
+                    .is_err(),
                 "{case}"
             );
         }
-        let mut table = Table::kernel();
+        let mut table = crate::api::kernel::table();
         let probe = || {
             Table::new(
                 vec![("hestia:probe/read", Some("probe:read"))],
