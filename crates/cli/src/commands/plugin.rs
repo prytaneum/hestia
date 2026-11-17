@@ -147,6 +147,9 @@ fn show_grant(inspection: &Inspection) -> Result<()> {
         ));
     }
     ui::show(View::detail(details))?;
+    for warning in &inspection.warnings {
+        ui::show(View::note(format!("{warning}: {}", warning.hint())))?;
+    }
     let grant = &inspection.grant;
     if grant.permissions.is_empty() {
         ui::show(View::note("it asks for no permissions"))?;

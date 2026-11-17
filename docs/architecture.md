@@ -246,11 +246,11 @@ is not the version the component imports, a `hestia:` import or export that is n
 exactly), is a pre-release or is later than the host's, and an interface newer than the version that names it. An
 `@unstable` interface is refused unless the package is a dev install (which runs only in developer mode); a real one
 needs `features: [...]` in the host's `bindgen!` and is then protected only by this gate. An import of a deprecated
-interface is a `PluginImportDeprecated` warning in the `Inspection`. Without `api` only the imports and exports are
-checked. Version attributes live on interfaces only. The built-in's table must state its package's version and parseable
-stabilities, or `Plugins::new` refuses it. `crates/kernel/tests/wit.rs` keeps the tables equal to the WIT and fails a
-changed WIT of the kernel or a built-in package under an unchanged version (`crates/sdk/wit/snapshot.txt`; the policy is
-in `crates/sdk/wit/README.md`).
+interface is a `PluginImportDeprecated` warning in the `Inspection`, which `hestia plugin` prints. Without `api` only
+the imports and exports are checked. Version attributes live on interfaces only. The built-in's table must state its
+package's version and parseable stabilities, or `Plugins::new` refuses it. `crates/kernel/tests/wit.rs` keeps the tables
+equal to the WIT and fails a changed WIT of the kernel or a built-in package under an unchanged version
+(`crates/sdk/wit/snapshot.txt`; the policy is in `crates/sdk/wit/README.md`).
 
 A built-in exposes a WIT package of its own through `crates/kernel/src/api/<package>/`: its table (`Builtin::table`,
 merged into the kernel's by `Plugins::new`, which refuses a row outside the package the built-in `provides`, an
