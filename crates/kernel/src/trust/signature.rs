@@ -1,9 +1,10 @@
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use minisign_verify::{PublicKey, Signature};
 use sha2::{Digest, Sha256};
 
 use super::error::TrustError;
 
-const BASE64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const ED25519_AT: std::ops::Range<usize> = 10..42;
 
 /// A minisign public key. Two keys are the same when their ed25519 bytes are:
@@ -16,27 +17,14 @@ pub struct Signer {
     bytes: [u8; 32],
 }
 
-fn decode(text: &str) -> Option<Vec<u8>> {
-    let mut out = Vec::new();
-    let (mut bits, mut have) = (0u32, 0u32);
-    for byte in text.trim_end_matches('=').bytes() {
-        bits = bits << 6 | BASE64.iter().position(|&c| c == byte)? as u32;
-        have += 6;
-        if have >= 8 {
-            have -= 8;
-            out.push((bits >> have) as u8);
-            bits &= (1 << have) - 1;
-        }
-    }
-    Some(out)
-}
-
 impl Signer {
     /// The base64 key line, or the two lines of a `minisign.pub` file.
     pub fn parse(text: &str) -> Result<Self, TrustError> {
         let line = text.trim().lines().last().unwrap_or_default().trim();
         let key = PublicKey::from_base64(line).map_err(|_| TrustError::BadKey)?;
-        let bytes = decode(line)
+        let bytes = STANDARD
+            .decode(line)
+            .ok()
             .and_then(|raw| raw.get(ED25519_AT)?.try_into().ok())
             .ok_or(TrustError::BadKey)?;
         Ok(Signer {

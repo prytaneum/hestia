@@ -37,6 +37,7 @@ loopback = ["sandbox"]
 probe = ["sandbox"]
 
 [dependencies]
+base64 = { workspace = true }
 hex = { workspace = true }
 proto = { workspace = true }
 common = { workspace = true, optional = true }
