@@ -42,6 +42,16 @@ jobs:
         run: cargo clippy -p hestia-sdk --target wasm32-wasip2 --features lifecycle -- -D warnings
       - name: test
         run: cargo test --workspace --exclude desktop
+      # The all-targets builds above turn on the kernel's `probe` and `loopback`
+      # through its dev-dependency; these build what ships.
+      - name: check (production features)
+        run: cargo check
+      - name: check (kernel, no features)
+        run: cargo check -p kernel --no-default-features
+      - name: check (kernel, sandbox)
+        run: cargo check -p kernel
+      - name: check (kernel, probe)
+        run: cargo check -p kernel --features probe
 
   # Another toolchain's component must still fit the SDK's world: only
   # `lifecycle` exported, nothing imported from wasi:http or wasi:sockets.

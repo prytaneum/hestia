@@ -163,7 +163,7 @@ image around the original's runtime.
 
 ## CI
 
-- [`ci.yml`](../.github/workflows/ci.yml) — four jobs. `check` runs `fmt` + `clippy` + `test` on Linux and Windows,
+- [`ci.yml`](../.github/workflows/ci.yml) — four jobs. `check` runs `fmt` + `clippy` + `test` on Linux and Windows, then `cargo check` of the production feature set (the all-targets builds enable the kernel's `probe` and `loopback`) and of the kernel with no features, with `sandbox` and with `probe`,
   excluding the `desktop` crate so no webview is needed, and needing no system libraries on either platform. `frontend` runs the Bun chain — `generate:messages` (`src/paraglide/` is generated and
   untracked, so it precedes anything resolving those imports), then `check` (biome), `typecheck` (tsc), `test` (vitest)
   and `build`. `desktop` covers what `check` excludes: it installs the WebKitGTK stack, builds the frontend

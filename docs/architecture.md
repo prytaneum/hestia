@@ -241,7 +241,7 @@ cargo test
 ```
 
 The frontend chain (`bun run generate:messages`, `check`, `typecheck`, `test`, `build`) is in
-[contributing.md](contributing.md). CI runs `check` (fmt, clippy, test on Linux and Windows), `frontend`, `desktop`
+[contributing.md](contributing.md). CI runs `check` (fmt, clippy, test and the production-feature checks, on Linux and Windows), `frontend`, `desktop`
 and `deny`; see [packaging.md](packaging.md).
 
 ## Recording a decision
