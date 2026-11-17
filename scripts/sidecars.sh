@@ -48,7 +48,10 @@ esac
 dest="crates/desktop/binaries"
 
 log "building $profile sidecars for $triple"
-cargo build "${build_args[@]}" "${target_args[@]}"
+# `cli` is built alone: one invocation unifies the daemon's `kernel/sandbox`
+# into it and brings wasmtime into `hestia`.
+cargo build "${build_args[@]}" "${target_args[@]}" -p cli
+cargo build "${build_args[@]}" "${target_args[@]}" -p daemon -p tray
 
 mkdir -p "$dest"
 for bin in hestia hestiad hestia-tray; do

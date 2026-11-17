@@ -88,9 +88,12 @@ portable() {
   # invocation unifies the shell's features into the tray, which then imports
   # a comctl32 v6 entry point no manifest asks for and cannot load.
   log "building portable binaries"
+  # `cli` is built alone for the same reason: the daemon's `kernel/sandbox`
+  # would otherwise unify into it and bring wasmtime into `hestia`.
+  cargo build --release --target-dir "$out" -p cli --features cli/portable
   cargo build --release --target-dir "$out" \
-    -p cli -p daemon -p tray \
-    --features cli/portable,daemon/portable,tray/portable
+    -p daemon -p tray \
+    --features daemon/portable,tray/portable
   # tauri-build asserts every externalBin exists on disk, but only the bundler
   # ships them and the archive copies its own — so the list is emptied rather
   # than compiling an installer sidecar set nothing here reads.

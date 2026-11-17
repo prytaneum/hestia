@@ -100,7 +100,8 @@ The daemon and CLI need nothing but a Rust toolchain:
 
 ```bash
 git clone https://github.com/prytaneum/hestia && cd hestia
-cargo build --release -p cli -p daemon
+cargo build --release -p cli
+cargo build --release -p daemon
 ```
 
 The desktop app also needs the system webview (WebKitGTK on Linux, WebView2 on Windows) and [Bun](https://bun.sh/):
