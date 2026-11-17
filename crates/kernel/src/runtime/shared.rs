@@ -19,6 +19,8 @@ pub(super) struct Shared {
     /// The router the adapters call through; set once the daemon has one.
     pub calls: Arc<OnceLock<Arc<dyn HostCalls>>>,
     pub wakeups: Arc<Wakeups>,
+    #[cfg(feature = "probe")]
+    pub events: Arc<Wakeups>,
 }
 
 impl Shared {
@@ -30,6 +32,8 @@ impl Shared {
             mounted: Arc::default(),
             calls: Arc::default(),
             wakeups: Arc::default(),
+            #[cfg(feature = "probe")]
+            events: Arc::default(),
         }
     }
 }

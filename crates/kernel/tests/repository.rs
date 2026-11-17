@@ -5,11 +5,11 @@
 
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use kernel::{Limits, PackageError, PluginError, Plugins, Sandbox, Services, TrustError};
+use kernel::{Limits, PackageError, PluginError, Plugins, Sandbox, TrustError};
 use proto::plugin::{Choice, PluginSource, PluginState};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -19,19 +19,7 @@ use zip::write::SimpleFileOptions;
 
 #[allow(dead_code)]
 mod fixture;
-use fixture::{guest, scratch, wasm};
-
-struct Files(PathBuf);
-
-impl Services for Files {
-    fn data_dir(&self, plugin: &str) -> Option<PathBuf> {
-        Some(kernel::sandbox_root(&self.0).join(plugin))
-    }
-
-    fn state_dir(&self, plugin: &str) -> Option<PathBuf> {
-        Some(self.0.join("plugins").join(plugin))
-    }
-}
+use fixture::{guest, scratch, wasm, Files};
 
 fn plugins(home: &Path) -> Plugins {
     let sandbox = Sandbox::new(

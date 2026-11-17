@@ -11,6 +11,7 @@ use kernel::{
 };
 use proto::plugin::PluginState;
 
+#[allow(dead_code)]
 mod fixture;
 use fixture::{guest, scratch, service_guest, wasm};
 

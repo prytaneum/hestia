@@ -44,6 +44,14 @@ interface entry-opened {
     heard: func(entry: string) -> result<_, plugin-error>;
 }
 
+/// A topic gated by `probe:read`, beside `entry-opened`, which `probe:entries`
+/// gates.
+interface echoed {
+    use hestia:kernel/types@0.1.0.{plugin-error};
+
+    heard: func(text: string) -> result<_, plugin-error>;
+}
+
 /// A hook: customisation, run in plugin id order, each seeing what the one
 /// before returned. Only `veto` stops the others.
 interface before-echo {
@@ -81,6 +89,7 @@ world host {
 /// that only uses the package need not implement them.
 world listener {
     export entry-opened;
+    export echoed;
     export before-echo;
 }
 

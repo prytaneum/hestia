@@ -245,7 +245,7 @@ hosts in `engine::net::hosts`.
 
 The kernel also holds the WASM sandbox (`runtime/`): one wasmtime engine for the daemon, a fresh store and instance per
 call, run as async calls that yield on every 10 ms epoch tick, so each call's wall-clock budget (`init` 10 s, an event
-such as `settings-changed` 5 s) also bounds a guest waiting inside a host call, and dropping the call stops the guest.
+such as `settings-changed` 5 s, a hook 2 s) also bounds a guest waiting inside a host call, and dropping the call stops the guest.
 Memory is capped at 256 MiB under the pooling allocator. At most 4 calls per plugin and 16 overall run at once; the rest
 wait for a slot within their budget. The third trap in ten minutes is reported as `TrapLimit`, and the registry disables
 the plugin. WASI has no sockets and an empty environment; what reaches outside the plugin is `wasi:http`, `download`,
@@ -286,22 +286,29 @@ Every call enters its plugin into the `Chain` before it runs, so a plugin alread
 plumbing, which no production package uses yet; the kernel tests drive it with
 `tests/guest-services/src/bin/consumer.rs`.
 
-A package also defines **topics** and **hooks**, export interfaces the emitting plugin calls. The table maps an
-exported interface to a permission like an imported one, so exporting a topic needs its read permission (and appears in
-the grant); a topic whose permission depends on its payload is split into one interface per permission. A topic is
-delivered to each enabled plugin that exports it, holds that permission and has every entry the event names in its
-`entries` scope (the emitter passes stable ids), through a per-plugin inbox of 256 (past it the oldest event is dropped)
-drained one event at a time, each spending a wake-up; one with none left is skipped. A hook (2 s) runs over the plugins
-that export it in id order, each seeing the result of the one before; a plugin that fails, traps or times out is
-skipped, and only an explicit veto stops the rest. The test built-in defines `entry-opened` and `before-echo`
-(`tests/events.rs`).
+Behind the `probe` feature a package also defines **topics** and **hooks**, export interfaces the emitting plugin
+calls; like the rest of the plumbing above, no production package uses them yet. The table maps an exported interface to
+a permission like an imported one, so exporting a topic needs its read permission (and appears in the grant); a topic
+whose permission depends on its payload is split into one interface per permission. An exported `hestia:` package other
+than the kernel's is a requirement on its built-in exactly like an import: an install is refused without it, and
+disabling the built-in is refused or cascades. A topic is delivered to each enabled plugin that exports it, holds that
+permission and has every entry the event names in its `entries` scope (the emitter passes stable ids), through a
+per-plugin inbox of 256 with one delivering task. Events wait there for the plugin's event budget (30 in a burst, one
+more each second, apart from its wake-ups, so a flood never starves its schedules or `jobs.start`); only a full inbox
+drops, the oldest first. Each event is checked again just before it is delivered: it goes only to the guest that was
+queued for, and only while that guest still exports the interface, holds the permission and has the entries in scope.
+A relink (a permission change, an update, a reinstall) or a narrowed scope drops what was queued. A hook (2 s) runs over
+the plugins that export it in id order, for a call made through the caller's `Chain`, each seeing the result of the one
+before; a plugin that fails, traps, is already in the chain or times out is skipped, and only an explicit veto stops the
+rest. The test built-in defines the topics `entry-opened` (`probe:entries`) and `echoed` (`probe:read`) and the hook
+`before-echo` (`tests/events.rs`).
 
 A permission the manifest marks `optional = true` (`[permissions."probe:read"]`, alone or beside its scope) arrives
 declined: the user ticks it at approval (`Choice.optional`) or grants it later (`plugin.permission`, `hestia plugin
 grant`), and the plugin is relinked, a declined interface answering `denied(<permission>)`. The mark must be on a
 permission the component needs, and on one every gated interface of which can be answered `denied` (`grant::deniable`:
-not `wasi:` nor `ipc`, which hold resources and fail the load instead); a choice naming a permission that is not
-optional is refused. Granting waits for a plugin with no command running; a revoke narrows, so it halts them, and a call
+not `wasi:` nor `ipc`, which hold resources and fail the load instead); an exported interface is not checked, since a
+declined one is simply not delivered or called. A choice naming a permission that is not optional is refused. Granting waits for a plugin with no command running; a revoke narrows, so it halts them, and a call
 already in flight keeps the link it began with until it ends. `hestia:kernel/permissions` (no permission) answers
 `granted(permission)` and `entries()` (`ids` empty when `all`), so a plugin adapts to what was approved.
 

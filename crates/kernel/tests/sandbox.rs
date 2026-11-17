@@ -10,6 +10,7 @@ use kernel::{Answer, Limits, NoticeLevel, Sandbox, SandboxError, Services};
 use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
 
+#[allow(dead_code)]
 mod fixture;
 use fixture::{guest, scratch, service_guest, wasm};
 

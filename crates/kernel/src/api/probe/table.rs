@@ -8,8 +8,9 @@ pub const ENTRIES: &str = "probe:entries";
 /// `hestia:probe`: `read` asks, `entries` asks and takes the user's entries
 /// scope, `work` is open, and `filler` is the extension point a plugin fills by
 /// exporting it. `entry-opened` is a topic whose payload names an entry, so its
-/// read permission is `entries`, and `before-echo` a hook. `preview` and `legacy` stand in for an unstable and a
-/// deprecated interface.
+/// read permission is `entries`; `echoed` is one gated by `read`; `before-echo`
+/// is a hook. `preview` and `legacy` stand in for an unstable and a deprecated
+/// interface.
 pub fn table() -> Table {
     Table::new(
         vec![
@@ -18,6 +19,7 @@ pub fn table() -> Table {
             ("hestia:probe/entries", Some(ENTRIES)),
             ("hestia:probe/filler", None),
             ("hestia:probe/entry-opened", Some(ENTRIES)),
+            ("hestia:probe/echoed", Some(READ)),
             ("hestia:probe/before-echo", None),
             ("hestia:probe/preview", None),
             ("hestia:probe/legacy", None),

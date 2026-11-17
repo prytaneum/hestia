@@ -6,26 +6,13 @@ use std::sync::Arc;
 
 use kernel::{
     denials, Builtin, Busy, Descriptor, GrantError, GuestError, Limits, ManifestError,
-    PackageError, PluginError, Plugins, Sandbox, SandboxError, Services, Shape, ShapeError,
+    PackageError, PluginError, Plugins, Sandbox, SandboxError, Shape, ShapeError,
 };
 use proto::plugin::{PluginKind, PluginState, ScopeKind, Tier};
 use sha2::{Digest, Sha256};
 
 mod fixture;
-use fixture::{guest, scratch, service_guest, wasm};
-
-/// Mounts `/data` and keeps settings and secrets beside it, under one home.
-struct Files(PathBuf);
-
-impl Services for Files {
-    fn data_dir(&self, plugin: &str) -> Option<PathBuf> {
-        Some(kernel::sandbox_root(&self.0).join(plugin))
-    }
-
-    fn state_dir(&self, plugin: &str) -> Option<PathBuf> {
-        Some(self.0.join("plugins").join(plugin))
-    }
-}
+use fixture::{guest, scratch, service_guest, wasm, Files};
 
 fn sandbox(home: &Path) -> Arc<Sandbox> {
     let sandbox = Sandbox::new(

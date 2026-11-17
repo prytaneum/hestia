@@ -105,9 +105,9 @@ fn package_of(interface: &str) -> Option<&str> {
 }
 
 /// A permission is needed by importing or exporting an interface that `table`
-/// maps to it (a topic's export needs its read permission). A
-/// `hestia:` package other than the kernel's is a requirement on the built-in
-/// providing it. Pure: a program's digest is left empty, for [`pin`] to fill.
+/// maps to it (a topic's export needs its read permission). A `hestia:` package
+/// other than the kernel's, imported or exported, is a requirement on the
+/// built-in providing it. Pure: a program's digest is left empty, for [`pin`] to fill.
 pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant, GrantError> {
     let mut needed: BTreeMap<&str, &Permission> = BTreeMap::new();
     let mut requires = BTreeSet::new();
@@ -139,7 +139,13 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
     }
     for export in &shape.exports {
         let interface = unversioned(export);
-        if !package_of(interface).is_some_and(|p| table.knows_package(p)) {
+        let Some(package) = package_of(interface) else {
+            continue;
+        };
+        if package.starts_with("hestia:") && package != KERNEL_PACKAGE {
+            requires.insert(package.to_owned());
+        }
+        if !table.knows_package(package) {
             continue;
         }
         match table.gate(interface) {

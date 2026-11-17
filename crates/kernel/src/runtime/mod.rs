@@ -414,6 +414,13 @@ impl Sandbox {
         self.shared.wakeups.spend(plugin)
     }
 
+    /// Spends one of the plugin's event deliveries, a budget apart from its
+    /// wake-ups; otherwise says how long until one is refilled.
+    #[cfg(feature = "probe")]
+    pub(crate) fn spend_event(&self, plugin: &str) -> Result<(), Duration> {
+        self.shared.events.take(plugin)
+    }
+
     /// Stores a secret the user entered for the plugin.
     pub fn store_secret(&self, plugin: &str, key: &str, value: &str) -> Result<(), SandboxError> {
         settings::save_secret(&self.shared, plugin, key, value).map_err(SandboxError::Setting)

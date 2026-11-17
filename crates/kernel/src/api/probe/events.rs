@@ -1,16 +1,17 @@
 use std::sync::{Arc, Mutex, PoisonError};
 
-use tokio::task::JoinHandle;
 use wasmtime::component::{Instance, InstancePre};
 use wasmtime::Store;
 
-use super::bindings::exports::hestia::probe::{before_echo, entry_opened};
+use super::bindings::exports::hestia::probe::{before_echo, echoed, entry_opened};
+use crate::api::Chain;
 use crate::registry::{Hook, Point};
 use crate::runtime::extension::{Budget, Extension, Outcome};
 use crate::runtime::State;
 use crate::Plugins;
 
 pub const ENTRY_OPENED: &str = "hestia:probe/entry-opened@0.1.0";
+pub const ECHOED: &str = "hestia:probe/echoed@0.1.0";
 pub const BEFORE_ECHO: &str = "hestia:probe/before-echo@0.1.0";
 
 struct EntryOpened {
@@ -42,6 +43,34 @@ impl Point for EntryOpened {
 
     fn entries(&self) -> &[String] {
         &self.entry
+    }
+}
+
+struct Echoed {
+    text: String,
+}
+
+impl Extension for Echoed {
+    fn budget(&self) -> Budget {
+        Budget::Event
+    }
+
+    fn call<'a>(
+        &'a self,
+        store: &'a mut Store<State>,
+        instance: &'a Instance,
+        pre: &'a InstancePre<State>,
+    ) -> Outcome<'a> {
+        Box::pin(async move {
+            let topic = echoed::GuestIndices::new(pre)?.load(&mut *store, instance)?;
+            topic.call_heard(&mut *store, &self.text).await
+        })
+    }
+}
+
+impl Point for Echoed {
+    fn interface(&self) -> &'static str {
+        ECHOED
     }
 }
 
@@ -112,19 +141,27 @@ pub struct Vetoed {
 impl Plugins {
     /// Tells the plugins that hear `entry-opened` that `entry`, a stable id,
     /// was opened.
-    pub fn entry_opened(self: &Arc<Self>, entry: &str) -> JoinHandle<()> {
+    pub fn entry_opened(self: &Arc<Self>, entry: &str) {
         self.publish(Arc::new(EntryOpened {
             entry: [entry.to_owned()],
-        }))
+        }));
     }
 
-    /// Runs `before-echo` over the plugins that export it.
-    pub async fn before_echo(&self, text: &str) -> Hooked {
+    /// Tells the plugins that hear `echoed` the text that was echoed.
+    pub fn echoed(self: &Arc<Self>, text: &str) {
+        self.publish(Arc::new(Echoed {
+            text: text.to_owned(),
+        }));
+    }
+
+    /// Runs `before-echo` over the plugins that export it, for a call made
+    /// through `chain`.
+    pub async fn before_echo(&self, text: &str, chain: &Chain) -> Hooked {
         let hook = BeforeEcho(Mutex::new(Folding {
             text: text.to_owned(),
             veto: None,
         }));
-        let plugin = self.fold(&hook).await;
+        let plugin = self.fold(&hook, chain).await;
         let Folding { text, veto } = hook.0.into_inner().unwrap_or_else(PoisonError::into_inner);
         Hooked {
             text,

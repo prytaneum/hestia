@@ -4,8 +4,8 @@ use wasmtime::component::{Component, Instance, InstancePre};
 use wasmtime::Store;
 
 use super::bindings::exports::hestia::probe::filler::GuestIndices;
-use super::bindings::exports::hestia::probe::{before_echo, entry_opened};
-use super::events::{BEFORE_ECHO, ENTRY_OPENED};
+use super::bindings::exports::hestia::probe::{before_echo, echoed, entry_opened};
+use super::events::{BEFORE_ECHO, ECHOED, ENTRY_OPENED};
 use crate::api::Chain;
 use crate::runtime::extension::{Budget, Extension, Outcome};
 use crate::runtime::{Loaded, Sandbox, SandboxError, State};
@@ -48,6 +48,9 @@ pub(crate) fn check_exports(
     }
     if component.get_export_index(None, ENTRY_OPENED).is_some() {
         entry_opened::GuestIndices::new(pre).map_err(SandboxError::Load)?;
+    }
+    if component.get_export_index(None, ECHOED).is_some() {
+        echoed::GuestIndices::new(pre).map_err(SandboxError::Load)?;
     }
     if component.get_export_index(None, BEFORE_ECHO).is_some() {
         before_echo::GuestIndices::new(pre).map_err(SandboxError::Load)?;

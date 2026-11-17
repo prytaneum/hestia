@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 
+use kernel::Services;
+
 pub fn scratch() -> PathBuf {
     PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
 }
@@ -53,4 +55,17 @@ fn build(workspace: &str) -> PathBuf {
         String::from_utf8_lossy(&output.stderr)
     );
     target.join("wasm32-wasip2/release")
+}
+
+/// Mounts `/data` and keeps settings and secrets beside it, under one home.
+pub struct Files(pub PathBuf);
+
+impl Services for Files {
+    fn data_dir(&self, plugin: &str) -> Option<PathBuf> {
+        Some(kernel::sandbox_root(&self.0).join(plugin))
+    }
+
+    fn state_dir(&self, plugin: &str) -> Option<PathBuf> {
+        Some(self.0.join("plugins").join(plugin))
+    }
 }
