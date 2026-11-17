@@ -23,6 +23,9 @@ chrono = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Threading"] }
+
 # husky-rs installs the repo's git hooks (.husky/) via its build script on
 # `cargo test`. The virtual workspace has no root package to host it, so it lives
 # on this foundational leaf crate, which every `cargo test` compiles.

@@ -78,6 +78,18 @@ pub enum SchemaError {
     },
     #[error("{document} does not serialize to a JSON object, so it cannot be stamped")]
     NotAnObject { document: &'static str },
+    #[error("cannot read {document} at {path}: {source}")]
+    Read {
+        document: &'static str,
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    #[error("{document} at {path} is unusable and cannot be set aside: {source}")]
+    Aside {
+        document: &'static str,
+        path: PathBuf,
+        source: std::io::Error,
+    },
     #[error("cannot write {document} at {path}: {source}")]
     Write {
         document: &'static str,
@@ -131,15 +143,30 @@ pub fn encode<T: Document>(document: &T) -> Result<Value, SchemaError> {
 /// build — is renamed aside rather than treated as absent, because the caller's
 /// next write would otherwise land on top of it. The quarantine is recorded as a
 /// [`notices`] warning so somebody other than the log finds out.
+///
+/// A file that cannot be read at all is logged and also answers `None`; a
+/// caller whose next step is to write the document back uses [`try_load`], so
+/// that it never overwrites what it could not read.
 pub fn load<T: Document>(path: &Path) -> Option<T> {
+    try_load(path).unwrap_or_else(|error| {
+        tracing::warn!(path = %path.display(), %error, "document not loaded");
+        None
+    })
+}
+
+/// [`load`], except that only a missing file is `Ok(None)`. A file that cannot
+/// be read, or is unusable and cannot be set aside, is an error: the caller
+/// must not treat it as empty and write over it.
+pub fn try_load<T: Document>(path: &Path) -> Result<Option<T>, SchemaError> {
     let text = match std::fs::read_to_string(path) {
         Ok(text) => text,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
-        Err(e) => {
-            // Not a schema problem and not something a rename would survive:
-            // report it and leave the file exactly as it is.
-            tracing::warn!(path = %path.display(), "cannot read {}: {e}", T::NAME);
-            return None;
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(source) => {
+            return Err(SchemaError::Read {
+                document: T::NAME,
+                path: path.to_path_buf(),
+                source,
+            })
         }
     };
 
@@ -153,12 +180,13 @@ pub fn load<T: Document>(path: &Path) -> Option<T> {
                     source,
                 },
             )
+            .map(|()| None)
         }
     };
 
     match decode::<T>(value) {
-        Ok(document) => Some(document),
-        Err(error) => set_aside::<T>(path, error),
+        Ok(document) => Ok(Some(document)),
+        Err(error) => set_aside::<T>(path, error).map(|()| None),
     }
 }
 
@@ -210,12 +238,11 @@ fn stamp<T: Document>(value: &Value) -> Result<u32, SchemaError> {
 
 /// Move an unreadable document out of the way and record why.
 ///
-/// A rename that itself fails means the directory is not writable, in which case
-/// the write this was protecting against cannot happen either — so there is
-/// nothing further to do but say so loudly.
-fn set_aside<T: Document>(path: &Path, error: SchemaError) -> Option<T> {
+/// A rename that itself fails leaves the file where it is, so it is an error:
+/// the caller must not go on to write over it.
+fn set_aside<T: Document>(path: &Path, error: SchemaError) -> Result<(), SchemaError> {
     let destination = aside_path(path);
-    match std::fs::rename(path, &destination) {
+    match crate::fsys::rename(path, &destination) {
         Ok(()) => {
             tracing::warn!(
                 path = %path.display(),
@@ -227,20 +254,25 @@ fn set_aside<T: Document>(path: &Path, error: SchemaError) -> Option<T> {
                 path: destination.display().to_string(),
                 detail: error.to_string(),
             });
+            Ok(())
         }
-        Err(e) => {
+        Err(source) => {
             tracing::error!(
                 path = %path.display(),
-                "{error}; it could not be set aside either ({e})"
+                "{error}; it could not be set aside either ({source})"
             );
             notices::record(notices::Quarantine {
                 document: T::NAME.to_string(),
                 path: path.display().to_string(),
                 detail: error.to_string(),
             });
+            Err(SchemaError::Aside {
+                document: T::NAME,
+                path: path.to_path_buf(),
+                source,
+            })
         }
     }
-    None
 }
 
 fn aside_named(path: &Path, tag: &str) -> PathBuf {
@@ -311,6 +343,20 @@ mod tests {
     fn a_missing_document_is_absent_not_quarantined() {
         let dir = temp();
         assert!(load::<Doc>(&dir.path().join("nothing.json")).is_none());
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_an_error_not_an_empty_document() {
+        let dir = temp();
+        let path = dir.path().join("doc.json");
+        std::fs::create_dir(&path).unwrap();
+
+        assert!(matches!(
+            try_load::<Doc>(&path),
+            Err(SchemaError::Read { .. })
+        ));
+        assert!(load::<Doc>(&path).is_none());
+        assert!(path.is_dir(), "it is left exactly where it was");
     }
 
     #[test]
