@@ -3199,6 +3199,7 @@ dependencies = [
  "common",
  "futures-util",
  "getrandom 0.4.3",
+ "hestia-sdk",
  "hmac 0.13.0",
  "http",
  "http-body",

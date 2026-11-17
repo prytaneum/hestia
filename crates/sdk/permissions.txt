@@ -1,0 +1,4 @@
+hestia:kernel/secrets secrets
+hestia:kernel/download network:connect
+hestia:kernel/programs process:spawn
+hestia:kernel/ipc ipc:connect

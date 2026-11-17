@@ -12,9 +12,19 @@ pub mod base {
 
 /// The error a plugin returns to Hestia.
 pub use base::hestia::kernel::types::PluginError as Error;
+#[cfg(target_arch = "wasm32")]
 pub use base::hestia::kernel::{
-    app, data, download, ipc, jobs, log, messages, notify, programs, progress, secrets, settings,
+    app, data, download, ipc, jobs, log, messages, notify, permissions, programs, progress,
+    secrets, settings,
 };
+#[cfg(not(target_arch = "wasm32"))]
+pub use mock::{
+    app, data, download, ipc, jobs, log, messages, notify, permissions, programs, progress,
+    secrets, settings,
+};
+
+#[cfg(not(target_arch = "wasm32"))]
+pub mod mock;
 /// The bindings generator the SDK is built with, for a guest that imports a
 /// built-in's package (`runtime_path: "hestia::wit_bindgen::rt"`).
 pub use wit_bindgen;

@@ -257,7 +257,7 @@ a world of their own, `reach`, which a toolchain that keeps every world import, 
 that does not use them; exports `lifecycle`, `settings-changed`, `commands`, `on-schedule` and `on-job-done`) in
 `crates/sdk/wit/kernel/`. `crates/sdk` (`hestia-sdk`, MIT OR Apache-2.0, not a default member: it targets
 `wasm32-wasip2`) always carries the imports and enables one export per cargo feature; `hestia::export!` exports the
-enabled ones. A component's exports are found per interface, a missing one meaning not provided. The tests build the
+enabled ones. A component's exports are found per interface, a missing one meaning not provided. In developer mode a trap logs the guest backtrace (symbols when the component carries a name section; the engine always retains them) and a denial names its function in the plugin log. On native builds `hestia::mock` answers every import from memory and denies what the grant the test sets lacks; `sdk/permissions.txt` lists its gated interfaces and `crates/kernel/tests/mock.rs` keeps it equal to the table. The tests build the
 guests in `crates/kernel/tests/guest/` and `guest-services/` once per run; `examples/typescript/` builds a
 `lifecycle`-only plugin with `jco` under Bun in CI.
 
