@@ -245,20 +245,21 @@ hosts in `engine::net::hosts`.
 
 The kernel also holds the WASM sandbox (`runtime/`): one wasmtime engine for the daemon, a fresh store and instance per
 call, run as async calls that yield on every 10 ms epoch tick, so each call's wall-clock budget (`init` 10 s, an event
-such as `settings-changed` 5 s, a hook 2 s) also bounds a guest waiting inside a host call, and dropping the call stops the guest.
-Memory is capped at 256 MiB under the pooling allocator. At most 4 calls per plugin and 16 overall run at once; the rest
-wait for a slot within their budget. The third trap in ten minutes is reported as `TrapLimit`, and the registry disables
-the plugin. WASI has no sockets and an empty environment; what reaches outside the plugin is `wasi:http`, `download`,
-`programs` and `ipc`, below. Compiled components are cached under `meta/plugins/`, one entry per plugin, each tagged
-with HMAC-SHA256 under a per-install key kept outside `meta/`; an entry whose tag does not cover its source, the engine
-and its bytes is recompiled, never loaded. The API is `hestia:kernel@0.1.0` (`types`, `log`, `app`, `data`, `settings`,
-`secrets`, `messages`, `progress`, `notify`, `jobs`, and `download`, `programs` and `ipc` in a world of their own,
-`reach`, which a toolchain that keeps every world import, such as `jco`, leaves out of a plugin that does not use them;
-exports `lifecycle`, `settings-changed`, `commands`, `on-schedule` and `on-job-done`) in `crates/sdk/wit/kernel/`.
-`crates/sdk` (`hestia-sdk`, MIT OR Apache-2.0, not a default member: it targets `wasm32-wasip2`) always carries the
-imports and enables one export per cargo feature; `hestia::export!` exports the enabled ones. A component's exports are
-found per interface, a missing one meaning not provided. The tests build the guests in `crates/kernel/tests/guest/` and
-`guest-services/` once per run; `examples/typescript/` builds a `lifecycle`-only plugin with `jco` under Bun in CI.
+such as `settings-changed` 5 s, a hook 2 s) also bounds a guest waiting inside a host call, and dropping the call stops
+the guest. Memory is capped at 256 MiB under the pooling allocator. At most 4 calls per plugin and 16 overall run at
+once; the rest wait for a slot within their budget. The third trap in ten minutes is reported as `TrapLimit`, and the
+registry disables the plugin. WASI has no sockets and an empty environment; what reaches outside the plugin is
+`wasi:http`, `download`, `programs` and `ipc`, below. Compiled components are cached under `meta/plugins/`, one entry
+per plugin, each tagged with HMAC-SHA256 under a per-install key kept outside `meta/`; an entry whose tag does not cover
+its source, the engine and its bytes is recompiled, never loaded. The API is `hestia:kernel@0.1.0` (`types`, `log`,
+`app`, `data`, `settings`, `secrets`, `messages`, `progress`, `notify`, `jobs`, and `download`, `programs` and `ipc` in
+a world of their own, `reach`, which a toolchain that keeps every world import, such as `jco`, leaves out of a plugin
+that does not use them; exports `lifecycle`, `settings-changed`, `commands`, `on-schedule` and `on-job-done`) in
+`crates/sdk/wit/kernel/`. `crates/sdk` (`hestia-sdk`, MIT OR Apache-2.0, not a default member: it targets
+`wasm32-wasip2`) always carries the imports and enables one export per cargo feature; `hestia::export!` exports the
+enabled ones. A component's exports are found per interface, a missing one meaning not provided. The tests build the
+guests in `crates/kernel/tests/guest/` and `guest-services/` once per run; `examples/typescript/` builds a
+`lifecycle`-only plugin with `jco` under Bun in CI.
 
 **Version gates.** A package's WIT version is the API version; the table of each package states it, and the stability of
 an interface marked `@since`, `@unstable` or `@deprecated` (`Table::versioned`, `Table::stability`). The manifest's
@@ -297,7 +298,8 @@ per-plugin inbox of 256 with one delivering task. Events wait there for the plug
 more each second, apart from its wake-ups, so a flood never starves its schedules or `jobs.start`); only a full inbox
 drops, the oldest first. Each event is checked again just before it is delivered: it goes only to the guest that was
 queued for, and only while that guest still exports the interface, holds the permission and has the entries in scope.
-A relink (a permission change, an update, a reinstall) or a narrowed scope drops what was queued. A hook (2 s) runs over
+A relink (a permission change, an update, a reinstall) drops the queue; a narrowed scope drops only the events it no
+longer covers. A hook (2 s) runs over
 the plugins that export it in id order, for a call made through the caller's `Chain`, each seeing the result of the one
 before; a plugin that fails, traps, is already in the chain or times out is skipped, and only an explicit veto stops the
 rest. The test built-in defines the topics `entry-opened` (`probe:entries`) and `echoed` (`probe:read`) and the hook
@@ -308,9 +310,10 @@ declined: the user ticks it at approval (`Choice.optional`) or grants it later (
 grant`), and the plugin is relinked, a declined interface answering `denied(<permission>)`. The mark must be on a
 permission the component needs, and on one every gated interface of which can be answered `denied` (`grant::deniable`:
 not `wasi:` nor `ipc`, which hold resources and fail the load instead); an exported interface is not checked, since a
-declined one is simply not delivered or called. A choice naming a permission that is not optional is refused. Granting waits for a plugin with no command running; a revoke narrows, so it halts them, and a call
-already in flight keeps the link it began with until it ends. `hestia:kernel/permissions` (no permission) answers
-`granted(permission)` and `entries()` (`ids` empty when `all`), so a plugin adapts to what was approved.
+declined one is simply not delivered or called. A choice naming a permission that is not optional is refused. Granting
+waits for a plugin with no command running; a revoke narrows, so it halts them, and a call already in flight keeps the
+link it began with until it ends. `hestia:kernel/permissions` (no permission) answers `granted(permission)` and
+`entries()` (`ids` empty when `all`), so a plugin adapts to what was approved.
 
 An update keeps a granted optional permission only while it is optional in both versions with a scope no wider
 (`grant::carry`); one that was dropped and added back, or whose scope widened, arrives declined, and one that was

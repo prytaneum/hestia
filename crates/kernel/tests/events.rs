@@ -19,10 +19,14 @@ const OPTIONAL_BOTH: &str =
     "[permissions.\"probe:read\"]\noptional = true\n[permissions.\"probe:entries\"]\noptional = true\n";
 
 fn plugins(home: &Path) -> (Arc<Plugins>, Arc<Sandbox>) {
+    plugins_with(home, Limits::default())
+}
+
+fn plugins_with(home: &Path, limits: Limits) -> (Arc<Plugins>, Arc<Sandbox>) {
     let sandbox = Sandbox::new(
         scratch().join("plugin-cache"),
         &scratch().join("plugin-cache.key"),
-        Limits::default(),
+        limits,
     )
     .expect("sandbox")
     .with_services(Arc::new(Files(home.to_owned())));
@@ -119,7 +123,10 @@ async fn an_event_reaches_only_the_plugins_whose_scope_holds_its_entry() {
 #[tokio::test]
 async fn events_over_the_budget_wait_for_a_refill_and_spare_the_wakeups() {
     let home = tempfile::tempdir().unwrap();
-    let (plugins, sandbox) = plugins(home.path());
+    let (plugins, sandbox) = plugins_with(
+        home.path(),
+        Limits::default().with_event_budget(30.0, 1000.0),
+    );
     install(
         &plugins,
         home.path(),

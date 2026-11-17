@@ -166,6 +166,15 @@ impl Sandbox {
         crate::api::link(&mut linker)?;
         let ticker =
             Ticker::start(engine.clone()).map_err(|error| SandboxError::Engine(error.into()))?;
+        let shared = Shared::new(Arc::new(services::Unavailable));
+        #[cfg(feature = "probe")]
+        let shared = Shared {
+            events: Arc::new(wakeups::Wakeups::new(
+                limits.event_burst,
+                limits.event_refill_per_second,
+            )),
+            ..shared
+        };
         Ok(Sandbox {
             cache: Cache::open(cache_dir, key_file)?,
             admission: Admission::new(limits.clone()),
@@ -174,7 +183,7 @@ impl Sandbox {
             ticker,
             limits,
             online: Arc::new(AtomicBool::new(true)),
-            shared: Shared::new(Arc::new(services::Unavailable)),
+            shared,
         })
     }
 

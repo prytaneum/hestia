@@ -14,6 +14,10 @@ pub struct Limits {
     #[cfg(feature = "probe")]
     pub(super) hook_timeout: Duration,
     pub(super) command_timeout: Duration,
+    #[cfg(feature = "probe")]
+    pub(super) event_burst: f64,
+    #[cfg(feature = "probe")]
+    pub(super) event_refill_per_second: f64,
     pub(super) cancel_grace: Duration,
     pub(super) memory_bytes: usize,
     pub(super) calls_per_plugin: usize,
@@ -34,6 +38,10 @@ impl Default for Limits {
             #[cfg(feature = "probe")]
             hook_timeout: Duration::from_secs(2),
             command_timeout: Duration::from_secs(60 * 60),
+            #[cfg(feature = "probe")]
+            event_burst: super::wakeups::BURST,
+            #[cfg(feature = "probe")]
+            event_refill_per_second: super::wakeups::REFILL_PER_SECOND,
             cancel_grace: Duration::from_secs(5),
             memory_bytes: 256 << 20,
             calls_per_plugin: 4,
@@ -54,6 +62,17 @@ impl Limits {
             #[cfg(feature = "probe")]
             hook_timeout: budget,
             command_timeout: budget,
+            ..self
+        }
+    }
+
+    /// The deliveries a plugin may hear at once, and how many more it earns each
+    /// second.
+    #[cfg(feature = "probe")]
+    pub fn with_event_budget(self, burst: f64, refill_per_second: f64) -> Self {
+        Limits {
+            event_burst: burst,
+            event_refill_per_second: refill_per_second,
             ..self
         }
     }

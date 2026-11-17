@@ -159,8 +159,8 @@ impl Plugins {
     }
 
     /// Delivers the inbox one event at a time, each when the plugin's event
-    /// budget has one. A guest that is no longer the running one, or no longer
-    /// hears the event, loses what was queued for it.
+    /// budget has one. A guest that is no longer the running one loses what was
+    /// queued for it; one that no longer hears an event skips that event alone.
     async fn deliver(&self, guest: &Arc<Guest>) {
         let Ok(sandbox) = self.sandbox() else {
             guest.inbox.clear();
@@ -170,18 +170,18 @@ impl Plugins {
             while let Err(wait) = sandbox.spend_event(&guest.id) {
                 tokio::time::sleep(wait).await;
             }
-            let current = self
-                .running(&guest.id)
-                .filter(|(running, _)| Arc::ptr_eq(running, guest) && self.hears(guest, &*event));
-            let Some((_, loaded)) = current else {
-                let dropped = guest.inbox.clear() + 1;
-                tracing::debug!(
-                    plugin = guest.id,
-                    dropped,
-                    "events no longer heard; dropped"
-                );
+            let Some((running, loaded)) = self.running(&guest.id) else {
+                guest.inbox.clear();
                 return;
             };
+            if !Arc::ptr_eq(&running, guest) {
+                guest.inbox.clear();
+                return;
+            }
+            if !self.hears(guest, &*event) {
+                tracing::debug!(plugin = guest.id, "event no longer heard; skipped");
+                continue;
+            }
             let told = sandbox.extend(&loaded, Chain::default(), &*event).await;
             if let Err(error) = self.settled(&guest.id, told) {
                 tracing::warn!(plugin = guest.id, %error, "plugin failed an event");
