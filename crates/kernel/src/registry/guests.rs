@@ -47,6 +47,8 @@ pub(crate) struct Guest {
     pub scoped: bool,
     pub entries: Entries,
     pub loaded: Option<Loaded>,
+    #[cfg(feature = "probe")]
+    pub inbox: super::events::Inbox,
 }
 
 impl Guest {
@@ -78,6 +80,8 @@ impl Guest {
             scoped: false,
             entries: Entries::new(record.choice.entries),
             loaded: None,
+            #[cfg(feature = "probe")]
+            inbox: Default::default(),
         }
     }
 }
@@ -741,6 +745,8 @@ impl Plugins {
             scoped: effective.permissions.iter().any(|granted| granted.entries),
             entries,
             loaded: Some(loaded),
+            #[cfg(feature = "probe")]
+            inbox: Default::default(),
         })
     }
 

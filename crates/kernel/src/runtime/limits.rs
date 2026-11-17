@@ -11,6 +11,8 @@ const TABLE_ELEMENTS: usize = 100_000;
 pub struct Limits {
     pub(super) init_timeout: Duration,
     pub(super) event_timeout: Duration,
+    #[cfg_attr(not(feature = "probe"), allow(dead_code))]
+    pub(super) hook_timeout: Duration,
     pub(super) command_timeout: Duration,
     pub(super) cancel_grace: Duration,
     pub(super) memory_bytes: usize,
@@ -21,13 +23,15 @@ pub struct Limits {
 }
 
 impl Default for Limits {
-    /// 10 s for `init`, 5 s for an event such as `settings-changed`, an hour for
+    /// 10 s for `init`, 5 s for an event such as `settings-changed`, 2 s for a
+    /// hook, an hour for
     /// a command and 5 s more once its job is cancelled, 256 MiB per memory,
     /// 4 calls per plugin and 16 overall, three traps in ten minutes.
     fn default() -> Self {
         Limits {
             init_timeout: Duration::from_secs(10),
             event_timeout: Duration::from_secs(5),
+            hook_timeout: Duration::from_secs(2),
             command_timeout: Duration::from_secs(60 * 60),
             cancel_grace: Duration::from_secs(5),
             memory_bytes: 256 << 20,
@@ -46,6 +50,7 @@ impl Limits {
         Limits {
             init_timeout: budget,
             event_timeout: budget,
+            hook_timeout: budget,
             command_timeout: budget,
             ..self
         }

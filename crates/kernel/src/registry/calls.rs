@@ -120,7 +120,7 @@ impl Plugins {
         }
     }
 
-    fn running(&self, id: &str) -> Option<(Arc<Guest>, Loaded)> {
+    pub(super) fn running(&self, id: &str) -> Option<(Arc<Guest>, Loaded)> {
         let slots = self.slots();
         slots.iter().find_map(|slot| match &slot.kind {
             Kind::Guest(guest) if guest.id == id && slot.state == PluginState::Enabled => {
@@ -180,7 +180,11 @@ impl Plugins {
 
     /// A call that reached the trap limit leaves the plugin disabled, as an
     /// `init` that does, and ends the commands it still has running.
-    fn settled(&self, id: &str, outcome: Result<(), SandboxError>) -> Result<(), PluginError> {
+    pub(super) fn settled(
+        &self,
+        id: &str,
+        outcome: Result<(), SandboxError>,
+    ) -> Result<(), PluginError> {
         let Err(source) = outcome else { return Ok(()) };
         if matches!(source, SandboxError::TrapLimit(_)) {
             let mut slots = self.slots();

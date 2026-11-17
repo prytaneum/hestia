@@ -11,6 +11,8 @@ use super::host::State;
 pub(crate) enum Budget {
     /// As long as an event such as `settings-changed`.
     Event,
+    /// A hook is customisation, so it gets less than an event.
+    Hook,
 }
 
 pub(crate) type Outcome<'a> =

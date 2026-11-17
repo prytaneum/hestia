@@ -286,6 +286,16 @@ Every call enters its plugin into the `Chain` before it runs, so a plugin alread
 plumbing, which no production package uses yet; the kernel tests drive it with
 `tests/guest-services/src/bin/consumer.rs`.
 
+A package also defines **topics** and **hooks**, export interfaces the emitting plugin calls. The table maps an
+exported interface to a permission like an imported one, so exporting a topic needs its read permission (and appears in
+the grant); a topic whose permission depends on its payload is split into one interface per permission. A topic is
+delivered to each enabled plugin that exports it, holds that permission and has every entry the event names in its
+`entries` scope (the emitter passes stable ids), through a per-plugin inbox of 256 (past it the oldest event is dropped)
+drained one event at a time, each spending a wake-up; one with none left is skipped. A hook (2 s) runs over the plugins
+that export it in id order, each seeing the result of the one before; a plugin that fails, traps or times out is
+skipped, and only an explicit veto stops the rest. The test built-in defines `entry-opened` and `before-echo`
+(`tests/events.rs`).
+
 A permission the manifest marks `optional = true` (`[permissions."probe:read"]`, alone or beside its scope) arrives
 declined: the user ticks it at approval (`Choice.optional`) or grants it later (`plugin.permission`, `hestia plugin
 grant`), and the plugin is relinked, a declined interface answering `denied(<permission>)`. The mark must be on a

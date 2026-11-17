@@ -19,6 +19,10 @@ use running::Running;
 
 mod calls;
 mod dependencies;
+#[cfg(feature = "probe")]
+mod events;
+#[cfg(feature = "probe")]
+pub(crate) use events::{Hook, Point};
 mod guests;
 mod permissions;
 mod releases;

@@ -37,6 +37,26 @@ interface filler {
     fill: func(text: string) -> result<string, plugin-error>;
 }
 
+/// A topic: the plugin that exports it hears each event, in its own inbox.
+interface entry-opened {
+    use hestia:kernel/types@0.1.0.{plugin-error};
+
+    heard: func(entry: string) -> result<_, plugin-error>;
+}
+
+/// A hook: customisation, run in plugin id order, each seeing what the one
+/// before returned. Only `veto` stops the others.
+interface before-echo {
+    use hestia:kernel/types@0.1.0.{plugin-error};
+
+    variant verdict {
+        proceed(string),
+        veto(string),
+    }
+
+    check: func(text: string) -> result<verdict, plugin-error>;
+}
+
 /// Stand-ins for the version gates: no world imports them, so the gate's tests
 /// read them from the table and the WIT, and no guest links against them.
 @unstable(feature = preview)
@@ -55,4 +75,17 @@ world host {
     import work;
     import entries;
     export filler;
+}
+
+/// The extension points of a plugin that listens, apart from `host` so a guest
+/// that only uses the package need not implement them.
+world listener {
+    export entry-opened;
+    export before-echo;
+}
+
+/// What the sandbox knows of the package.
+world full {
+    include host;
+    include listener;
 }

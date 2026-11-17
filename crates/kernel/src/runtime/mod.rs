@@ -135,6 +135,12 @@ impl Loaded {
             .is_some()
     }
 
+    /// Whether the plugin holds `permission` (an optional one only once granted).
+    #[cfg(feature = "probe")]
+    pub(crate) fn holds(&self, permission: &str) -> bool {
+        self.reach.granted.iter().any(|held| held == permission)
+    }
+
     /// Whether the component exports `settings-changed`.
     pub fn provides_settings_changed(&self) -> bool {
         self.settings_changed.is_some()
@@ -341,6 +347,7 @@ impl Sandbox {
         };
         let budget = match extension.budget() {
             Budget::Event => self.limits.event_timeout,
+            Budget::Hook => self.limits.hook_timeout,
         };
         self.run(loaded, budget, call, Entry::Extension(extension))
             .await

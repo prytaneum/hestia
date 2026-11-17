@@ -7,6 +7,7 @@ mod bindings;
 mod calls;
 mod contract;
 mod convert;
+mod events;
 mod exports;
 mod host;
 mod table;
@@ -16,6 +17,7 @@ use crate::grant::Table;
 
 pub use calls::{ProbeCalls, Recorded};
 pub use contract::{Build, Create, Echo, EchoParams, Echoed, EntryRef, Open, Shout};
+pub use events::{Hooked, Vetoed};
 pub(crate) use exports::check_exports;
 pub use exports::FILLER;
 pub(crate) use host::link;

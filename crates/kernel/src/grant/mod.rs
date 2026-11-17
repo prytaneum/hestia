@@ -83,7 +83,7 @@ pub enum GrantError {
 
 pub(crate) const KERNEL_PACKAGE: &str = "hestia:kernel";
 
-fn unversioned(name: &str) -> &str {
+pub(crate) fn unversioned(name: &str) -> &str {
     name.split_once('@').map_or(name, |(base, _)| base)
 }
 
@@ -104,7 +104,8 @@ fn package_of(interface: &str) -> Option<&str> {
     interface.split_once('/').map(|(package, _)| package)
 }
 
-/// A permission is needed by importing an interface that `table` maps to it. A
+/// A permission is needed by importing or exporting an interface that `table`
+/// maps to it (a topic's export needs its read permission). A
 /// `hestia:` package other than the kernel's is a requirement on the built-in
 /// providing it. Pure: a program's digest is left empty, for [`pin`] to fill.
 pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant, GrantError> {
@@ -138,10 +139,15 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
     }
     for export in &shape.exports {
         let interface = unversioned(export);
-        if package_of(interface).is_some_and(|p| table.knows_package(p))
-            && matches!(table.gate(interface), Gate::Unknown)
-        {
-            return Err(GrantError::UnknownInterface(export.clone()));
+        if !package_of(interface).is_some_and(|p| table.knows_package(p)) {
+            continue;
+        }
+        match table.gate(interface) {
+            Gate::Open => {}
+            Gate::Needs(permission) => {
+                needed.insert(permission.name, permission);
+            }
+            Gate::Unknown => return Err(GrantError::UnknownInterface(export.clone())),
         }
     }
     for (name, scopes) in &manifest.permissions {
