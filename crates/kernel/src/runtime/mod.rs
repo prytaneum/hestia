@@ -47,10 +47,10 @@ use wasmtime::{
     WasmBacktraceDetails,
 };
 
+#[cfg(feature = "probe")]
 use crate::api::Chain;
 use crate::api::HostCalls;
 use crate::entries::Entries;
-#[cfg(feature = "probe")]
 use crate::grant::Denials;
 use admission::Admission;
 use bindings::exports::hestia::kernel::{
