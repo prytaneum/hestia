@@ -7,7 +7,7 @@ mod pin;
 #[cfg(feature = "sandbox")]
 mod plan;
 mod table;
-pub(crate) mod versions;
+mod versions;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -29,6 +29,7 @@ pub use pin::{pin, Reserved};
 #[cfg(feature = "sandbox")]
 pub(crate) use plan::plan_digest;
 pub use table::{Gate, Permission, Stability, Table};
+pub use versions::check_versions;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GrantError {
@@ -89,7 +90,8 @@ pub enum GrantError {
     },
 }
 
-pub(crate) const KERNEL_PACKAGE: &str = "hestia:kernel";
+/// The WIT package of the kernel's own interfaces.
+pub const KERNEL_PACKAGE: &str = "hestia:kernel";
 
 pub(crate) fn unversioned(name: &str) -> &str {
     name.split_once('@').map_or(name, |(base, _)| base)

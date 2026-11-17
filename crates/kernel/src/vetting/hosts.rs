@@ -95,7 +95,8 @@ impl Hosts {
         matches!(self.connect, Allowed::Only(_))
     }
 
-    pub(super) fn reaches(&self, host: &str) -> bool {
+    /// Whether `host`, lowercase and without a trailing dot, is one of the hosts.
+    pub fn reaches(&self, host: &str) -> bool {
         self.connect.matches(host)
     }
 

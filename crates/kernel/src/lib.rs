@@ -31,10 +31,9 @@ pub use api::{Chain, ChainError, HostCalls, Reply, Settled};
 pub use builtin::{Builtin, Busy, Descriptor};
 #[cfg(feature = "sandbox")]
 pub use error::{PackageError, PluginError};
-pub use grant::versions::check as check_versions;
 pub use grant::{
-    denials, derive, derive_everywhere, widens, Denials, Gate, GrantError, Permission, Stability,
-    Table,
+    check_versions, denials, derive, derive_everywhere, widens, Denials, Gate, GrantError,
+    Permission, Stability, Table, KERNEL_PACKAGE,
 };
 #[cfg(feature = "sandbox")]
 pub use install::sandbox_root;

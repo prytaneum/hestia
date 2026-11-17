@@ -626,7 +626,7 @@ impl Plugins {
         source: &Source,
     ) -> Result<Inspection, PluginError> {
         let manifest = &package.manifest;
-        let warnings = grant::versions::check(
+        let warnings = grant::check_versions(
             &self.table,
             manifest,
             &package.shape,
