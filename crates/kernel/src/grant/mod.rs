@@ -1,7 +1,10 @@
 //! What a component asks for, read from its imports and exports, and the
 //! digest the user's approval is bound to.
 
+mod kernel;
+#[cfg(feature = "sandbox")]
 mod pin;
+#[cfg(feature = "sandbox")]
 mod plan;
 mod table;
 pub(crate) mod versions;
@@ -9,16 +12,21 @@ pub(crate) mod versions;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use proto::plugin::{
-    Choice, Dependency, Grant, GrantedPermission, PermissionScope, Program, ScopeKind,
-};
+#[cfg(feature = "sandbox")]
+use proto::plugin::Choice;
+use proto::plugin::{Dependency, Grant, GrantedPermission, PermissionScope, Program, ScopeKind};
+#[cfg(feature = "sandbox")]
 use sha2::{Digest, Sha256};
 
 use crate::commands::{self, ScheduleDecl};
 use crate::manifest::{Manifest, Scopes};
-use crate::runtime::{Denials, Shape};
+use crate::shape::Shape;
+pub(crate) use kernel::table as kernel_table;
+#[cfg(feature = "sandbox")]
 pub(crate) use pin::digest;
+#[cfg(feature = "sandbox")]
 pub use pin::{pin, Reserved};
+#[cfg(feature = "sandbox")]
 pub(crate) use plan::plan_digest;
 pub use table::{Gate, Permission, Stability, Table};
 
@@ -314,6 +322,7 @@ fn endpoint_here(entry: &str) -> Result<bool, GrantError> {
     Ok(pipe == cfg!(windows))
 }
 
+#[cfg(feature = "sandbox")]
 /// Binds an approval to the package and what it reaches: the id, the exact
 /// manifest and component bytes, each permission with its scope (hosts,
 /// unhashed hosts, endpoints, and each program with its arguments and digest),
@@ -458,6 +467,7 @@ fn scope_widens(before: &GrantedPermission, now: &GrantedPermission) -> bool {
     }
 }
 
+#[cfg(feature = "sandbox")]
 /// The grant as the user left it: every required permission and the optional
 /// ones they granted.
 pub(crate) fn effective(grant: &Grant, choice: &Choice) -> Grant {
@@ -468,6 +478,7 @@ pub(crate) fn effective(grant: &Grant, choice: &Choice) -> Grant {
     effective
 }
 
+#[cfg(feature = "sandbox")]
 /// What an update keeps of `choice`, which was made against `old`: an optional
 /// permission stays granted only if it was optional before and still is, with a
 /// scope no wider; one that was required and became optional stays granted, since
@@ -494,6 +505,7 @@ pub(crate) fn carry(old: &Grant, new: &Grant, choice: &Choice) -> Choice {
     }
 }
 
+#[cfg(feature = "sandbox")]
 /// Refuses a choice that grants a permission the plugin does not mark optional.
 pub(crate) fn check_choice(grant: &Grant, choice: &Choice) -> Result<(), GrantError> {
     match choice.optional.iter().find(|name| {
@@ -506,6 +518,9 @@ pub(crate) fn check_choice(grant: &Grant, choice: &Choice) -> Result<(), GrantEr
         None => Ok(()),
     }
 }
+
+/// Interface name to the permission whose absence replaces it with a stub.
+pub type Denials = std::collections::HashMap<String, String>;
 
 /// Each import that needs a permission the grant lacks, to that permission.
 pub fn denials(table: &Table, shape: &Shape, granted: &[&str]) -> Denials {
@@ -537,7 +552,7 @@ mod tests {
             imports: imports.iter().map(|s| s.to_string()).collect(),
             exports: exports.iter().map(|s| s.to_string()).collect(),
         };
-        let table = crate::api::kernel::table();
+        let table = crate::grant::kernel_table();
         let refused = [
             (shape(&["foo:bar/baz@1.0.0"], &[]), "foo:bar"),
             (shape(&["just-a-function"], &[]), "a bare name"),
@@ -582,7 +597,7 @@ mod tests {
             imports: imports.iter().map(|s| s.to_string()).collect(),
             exports: Vec::new(),
         };
-        derive(&crate::api::kernel::table(), &manifest, &shape)
+        derive(&crate::grant::kernel_table(), &manifest, &shape)
     }
 
     #[test]

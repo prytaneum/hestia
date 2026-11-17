@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 
 use super::error::TrustError;
 use super::signature::Signer;
-use crate::install::{COMPONENT_MAX, MANIFEST_MAX};
+use crate::manifest::{COMPONENT_MAX, MANIFEST_MAX};
 
 const MANIFEST: &str = "plugin.toml";
 const COMPONENT: &str = "plugin.wasm";

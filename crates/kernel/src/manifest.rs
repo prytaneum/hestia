@@ -5,6 +5,8 @@ use serde::Deserialize;
 
 use crate::commands::{self, CommandDecl, DeclError, ScheduleDecl};
 
+pub(crate) const MANIFEST_MAX: u64 = 64 << 10;
+pub(crate) const COMPONENT_MAX: u64 = 64 << 20;
 const NAME_MAX: usize = 64;
 const VERSION_MAX: usize = 32;
 const SCOPE_VALUES_MAX: usize = 64;

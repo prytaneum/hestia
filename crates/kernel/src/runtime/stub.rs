@@ -1,13 +1,10 @@
-use std::collections::HashMap;
 use wasmtime::component::types::ComponentItem;
 use wasmtime::component::{Component, Linker, Type, Val};
 use wasmtime::Engine;
 
 use super::error::SandboxError;
 use super::host::State;
-
-/// Interface name to the permission whose absence replaces it with a stub.
-pub type Denials = HashMap<String, String>;
+use crate::grant::Denials;
 
 /// Replaces each denied import with functions that answer `denied(permission)`.
 /// Only an interface whose every item is a function returning a `result` can be

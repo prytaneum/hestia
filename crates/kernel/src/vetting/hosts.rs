@@ -1,3 +1,6 @@
+//! Only the sandbox's `Policy` reads what `Hosts` matches; without it `derive` just validates.
+#![cfg_attr(not(feature = "sandbox"), allow(dead_code))]
+
 use std::net::IpAddr;
 
 use super::Refusal;

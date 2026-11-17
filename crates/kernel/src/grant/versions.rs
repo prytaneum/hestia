@@ -7,7 +7,7 @@ use semver::Version;
 use super::table::Stability;
 use super::{package_of, unversioned, GrantError, Table, KERNEL_PACKAGE};
 use crate::manifest::Manifest;
-use crate::runtime::Shape;
+use crate::shape::Shape;
 
 fn release(version: &Version) -> (u64, u64, u64) {
     (version.major, version.minor, version.patch)

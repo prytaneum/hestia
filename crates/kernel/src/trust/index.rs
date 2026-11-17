@@ -177,6 +177,7 @@ impl Index {
     }
 }
 
+#[cfg(feature = "sandbox")]
 /// Whether `candidate` is a higher version than `installed`. An installed
 /// version that is not semver, as a dev install may have, is always older.
 pub fn is_newer(candidate: &str, installed: &str) -> bool {
@@ -187,6 +188,7 @@ pub fn is_newer(candidate: &str, installed: &str) -> bool {
     }
 }
 
+#[cfg(feature = "sandbox")]
 /// Whether `version` is one the caret `range` accepts. A version that is not
 /// semver, as a dev install may have, is accepted by none.
 pub fn accepts(range: &str, version: &str) -> bool {

@@ -144,7 +144,7 @@ impl Plugins {
     ) -> Result<Self, PluginError> {
         let path = data_home.join(FILE);
         let ordered = order(builtins)?;
-        let mut table = crate::api::kernel::table();
+        let mut table = crate::grant::kernel_table();
         for plugin in &ordered {
             let descriptor = plugin.descriptor();
             let invalid =

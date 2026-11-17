@@ -24,7 +24,6 @@ mod progress;
 mod reach;
 mod services;
 mod settings;
-mod shape;
 mod shared;
 mod stub;
 mod ticker;
@@ -48,10 +47,11 @@ use wasmtime::{
     WasmBacktraceDetails,
 };
 
-#[cfg(feature = "probe")]
 use crate::api::Chain;
 use crate::api::HostCalls;
 use crate::entries::Entries;
+#[cfg(feature = "probe")]
+use crate::grant::Denials;
 use admission::Admission;
 use bindings::exports::hestia::kernel::{
     commands, lifecycle, on_job_done, on_schedule, settings_changed,
@@ -69,9 +69,7 @@ pub use limits::Limits;
 use limits::MemoryCap;
 use reach::Reach;
 pub use services::{Answer, NoticeLevel, Services};
-pub use shape::{Shape, ShapeError};
 use shared::Shared;
-pub use stub::Denials;
 use ticker::Ticker;
 
 const CANCEL_POLL: Duration = Duration::from_millis(100);

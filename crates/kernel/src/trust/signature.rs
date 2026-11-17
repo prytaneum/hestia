@@ -73,6 +73,7 @@ impl Signer {
     }
 }
 
+#[cfg(feature = "sandbox")]
 /// Whether two key lines name the same key.
 pub(crate) fn same_key(a: &str, b: &str) -> bool {
     matches!((Signer::parse(a), Signer::parse(b)), (Ok(a), Ok(b)) if a.same_key(&b))

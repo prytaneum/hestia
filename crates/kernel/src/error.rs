@@ -2,7 +2,8 @@ use proto::error::{ErrorInfo, IoOp};
 
 use crate::grant::GrantError;
 use crate::manifest::ManifestError;
-use crate::runtime::{SandboxError, ShapeError};
+use crate::runtime::SandboxError;
+use crate::shape::ShapeError;
 use crate::trust::TrustError;
 
 #[derive(Debug, thiserror::Error)]

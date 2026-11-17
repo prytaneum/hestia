@@ -12,14 +12,12 @@ use proto::plugin::{Choice, Grant, PluginSource};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{PackageError, PluginError};
-use crate::manifest::Manifest;
-use crate::runtime::Shape;
+use crate::manifest::{Manifest, COMPONENT_MAX, MANIFEST_MAX};
+use crate::shape::Shape;
 use crate::trust::{same_key, Repository};
 
 const MANIFEST: &str = "plugin.toml";
 const COMPONENT: &str = "plugin.wasm";
-pub(crate) const MANIFEST_MAX: u64 = 64 << 10;
-pub(crate) const COMPONENT_MAX: u64 = 64 << 20;
 const STAGING: &str = ".staging";
 const PREVIOUS: &str = ".previous";
 

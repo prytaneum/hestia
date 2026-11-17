@@ -2,7 +2,7 @@
 //! its table, its adapter (the generated `Host` traits over [`HostCalls`], with
 //! conversions in `convert`) and the calls into the extension points it
 //! defines. Nothing else in the kernel changes. The kernel's own package keeps
-//! its table in `kernel/` and its adapters in `runtime`.
+//! its table in `grant/kernel.rs` and its adapters in `runtime`.
 //!
 //! The adapter plumbing (`Link`, the error mapping, extension calls) compiles
 //! with the packages that use it. Until the first real built-in package lands,
@@ -12,7 +12,6 @@ mod calls;
 mod chain;
 #[cfg(feature = "probe")]
 mod error;
-pub(crate) mod kernel;
 #[cfg(feature = "probe")]
 mod link;
 #[cfg(feature = "probe")]

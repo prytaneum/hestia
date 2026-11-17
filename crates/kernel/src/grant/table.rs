@@ -96,6 +96,7 @@ impl Table {
         self.stability.iter().copied()
     }
 
+    #[cfg(feature = "sandbox")]
     /// Adds `package`'s table. Refused when a row lies outside `package`, an
     /// interface or permission is already in this table, or a row names a
     /// permission the table lacks: each would let one package's grant speak for
@@ -216,7 +217,7 @@ mod tests {
             ),
         ];
         for (interface, needs, extra, case) in refused {
-            let mut table = crate::api::kernel::table();
+            let mut table = crate::grant::kernel_table();
             let other = Table::new(vec![(interface, needs)], extra.into_iter().collect())
                 .versioned("hestia:probe", "0.1.0");
             assert!(table.merge("hestia:probe", other).is_err(), "{case}");
@@ -237,13 +238,13 @@ mod tests {
             ),
         ] {
             assert!(
-                crate::api::kernel::table()
+                crate::grant::kernel_table()
                     .merge("hestia:probe", other)
                     .is_err(),
                 "{case}"
             );
         }
-        let mut table = crate::api::kernel::table();
+        let mut table = crate::grant::kernel_table();
         let probe = || {
             Table::new(
                 vec![("hestia:probe/read", Some("probe:read"))],

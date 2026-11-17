@@ -4,6 +4,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use super::*;
+use crate::vetting::was_refused;
 
 type Sent = Result<Response, reqwest::Error>;
 
