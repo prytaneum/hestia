@@ -261,13 +261,20 @@ grant). A plugin that is offline reaches nothing: `download` answers `offline` a
   through a `cap-std` directory handle on it, so no link the plugin plants is followed out; the file is staged as
   `.part` (unlinked if the call stops) and renamed into place, and needs a checksum or an unhashed host.
 - `process:spawn` (`programs`, unrestricted) lists invocations: `{ path, args, os }`, an absolute path, its exact
-  arguments and, optionally, the one OS (`linux`, `windows`, `macos`) it is for; only the current OS's entries are
-  granted. `derive` reads no file; the registry then pins each program by its sha256 (a regular file under 256 MiB,
+  arguments and, optionally, the one OS (`linux`, `windows`, `macos`) it is for (without `os`, the path's form decides:
+  `/...` is unix, `C:\...` is Windows); only the current OS's entries are granted. The path is judged for its own
+  platform on every machine (`grant/program.rs`), before any file is opened: unix paths start with `/`; Windows paths
+  are `C:\...\name.exe` drive paths, with no UNC, `\\?\`, `\\.\`, stream, wildcard or device name. `derive` reads no file; the registry then pins each program by its sha256 (a regular file under 256 MiB,
   checked on the opened handle) off the async executor, so a program that changed fails its approval at the next start
   and is refused again at the call. A program inside a plugin's sandbox (`sandbox/`), or one of Hestia's own binaries,
-  is refused, since the plugin could rewrite the first and the second would reach Hestia without its gates. It runs with
-  no shell, an empty environment, `/data` as its directory and output capped at 1 MiB, in its own process group (a job
-  object on Windows) that is killed when it ends or the call stops.
+  is refused, since the plugin could rewrite the first and the second would reach Hestia without its gates. What runs is what
+  was hashed: on Linux the program is copied into a sealed `memfd` while it is hashed and that copy is executed; on
+  Windows the file is held open without write or delete sharing until the process has started; elsewhere the start is
+  by path, after a check that the path is still the hashed file. It runs with no shell, an empty environment (Windows
+  keeps `SystemRoot`, `SystemDrive`, `windir`, `ComSpec` and `PATHEXT`, and `TEMP`/`TMP` are `/data`), `/data` as its
+  directory and output capped at 1 MiB, in its own process group (a job object on Windows, joined while the process is
+  still suspended) that is killed when it ends or the call stops. Output is read for a short grace after the program
+  ends, so a process that left the group cannot hold the call.
 - `ipc:connect` (`endpoints`, unrestricted) names exact unix socket paths or Windows pipe names; only the current
   platform's form is granted. The daemon's own endpoint, any pipe in Hestia's `hestia-` namespace and a pipe name Windows
   would normalise (`.`/`..`, separators, trailing dots) are refused, and a socket is judged again at connect time as the

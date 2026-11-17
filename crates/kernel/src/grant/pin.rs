@@ -1,11 +1,12 @@
 use std::fs::{File, OpenOptions};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 use proto::plugin::{Grant, ScopeKind};
 use sha2::{Digest, Sha256};
 
 use super::endpoint;
+use super::program::{check, Family};
 use super::GrantError;
 
 const PROGRAM_BYTES_MAX: u64 = 256 * 1024 * 1024;
@@ -67,6 +68,8 @@ pub fn pin(grant: &mut Grant, reserved: &Reserved) -> Result<(), GrantError> {
             ScopeKind::Programs => {
                 let mut known: Vec<(PathBuf, String)> = Vec::new();
                 for program in &mut scope.programs {
+                    check(&program.path, Family::HERE)
+                        .map_err(|reason| refuse(&program.path, reason.to_owned()))?;
                     let path = resolved(Path::new(&program.path));
                     if reserved.covers_program(&path) {
                         return Err(refuse(
@@ -100,21 +103,32 @@ pub fn pin(grant: &mut Grant, reserved: &Reserved) -> Result<(), GrantError> {
     Ok(())
 }
 
-/// The SHA-256 of the regular file at `path`, in lowercase hex. The file is
-/// checked on the handle that is read, never opened in a way that waits on a
-/// pipe, and refused past [`PROGRAM_BYTES_MAX`].
-pub fn digest(path: &Path) -> io::Result<String> {
+/// Opens the regular file at `path` for hashing, never in a way that waits on a
+/// pipe, and refuses what is past [`PROGRAM_BYTES_MAX`]. On Windows the handle
+/// denies writers and deleters for as long as it is open.
+pub(crate) fn open(path: &Path) -> io::Result<File> {
     let mut options = OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::custom_flags(&mut options, libc::O_NONBLOCK);
-    let file: File = options.open(path)?;
+    #[cfg(windows)]
+    {
+        const FILE_SHARE_READ: u32 = 1;
+        std::os::windows::fs::OpenOptionsExt::share_mode(&mut options, FILE_SHARE_READ);
+    }
+    let file = options.open(path)?;
     let metadata = file.metadata()?;
     if !metadata.is_file() || metadata.len() > PROGRAM_BYTES_MAX {
         return Err(io::Error::other(
             "not a regular file, or larger than 256 MiB",
         ));
     }
+    Ok(file)
+}
+
+/// The SHA-256 of what `file` holds, in lowercase hex, with every byte hashed
+/// also written to `copy`.
+pub(crate) fn hash(file: &File, mut copy: Option<&mut dyn Write>) -> io::Result<String> {
     let mut hash = Sha256::new();
     let mut reader = file.take(PROGRAM_BYTES_MAX + 1);
     let mut buffer = [0u8; 64 * 1024];
@@ -125,6 +139,9 @@ pub fn digest(path: &Path) -> io::Result<String> {
             read => {
                 total += read as u64;
                 hash.update(&buffer[..read]);
+                if let Some(copy) = copy.as_deref_mut() {
+                    copy.write_all(&buffer[..read])?;
+                }
             }
         }
     }
@@ -132,4 +149,9 @@ pub fn digest(path: &Path) -> io::Result<String> {
         return Err(io::Error::other("larger than 256 MiB"));
     }
     Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// The SHA-256 of the regular file at `path`, in lowercase hex.
+pub(crate) fn digest(path: &Path) -> io::Result<String> {
+    hash(&open(path)?, None)
 }

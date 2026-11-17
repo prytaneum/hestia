@@ -45,9 +45,10 @@ programs = [{ path = "/usr/bin/git", args = ["gc", "--auto"], os = "linux" }]
 ```
 
 An entry is an absolute path, its exact arguments and optionally the one OS (`linux`, `windows`, `macos`) it is for;
-only the current OS's entries are granted. `programs::run(path, args)` must name a declared invocation. The program is
+only the current OS's entries are granted. Without `os` the path's form decides the platform. A unix path starts with
+`/`; a Windows path is a drive path to an `.exe` (`C:\tools\tool.exe`), never a network (`\\server\...`) or device path. `programs::run(path, args)` must name a declared invocation. The program is
 pinned by its SHA-256 when the user approves, so a program that changes fails its approval at the next start and is
-refused at the call. It runs with no shell, an empty environment, `/data` as its directory and at most 1 MiB of each
+refused at the call. It runs with no shell, an empty environment (Windows keeps the few system variables programs need to start), `/data` as its directory and at most 1 MiB of each
 output stream, in its own process group that ends with the call. A program inside a plugin's sandbox directory or one of
 Hestia's own binaries is refused.
 

@@ -7,11 +7,11 @@ mod kernel;
 mod pin;
 #[cfg(feature = "sandbox")]
 mod plan;
+mod program;
 mod table;
 mod versions;
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
 
 #[cfg(feature = "sandbox")]
 use proto::plugin::Choice;
@@ -127,7 +127,7 @@ pub fn derive(table: &Table, manifest: &Manifest, shape: &Shape) -> Result<Grant
 
 /// [`derive`] with the programs and endpoints of every platform, the same on
 /// every machine: what a review of the plugin's reach needs. An entry that is
-/// not absolute on any platform is refused.
+/// not valid for the platform it is written for is refused.
 pub fn derive_everywhere(
     table: &Table,
     manifest: &Manifest,
@@ -318,20 +318,16 @@ fn scope_of(
             scope.values = here;
         }
         ScopeKind::Programs => {
-            for entry in scopes
-                .programs
-                .iter()
-                .filter(|e| platforms == Platforms::Every || e.os.is_none_or(|os| os.is_current()))
-            {
-                let absolute = match platforms {
-                    Platforms::Here => Path::new(&entry.path).is_absolute(),
-                    Platforms::Every => absolute_anywhere(&entry.path),
-                };
-                if !absolute {
+            for entry in scopes.programs.iter().filter(|e| {
+                platforms == Platforms::Every
+                    || (e.os.is_none_or(|os| os.is_current())
+                        && program::Family::of_entry(e) == program::Family::HERE)
+            }) {
+                if let Err(reason) = program::check(&entry.path, program::Family::of_entry(entry)) {
                     return Err(GrantError::Program {
                         permission: name.to_owned(),
                         entry: entry.path.clone(),
-                        reason: "write an absolute path".to_owned(),
+                        reason: reason.to_owned(),
                     });
                 }
                 scope.programs.push(Program {
@@ -344,15 +340,6 @@ fn scope_of(
         ScopeKind::Paths | ScopeKind::Entries => {}
     }
     Ok(scope)
-}
-
-fn absolute_anywhere(path: &str) -> bool {
-    let bytes = path.as_bytes();
-    path.starts_with(['/', '\\'])
-        || (bytes.len() > 2
-            && bytes[0].is_ascii_alphabetic()
-            && bytes[1] == b':'
-            && matches!(bytes[2], b'/' | b'\\'))
 }
 
 /// Whether `entry`, an absolute unix path or a Windows pipe name, is the form
@@ -594,6 +581,7 @@ pub fn denials(table: &Table, shape: &Shape, granted: &[&str]) -> Denials {
 #[cfg(test)]
 mod tests {
     use proto::plugin::GrantedSchedule;
+    use std::path::Path;
 
     use super::*;
 
@@ -682,7 +670,7 @@ mod tests {
 
     #[test]
     fn network_programs_and_endpoints_each_need_their_permission_and_scope() {
-        let tool = std::env::temp_dir().join("tool");
+        let tool = std::env::temp_dir().join(if cfg!(windows) { "tool.exe" } else { "tool" });
         let tool = tool.display().to_string();
         let http = ["wasi:http/types@0.2.6", "wasi:http/outgoing-handler@0.2.6"];
         let hosts = |list: &str| format!("[permissions.\"network:connect\"]\nhosts = [{list}]\n");
