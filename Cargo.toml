@@ -77,6 +77,7 @@ wasmtime-wasi = { version = "50.0.1", default-features = false, features = ["p2"
 wasmtime-wasi-http = { version = "50.0.1", default-features = false, features = ["p2"] }
 http = "1.5.0"
 cap-std = "4.0.3"
+libc = "0.2"
 windows-sys = "0.61"
 http-body = "1.0.1"
 http-body-util = "0.1.5"
