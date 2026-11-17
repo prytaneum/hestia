@@ -275,26 +275,36 @@ impl Sandbox {
             .instantiate_pre(&opened.component)
             .map_err(SandboxError::Load)?;
         crate::api::check_exports(&opened.component, &pre)?;
-        let lifecycle = match opened.component.get_export_index(None, LIFECYCLE) {
-            Some(_) => Some(lifecycle::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
-            None => None,
-        };
-        let settings_changed = match opened.component.get_export_index(None, SETTINGS_CHANGED) {
-            Some(_) => Some(settings_changed::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
-            None => None,
-        };
-        let commands = match opened.component.get_export_index(None, COMMANDS) {
-            Some(_) => Some(commands::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
-            None => None,
-        };
-        let on_schedule = match opened.component.get_export_index(None, ON_SCHEDULE) {
-            Some(_) => Some(on_schedule::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
-            None => None,
-        };
-        let on_job_done = match opened.component.get_export_index(None, ON_JOB_DONE) {
-            Some(_) => Some(on_job_done::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
-            None => None,
-        };
+        let lifecycle = guest_export(
+            &opened.component,
+            LIFECYCLE,
+            &pre,
+            lifecycle::GuestIndices::new,
+        )?;
+        let settings_changed = guest_export(
+            &opened.component,
+            SETTINGS_CHANGED,
+            &pre,
+            settings_changed::GuestIndices::new,
+        )?;
+        let commands = guest_export(
+            &opened.component,
+            COMMANDS,
+            &pre,
+            commands::GuestIndices::new,
+        )?;
+        let on_schedule = guest_export(
+            &opened.component,
+            ON_SCHEDULE,
+            &pre,
+            on_schedule::GuestIndices::new,
+        )?;
+        let on_job_done = guest_export(
+            &opened.component,
+            ON_JOB_DONE,
+            &pre,
+            on_job_done::GuestIndices::new,
+        )?;
         tracing::info!(
             plugin = opened.plugin,
             lifecycle = lifecycle.is_some(),
@@ -613,6 +623,18 @@ async fn dropped_after_cancel(cancelled: Option<Arc<AtomicBool>>, grace: Duratio
         tokio::time::sleep(CANCEL_POLL).await;
     }
     tokio::time::sleep(grace).await;
+}
+
+fn guest_export<T>(
+    component: &Component,
+    interface: &str,
+    pre: &InstancePre<State>,
+    indices: fn(&InstancePre<State>) -> wasmtime::Result<T>,
+) -> Result<Option<T>, SandboxError> {
+    match component.get_export_index(None, interface) {
+        Some(_) => indices(pre).map(Some).map_err(SandboxError::Load),
+        None => Ok(None),
+    }
 }
 
 fn engine_config(limits: &Limits) -> Config {
