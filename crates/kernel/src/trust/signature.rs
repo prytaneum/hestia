@@ -57,10 +57,7 @@ impl Signer {
 
     /// SHA-256 of the ed25519 key, in hex: what a person compares.
     pub fn fingerprint(&self) -> String {
-        Sha256::digest(self.bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect()
+        hex::encode(Sha256::digest(self.bytes))
     }
 
     /// The trusted comment of `signature` once it verifies over `body`.

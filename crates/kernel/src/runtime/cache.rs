@@ -70,7 +70,7 @@ impl Cache {
 
     fn path(&self, plugin: &str) -> PathBuf {
         self.dir
-            .join(format!("{}.cwasm", hex(&Sha256::digest(plugin))))
+            .join(format!("{}.cwasm", hex::encode(Sha256::digest(plugin))))
     }
 
     fn verified(&self, path: &Path, engine: &Engine, source: &[u8]) -> Option<Vec<u8>> {
@@ -152,8 +152,4 @@ fn fresh_key() -> Result<[u8; KEY_BYTES], SandboxError> {
     getrandom::fill(&mut key)
         .map_err(|error| SandboxError::Engine(wasmtime::format_err!("{error}")))?;
     Ok(key)
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }

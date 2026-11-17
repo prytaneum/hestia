@@ -406,10 +406,7 @@ async fn an_export_is_told_the_size_and_sha512_of_every_pool_file_it_can_referen
     let mut pool = String::new();
     std::io::Read::read_to_string(&mut zip.by_name("pool.json").unwrap(), &mut pool).unwrap();
     let pool: Value = serde_json::from_str(&pool).unwrap();
-    let sha512: String = sha2::Sha512::digest(fixture::Files::BODY)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
+    let sha512: String = hex::encode(sha2::Sha512::digest(fixture::Files::BODY));
     assert_eq!(
         pool,
         json!([{

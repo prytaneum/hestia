@@ -206,7 +206,7 @@ fn a_changed_wit_needs_a_new_version() {
             hash.update(tokens(&std::fs::read_to_string(file).unwrap()));
             hash.update(b"\n");
         }
-        let hash: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
+        let hash: String = hex::encode(hash.finalize());
 
         let version = table.version(name).unwrap();
         let recorded = snapshot

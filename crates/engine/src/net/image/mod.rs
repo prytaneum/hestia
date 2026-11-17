@@ -94,7 +94,7 @@ impl ImageProxy {
     }
 
     fn remember(&self, url: &str, image: &Image) {
-        let sha256 = crate::checksum::hex(&Sha256::digest(&image.bytes));
+        let sha256 = hex::encode(Sha256::digest(&image.bytes));
         self.cache
             .store_bytes(&image.bytes, &sha256_checksum(sha256.clone()));
         let released = self.index.insert(

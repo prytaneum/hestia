@@ -33,19 +33,11 @@ impl Hasher {
 
     pub fn hex_digest(self) -> String {
         match self {
-            Hasher::Sha1(h) => hex(&h.finalize()),
-            Hasher::Sha256(h) => hex(&h.finalize()),
-            Hasher::Sha512(h) => hex(&h.finalize()),
+            Hasher::Sha1(h) => hex::encode(h.finalize()),
+            Hasher::Sha256(h) => hex::encode(h.finalize()),
+            Hasher::Sha512(h) => hex::encode(h.finalize()),
         }
     }
-}
-
-pub(crate) fn hex(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        s.push_str(&format!("{b:02x}"));
-    }
-    s
 }
 
 /// Streams the file, so a large archive is never held in memory. Generic over
@@ -69,5 +61,5 @@ pub(crate) fn digest_sized<D: Digest>(path: &Path) -> io::Result<(u64, String)> 
         size += n as u64;
         hasher.update(&buf[..n]);
     }
-    Ok((size, hex(&hasher.finalize())))
+    Ok((size, hex::encode(hasher.finalize())))
 }

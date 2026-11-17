@@ -364,7 +364,7 @@ async fn write(
     }
     file.flush().await.map_err(failed)?;
     drop(file);
-    let digest: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    let digest: String = hex::encode(hash.finalize());
     if wanted.is_some_and(|wanted| wanted != digest) {
         return Err(PluginError::Failed("checksum mismatch".into()));
     }

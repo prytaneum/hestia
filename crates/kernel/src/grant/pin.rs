@@ -148,7 +148,7 @@ pub(crate) fn hash(file: &File, mut copy: Option<&mut dyn Write>) -> io::Result<
     if total > PROGRAM_BYTES_MAX {
         return Err(io::Error::other("larger than 256 MiB"));
     }
-    Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
+    Ok(hex::encode(hash.finalize()))
 }
 
 /// The SHA-256 of the regular file at `path`, in lowercase hex.

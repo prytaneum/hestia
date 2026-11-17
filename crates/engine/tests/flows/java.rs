@@ -25,10 +25,7 @@ async fn serve(archive: Vec<u8>) -> String {
         "http://127.0.0.1:{}",
         listener.local_addr().expect("addr").port()
     );
-    let sha = Sha256::digest(&archive)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let sha = hex::encode(Sha256::digest(&archive));
     let assets = format!(
         r#"[{{"release_name":"jdk-21.0.1+12","binary":{{"os":"linux","architecture":"x64","image_type":"jdk","package":{{"link":"{base}/jdk.zip","name":"jdk.zip","checksum":"{sha}","size":{}}}}}}}]"#,
         archive.len()

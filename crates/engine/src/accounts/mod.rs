@@ -17,7 +17,6 @@ use proto::accounts::{Account, LoginMethod};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::checksum::hex;
 use microsoft::{
     launcher_login, minecraft_profile, poll_device_code, redeem_code, refresh_oauth,
     request_device_code, request_device_token, sisu_authenticate, sisu_authorize, xsts_authorize,
@@ -221,9 +220,9 @@ impl Accounts {
 
         let key = ProofKey::generate();
         let device = request_device_token(&key).await?;
-        let verifier = hex(&random_bytes(64));
+        let verifier = hex::encode(random_bytes(64));
         let challenge = base64url_nopad(&sha256_bytes(&verifier));
-        let state = hex(&random_bytes(16));
+        let state = hex::encode(random_bytes(16));
         let auth =
             sisu_authenticate(&device.token, &challenge, &state, &key, device.clock_offset).await?;
 

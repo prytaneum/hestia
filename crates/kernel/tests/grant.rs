@@ -56,10 +56,7 @@ fn state(plugins: &Plugins, id: &str) -> Option<PluginState> {
 }
 
 fn cache_entry(plugin: &str) -> PathBuf {
-    let name: String = Sha256::digest(plugin)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
+    let name: String = hex::encode(Sha256::digest(plugin));
     scratch().join("plugin-cache").join(format!("{name}.cwasm"))
 }
 

@@ -17,8 +17,5 @@ pub fn plan_digest(own: &str, planned: &[&str]) -> String {
     for digest in planned {
         field(digest);
     }
-    hash.finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    hex::encode(hash.finalize())
 }

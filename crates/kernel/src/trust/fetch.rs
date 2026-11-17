@@ -118,10 +118,7 @@ impl Fetched {
     pub async fn archive(&self, release: &Release) -> Result<Vec<u8>, TrustError> {
         let limits = limits(ARCHIVE_TIME, release.size);
         let bytes = get(&self.packages, &release.url, false, limits).await?;
-        let digest: String = Sha256::digest(&bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
+        let digest: String = hex::encode(Sha256::digest(&bytes));
         match digest.eq_ignore_ascii_case(&release.sha256) {
             true => Ok(bytes),
             false => Err(TrustError::Digest(release.url.clone())),

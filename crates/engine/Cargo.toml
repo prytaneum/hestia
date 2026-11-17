@@ -17,6 +17,7 @@ path = "tests/main.rs"
 loopback = ["kernel/loopback"]
 
 [dependencies]
+hex = { workspace = true }
 proto = { workspace = true }
 common = { workspace = true }
 kernel = { workspace = true, features = ["sandbox"] }

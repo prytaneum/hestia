@@ -15,6 +15,7 @@ path = "src/main.rs"
 portable = ["common/portable"]
 
 [dependencies]
+hex = { workspace = true }
 client = { workspace = true }
 common = { workspace = true }
 kernel = { workspace = true }

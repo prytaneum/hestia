@@ -440,10 +440,7 @@ pub fn approval_digest(
     let (repository, author) = signer.unwrap_or_default();
     field(repository.as_bytes());
     field(author.as_bytes());
-    hash.finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    hex::encode(hash.finalize())
 }
 
 /// Whether `new` asks for anything `old` did not: a permission, a scope entry
@@ -904,10 +901,7 @@ endpoints = ['/run/a.sock', '\\.\pipe\a']
             &["/run/a.sock"],
         );
         pin(&mut pinned, &reserved).unwrap();
-        let expected: String = Sha256::digest(b"v1")
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
+        let expected: String = hex::encode(Sha256::digest(b"v1"));
         let programs = &pinned.permissions[0].scope.as_ref().unwrap().programs;
         assert!(programs.iter().all(|program| program.sha256 == expected));
 

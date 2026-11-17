@@ -80,10 +80,7 @@ fn quick() -> Limits {
 }
 
 fn cache_entry(plugin: &str) -> PathBuf {
-    let name: String = Sha256::digest(plugin)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
+    let name: String = hex::encode(Sha256::digest(plugin));
     cache_dir().join(format!("{name}.cwasm"))
 }
 

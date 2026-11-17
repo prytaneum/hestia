@@ -77,13 +77,6 @@ fn now() -> u64 {
         .as_secs()
 }
 
-fn hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
 fn manifest(id: &str, version: &str, hosts: &[&str]) -> String {
     let mut text = format!("id = \"{id}\"\nname = \"{id}\"\nversion = \"{version}\"\n");
     if !hosts.is_empty() {
@@ -138,8 +131,8 @@ fn sign(keys: &minisign::KeyPair, body: &[u8], comment: &str) -> String {
 fn statement(id: &str, version: &str, manifest: &[u8], wasm: &[u8]) -> String {
     format!(
         "hestia-hplugin-v1\n{id}\n{version}\n{}\n{}\n",
-        hex(manifest),
-        hex(wasm)
+        hex::encode(Sha256::digest(manifest)),
+        hex::encode(Sha256::digest(wasm))
     )
 }
 
@@ -229,7 +222,7 @@ impl Publisher {
         let release = json!({
             "version": version,
             "url": format!("{}/{id}-{version}.hplugin", self.base),
-            "sha256": claimed.unwrap_or_else(|| hex(&archive)),
+            "sha256": claimed.unwrap_or_else(|| hex::encode(Sha256::digest(&archive))),
             "size": archive.len(),
         });
         let at = self.plugins.iter().position(|l| l["id"] == json!(id));

@@ -29,10 +29,6 @@ pub struct Hplugin {
     signature: String,
 }
 
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
 fn refused(reason: impl Into<String>) -> TrustError {
     TrustError::Archive(reason.into())
 }
@@ -42,8 +38,8 @@ fn refused(reason: impl Into<String>) -> TrustError {
 pub fn statement(id: &str, version: &str, manifest: &[u8], wasm: &[u8]) -> Vec<u8> {
     format!(
         "hestia-hplugin-v1\n{id}\n{version}\n{}\n{}\n",
-        hex(&Sha256::digest(manifest)),
-        hex(&Sha256::digest(wasm))
+        hex::encode(Sha256::digest(manifest)),
+        hex::encode(Sha256::digest(wasm))
     )
     .into_bytes()
 }

@@ -63,10 +63,6 @@ pub struct PublishArgs {
     pub(super) reason: Option<String>,
 }
 
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
 /// The host and the file name of a release URL: https, a host, a path ending
 /// in a name the repository directory can hold that is not the index's.
 fn split(url: &str) -> Result<(&str, &str)> {
@@ -130,7 +126,7 @@ fn previous(repository: &Repository, last: &Release) -> Result<Analysis> {
             last.version
         )
     })?;
-    if bytes.len() as u64 != last.size || hex(&Sha256::digest(&bytes)) != last.sha256 {
+    if bytes.len() as u64 != last.size || hex::encode(Sha256::digest(&bytes)) != last.sha256 {
         bail!(
             "{name} is not the package the index lists for {}",
             last.version
@@ -216,7 +212,7 @@ fn add(args: &PublishArgs, package: &Path, url: &str, now: u64) -> Result<String
     let release = Release {
         version: manifest.version.clone(),
         url: url.to_owned(),
-        sha256: hex(&Sha256::digest(&bytes)),
+        sha256: hex::encode(Sha256::digest(&bytes)),
         size: bytes.len() as u64,
     };
     let index = &mut repository.index;
