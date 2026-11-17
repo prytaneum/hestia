@@ -147,6 +147,12 @@ impl download::Host for State {
                     denied()
                 }
                 Failure::Send(error) => PluginError::Upstream(error.without_url().to_string()),
+            })
+            .inspect_err(|error| {
+                if matches!(error, PluginError::Denied(_)) {
+                    self.log
+                        .denied("hestia:kernel/download", "fetch", PERMISSION);
+                }
             })?;
         if !response.status().is_success() {
             return Err(PluginError::Upstream(format!("HTTP {}", response.status())));

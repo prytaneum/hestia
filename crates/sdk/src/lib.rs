@@ -18,7 +18,7 @@ pub use base::hestia::kernel::{
     secrets, settings,
 };
 #[cfg(not(target_arch = "wasm32"))]
-pub use mock::{
+pub use mock::imports::{
     app, data, download, ipc, jobs, log, messages, notify, permissions, programs, progress,
     secrets, settings,
 };

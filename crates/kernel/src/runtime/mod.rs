@@ -61,6 +61,8 @@ pub use error::{GuestError, SandboxError};
 #[cfg(feature = "probe")]
 pub(crate) use extension::{Budget, Extension};
 use host::Call;
+#[cfg(feature = "probe")]
+pub(crate) use host::PluginLog;
 pub(crate) use host::State;
 pub use jobs::{Invocation, JobOutcome};
 pub use limits::Limits;
@@ -100,7 +102,6 @@ pub struct Sandbox {
     ticker: Ticker,
     limits: Limits,
     online: Arc<AtomicBool>,
-    developer: Arc<AtomicBool>,
     shared: Shared,
 }
 
@@ -187,7 +188,6 @@ impl Sandbox {
             ticker,
             limits,
             online: Arc::new(AtomicBool::new(true)),
-            developer: Arc::new(AtomicBool::new(false)),
             shared,
         })
     }
@@ -211,9 +211,16 @@ impl Sandbox {
     }
 
     /// In developer mode a denial names the function in the plugin log and a
-    /// trap logs the guest backtrace.
+    /// trap logs the guest backtrace. The backtrace carries file and line when
+    /// the component has DWARF; the engine keeps it for every component, which
+    /// costs compile-time memory and is bounded by the trap limit.
     pub fn set_developer(&self, on: bool) {
-        self.developer.store(on, Ordering::Relaxed);
+        self.shared.developer.store(on, Ordering::Relaxed);
+    }
+
+    /// The developer-mode flag, shared with the registry so the two cannot differ.
+    pub(crate) fn developer_flag(&self) -> Arc<AtomicBool> {
+        self.shared.developer.clone()
     }
 
     /// Compiles `wasm` off the async executor, or takes it from the cache.
@@ -251,13 +258,7 @@ impl Sandbox {
             )));
         }
         let mut linker = self.linker.clone();
-        stub::link_denials(
-            &mut linker,
-            &self.engine,
-            &opened.component,
-            denials,
-            &self.developer,
-        )?;
+        stub::link_denials(&mut linker, &self.engine, &opened.component, denials)?;
         let pre = linker
             .instantiate_pre(&opened.component)
             .map_err(SandboxError::Load)?;
@@ -562,10 +563,10 @@ impl Sandbox {
             Err(_) => SandboxError::Timeout,
             Ok(Err(_)) if memory_exceeded => SandboxError::Memory,
             Ok(Err(error)) => {
-                if self.developer.load(Ordering::Relaxed) {
+                if self.shared.developer.load(Ordering::Relaxed) {
                     tracing::warn!(target: "plugin", plugin, "trapped\n{error:?}");
                 }
-                SandboxError::Trapped(format!("{error:#}"))
+                SandboxError::Trapped(error.root_cause().to_string())
             }
         };
         tracing::warn!(plugin, %failure, "plugin call failed");

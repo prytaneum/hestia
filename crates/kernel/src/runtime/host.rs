@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, PoisonError};
 
 use wasmtime::component::ResourceTable;
@@ -16,6 +16,49 @@ use crate::api::Chain;
 
 const LOG_LINE_BYTES: usize = 4096;
 const LOG_LINES_PER_CALL: usize = 1000;
+
+/// What a call may write to the host log: one budget of lines for the plugin's
+/// own lines and, in developer mode, the denials it is answered with.
+#[derive(Clone)]
+pub(crate) struct PluginLog {
+    plugin: String,
+    developer: Arc<AtomicBool>,
+    lines: Arc<AtomicUsize>,
+}
+
+impl PluginLog {
+    fn new(plugin: &str, developer: Arc<AtomicBool>) -> Self {
+        PluginLog {
+            plugin: plugin.to_owned(),
+            developer,
+            lines: Arc::default(),
+        }
+    }
+
+    /// Spends one line; the one that crosses the cap says so, later ones are dropped.
+    fn spend(&self) -> bool {
+        let line = self.lines.fetch_add(1, Ordering::Relaxed) + 1;
+        if line == LOG_LINES_PER_CALL + 1 {
+            tracing::warn!(
+                plugin = self.plugin,
+                "plugin log lines past {LOG_LINES_PER_CALL} in one call are dropped"
+            );
+        }
+        line <= LOG_LINES_PER_CALL
+    }
+
+    /// In developer mode, names the function a `denied(<permission>)` answered.
+    pub(crate) fn denied(&self, interface: &str, function: &str, permission: &str) {
+        if self.developer.load(Ordering::Relaxed) && self.spend() {
+            tracing::warn!(
+                target: "plugin",
+                plugin = self.plugin,
+                permission,
+                "denied: {interface}#{function}"
+            );
+        }
+    }
+}
 
 /// What a call is for, set by whoever starts it.
 #[derive(Default)]
@@ -37,7 +80,7 @@ pub(crate) struct State {
     pub(super) plugin: String,
     pub(super) online: bool,
     pub(super) connections: usize,
-    log_lines: usize,
+    pub(crate) log: PluginLog,
     pub(super) shared: Shared,
     pub(super) call: Call,
     /// The named locks this call holds, released when it ends however it ends.
@@ -77,7 +120,7 @@ impl State {
             plugin: plugin.to_owned(),
             online,
             connections: 0,
-            log_lines: 0,
+            log: PluginLog::new(plugin, shared.developer.clone()),
             shared,
             call,
             held: Vec::new(),
@@ -103,6 +146,7 @@ impl State {
     pub(crate) fn link(
         &self,
         permission: Option<&'static str>,
+        site: (&'static str, &'static str),
     ) -> Result<crate::api::Link, types::PluginError> {
         let calls = self
             .shared
@@ -114,6 +158,8 @@ impl State {
             calls,
             chain: self.call.chain.clone(),
             permission,
+            log: self.log.clone(),
+            site,
         })
     }
 }
@@ -166,17 +212,10 @@ impl types::Host for State {}
 
 impl log::Host for State {
     fn write(&mut self, level: log::Level, message: String) {
-        self.log_lines += 1;
-        let plugin = self.plugin.as_str();
-        if self.log_lines > LOG_LINES_PER_CALL {
-            if self.log_lines == LOG_LINES_PER_CALL + 1 {
-                tracing::warn!(
-                    plugin,
-                    "plugin log lines past {LOG_LINES_PER_CALL} in one call are dropped"
-                );
-            }
+        if !self.log.spend() {
             return;
         }
+        let plugin = self.plugin.as_str();
         let line = &message[..message.floor_char_boundary(LOG_LINE_BYTES)];
         match level {
             log::Level::Trace => tracing::trace!(target: "plugin", plugin, "{line:?}"),

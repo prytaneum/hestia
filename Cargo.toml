@@ -12,6 +12,7 @@ default-members = [
     "crates/ipc",
     "crates/kernel",
     "crates/proto",
+    "crates/sdk",
     "crates/tray",
 ]
 

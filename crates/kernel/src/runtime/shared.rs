@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use super::services::Services;
@@ -19,6 +20,8 @@ pub(super) struct Shared {
     /// The router the adapters call through; set once the daemon has one.
     pub calls: Arc<OnceLock<Arc<dyn HostCalls>>>,
     pub wakeups: Arc<Wakeups>,
+    /// Developer mode, which every plugin log of the sandbox reads.
+    pub developer: Arc<AtomicBool>,
     #[cfg(feature = "probe")]
     pub events: Arc<Wakeups>,
 }
@@ -32,6 +35,7 @@ impl Shared {
             mounted: Arc::default(),
             calls: Arc::default(),
             wakeups: Arc::default(),
+            developer: Arc::default(),
             #[cfg(feature = "probe")]
             events: Arc::default(),
         }

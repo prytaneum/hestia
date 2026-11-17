@@ -36,6 +36,7 @@ impl programs::Host for State {
             .find(|granted| granted.path == program && granted.args == args);
         let Some(granted) = granted else {
             tracing::warn!(plugin, program, "undeclared program invocation refused");
+            self.log.denied("hestia:kernel/programs", "run", PERMISSION);
             return Err(denied());
         };
         let (file, pinned) = (program.clone(), granted.sha256.clone());
@@ -48,6 +49,7 @@ impl programs::Host for State {
                 program,
                 "program differs from the one approved; refused"
             );
+            self.log.denied("hestia:kernel/programs", "run", PERMISSION);
             return Err(denied());
         }
         let data = self

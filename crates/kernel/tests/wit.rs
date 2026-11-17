@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use kernel::probe::Probe;
-use kernel::{Plugins, Stability, Table};
+use kernel::{Gate, Plugins, Stability, Table};
 use sha2::{Digest, Sha256};
 use wit_parser::Resolve;
 
@@ -92,6 +92,22 @@ fn the_tables_state_the_version_and_stability_the_wit_declares() {
                 "{full}"
             );
             attributed += usize::from(described(interface_stability) != "baseline");
+            let documented = resolve.interfaces[*id]
+                .docs
+                .contents
+                .as_deref()
+                .and_then(|docs| docs.split("Permission `").nth(1))
+                .and_then(|rest| rest.split('`').next());
+            let gated = match table.gate(&full) {
+                Gate::Needs(permission) => Some(permission.name),
+                _ => None,
+            };
+            if name == "hestia:kernel" {
+                assert_eq!(
+                    documented, gated,
+                    "{full}: the documented permission is the table's (the SDK mock reads it)"
+                );
+            }
             for (function, found) in &resolve.interfaces[*id].functions {
                 let own = described(&found.stability);
                 assert!(

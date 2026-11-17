@@ -1,7 +1,4 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
 use wasmtime::component::types::ComponentItem;
 use wasmtime::component::{Component, Linker, Type, Val};
 use wasmtime::Engine;
@@ -22,7 +19,6 @@ pub(super) fn link_denials(
     engine: &Engine,
     component: &Component,
     denials: &Denials,
-    developer: &Arc<AtomicBool>,
 ) -> Result<(), SandboxError> {
     linker.allow_shadowing(true);
     for (name, import) in component.component_type().imports(engine) {
@@ -47,18 +43,13 @@ pub(super) fn link_denials(
                 return Err(undeniable(function));
             }
             let permission = permission.clone();
-            let developer = developer.clone();
-            let interface = name.to_owned();
+            let interface = name.split('@').next().unwrap_or(name).to_owned();
             let function_name = function.to_owned();
             stub.func_new(function, move |context, _, _, results| {
-                if developer.load(Ordering::Relaxed) {
-                    tracing::warn!(
-                        target: "plugin",
-                        plugin = context.data().plugin.as_str(),
-                        permission,
-                        "denied: {interface}#{function_name}"
-                    );
-                }
+                context
+                    .data()
+                    .log
+                    .denied(&interface, &function_name, &permission);
                 let denied = Val::Variant(
                     "denied".into(),
                     Some(Box::new(Val::String(permission.clone()))),

@@ -7,31 +7,31 @@ use crate::runtime::{GuestError, SandboxError, State};
 
 impl read::Host for State {
     async fn echo(&mut self, text: String) -> Result<read::Echoed, GuestError> {
-        let link = self.link(Some(READ))?;
+        let link = self.link(Some(READ), ("hestia:probe/read", "echo"))?;
         Ok(link.call::<Echo>(&EchoParams { text }).await?.into())
     }
 }
 
 impl work::Host for State {
     async fn shout(&mut self, text: String) -> Result<read::Echoed, GuestError> {
-        let link = self.link(None)?;
+        let link = self.link(None, ("hestia:probe/work", "shout"))?;
         Ok(link.run_job::<Shout>(&EchoParams { text }).await?.into())
     }
 }
 
 impl entries::Host for State {
     async fn open(&mut self, id: String) -> Result<String, GuestError> {
-        let link = self.link(Some(ENTRIES))?;
+        let link = self.link(Some(ENTRIES), ("hestia:probe/entries", "open"))?;
         Ok(link.call::<Open>(&EntryRef { id }).await?.id)
     }
 
     async fn create(&mut self, id: String) -> Result<String, GuestError> {
-        let link = self.link(Some(ENTRIES))?;
+        let link = self.link(Some(ENTRIES), ("hestia:probe/entries", "create"))?;
         Ok(link.call::<Create>(&EntryRef { id }).await?.id)
     }
 
     async fn build(&mut self, id: String) -> Result<String, GuestError> {
-        let link = self.link(Some(ENTRIES))?;
+        let link = self.link(Some(ENTRIES), ("hestia:probe/entries", "build"))?;
         Ok(link.run_job::<Build>(&EntryRef { id }).await?.id)
     }
 }

@@ -1,13 +1,28 @@
 //! The mock host: every `hestia:kernel` import on native builds, answered from
 //! memory and checked against the grant a test sets, so a call the grant lacks
 //! answers `denied(<permission>)` in a unit test instead of failing at install.
+//! The permission of each gated interface is read from its WIT doc ("Permission
+//! `x`"), so the mock cannot name one the WIT does not.
 //!
-//! State is per thread, which is per test. Calls that succeed do the least that
-//! is observable: `download::fetch` writes nothing, `programs::run` exits 0 with
-//! no output, an `ipc` connection reads end-of-stream, and `settings::set` does
-//! not check that the value is JSON.
+//! Calls that succeed do the least that is observable: `download::fetch` writes
+//! nothing, `programs::run` exits 0 with no output, an `ipc` connection reads
+//! end-of-stream, and `settings::set` does not check that the value is JSON.
+//!
+//! What the mock does not model of the host:
+//!
+//! - State and the grant are per thread, which is per test. A plugin that runs on
+//!   another thread (a multi-thread runtime, `std::thread::spawn`) sees nothing
+//!   granted and gets `denied`.
+//! - `notify::confirm` answers what [`confirm`] says, not `unsupported` in a call
+//!   no person started; notices, links and `open_url` have no budget or check.
+//! - `app::info().online` is always true; there is no offline mode.
+//! - Locks are not released when a call ends: call [`reset`] between calls.
+//! - `permissions::entries` answers what [`entries`] set, unchecked.
+//! - There is no `/data`: `std::fs` on `/data/...` touches the real filesystem.
+//! - An `ipc` permission left out of the real grant fails the plugin's load
+//!   there; here the call answers `denied`.
 
-mod imports;
+pub(crate) mod imports;
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet};
@@ -16,19 +31,53 @@ use crate::base::hestia::kernel::log::Level;
 use crate::base::hestia::kernel::permissions::EntryScope;
 use crate::Error;
 
-pub use imports::{
-    app, data, download, ipc, jobs, log, messages, notify, permissions, programs, progress,
-    secrets, settings,
-};
+/// The WIT of each gated interface, whose doc names its permission.
+const GATED: [(&str, &str); 4] = [
+    (
+        "hestia:kernel/secrets",
+        include_str!("../../wit/kernel/secrets.wit"),
+    ),
+    (
+        "hestia:kernel/download",
+        include_str!("../../wit/kernel/download.wit"),
+    ),
+    (
+        "hestia:kernel/programs",
+        include_str!("../../wit/kernel/programs.wit"),
+    ),
+    (
+        "hestia:kernel/ipc",
+        include_str!("../../wit/kernel/ipc.wit"),
+    ),
+];
 
-/// `interface permission` per line: the permission a gated `hestia:kernel`
-/// interface needs. `crates/kernel/tests/grant.rs` keeps it equal to the host's
-/// permission table.
-const PERMISSIONS: &str = include_str!("../../permissions.txt");
+/// What the grant's scopes allow, as the user approved them.
+#[derive(Default, Clone, Debug)]
+pub struct Scope {
+    /// Hosts `download::fetch` may reach: exact names or `*.domain`, which
+    /// matches exactly one label below `domain`.
+    pub hosts: Vec<String>,
+    /// Those of `hosts` that may serve a file with no checksum.
+    pub unhashed: Vec<String>,
+    /// The invocations `programs::run` may make.
+    pub programs: Vec<Program>,
+    /// The exact socket paths or pipe names `ipc::connect` may open.
+    pub endpoints: Vec<String>,
+}
+
+/// One approved invocation: the path and the exact arguments, optionally for one
+/// OS (`"linux"`, `"windows"`, `"macos"`).
+#[derive(Clone, Debug)]
+pub struct Program {
+    pub path: String,
+    pub args: Vec<String>,
+    pub os: Option<String>,
+}
 
 #[derive(Default)]
 struct State {
     granted: HashSet<String>,
+    scope: Scope,
     entries: Option<EntryScope>,
     calls: Vec<String>,
     logs: Vec<(Level, String)>,
@@ -52,13 +101,16 @@ fn note(interface: &str, function: &str) {
     with(|host| host.calls.push(format!("{interface}#{function}")));
 }
 
+fn permission_of(wit: &str) -> Option<&str> {
+    wit.split("Permission `").nth(1)?.split('`').next()
+}
+
 fn gate(interface: &str, function: &str) -> Result<(), Error> {
     note(interface, function);
-    let needed = PERMISSIONS
-        .lines()
-        .filter_map(|line| line.split_once(' '))
+    let needed = GATED
+        .iter()
         .find(|(name, _)| *name == interface)
-        .map(|(_, permission)| permission);
+        .and_then(|(_, wit)| permission_of(wit));
     match needed {
         Some(permission) if !with(|host| host.granted.contains(permission)) => {
             Err(Error::Denied(permission.to_owned()))
@@ -67,14 +119,28 @@ fn gate(interface: &str, function: &str) -> Result<(), Error> {
     }
 }
 
+fn denied(interface: &str) -> Error {
+    let wit = GATED.iter().find(|(name, _)| *name == interface);
+    Error::Denied(
+        wit.and_then(|(_, wit)| permission_of(wit))
+            .unwrap_or_default()
+            .to_owned(),
+    )
+}
+
 /// Starts again from nothing granted and no history.
 pub fn reset() {
     with(|host| *host = State::default());
 }
 
-/// Sets the grant: the permissions the plugin holds (`"secrets"`, `"network:connect"`).
-pub fn grant(permissions: &[&str]) {
-    with(|host| host.granted = permissions.iter().map(|name| (*name).to_owned()).collect());
+/// Sets the grant: the permissions the plugin holds (`"secrets"`,
+/// `"network:connect"`) and the scopes of the ones that take any. State is per
+/// thread: see the module docs.
+pub fn grant(permissions: &[&str], scope: Scope) {
+    with(|host| {
+        host.granted = permissions.iter().map(|name| (*name).to_owned()).collect();
+        host.scope = scope;
+    });
 }
 
 /// Sets what `permissions::entries` answers; none by default.

@@ -126,7 +126,7 @@ pub struct Plugins {
     policy_for: PolicyFor,
     /// Whether a plugin installed from a directory may run. Changed only by
     /// [`Plugins::set_developer`], under `changes`.
-    developer: AtomicBool,
+    developer: Arc<AtomicBool>,
     running: Arc<Running>,
 }
 
@@ -178,6 +178,9 @@ impl Plugins {
                 tracing::warn!(%error, "built-in plugin did not start");
             }
         }
+        let developer = sandbox
+            .as_ref()
+            .map_or_else(Arc::default, |sandbox| sandbox.developer_flag());
         Ok(Plugins {
             path,
             slots: Mutex::new(slots),
@@ -192,7 +195,7 @@ impl Plugins {
             repositories: Repositories::new(data_home),
             official,
             policy_for: policy,
-            developer: AtomicBool::new(false),
+            developer,
             running: Running::new(),
         })
     }
@@ -212,9 +215,6 @@ impl Plugins {
     pub fn with_developer(self, on: bool) -> Self {
         self.developer
             .store(on, std::sync::atomic::Ordering::Relaxed);
-        if let Some(sandbox) = &self.sandbox {
-            sandbox.set_developer(on);
-        }
         self
     }
 

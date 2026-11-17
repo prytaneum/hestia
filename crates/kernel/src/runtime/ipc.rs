@@ -55,6 +55,7 @@ impl ipc::Host for State {
                 endpoint,
                 "endpoint outside the grant refused"
             );
+            self.log.denied("hestia:kernel/ipc", "connect", PERMISSION);
             return Err(PluginError::Denied(PERMISSION.to_owned()));
         }
         if self.connections >= CONNECTIONS_MAX {
