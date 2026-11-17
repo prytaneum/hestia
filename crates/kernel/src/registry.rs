@@ -204,6 +204,9 @@ impl Plugins {
     /// binaries and its daemon's endpoints. The plugins' sandbox directories are reserved
     /// already; the rest of the data home, such as its Java runtimes, can be granted.
     pub fn reserving(mut self, programs: Vec<PathBuf>, endpoints: Vec<String>) -> Self {
+        if let Some(sandbox) = &self.sandbox {
+            sandbox.reserve_endpoints(endpoints.clone());
+        }
         let reserved = Arc::make_mut(&mut self.reserved);
         reserved.programs = programs;
         reserved.endpoints = endpoints;

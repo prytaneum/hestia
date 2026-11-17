@@ -10,32 +10,78 @@ const WRITE_BYTES: usize = 1024 * 1024;
 const READ_BYTES: u32 = 64 * 1024;
 const CONNECTIONS_MAX: usize = 8;
 
-#[cfg(unix)]
-type Stream = tokio::net::UnixStream;
-#[cfg(windows)]
-type Stream = tokio::net::windows::named_pipe::NamedPipeClient;
-
-#[cfg(unix)]
-async fn open(endpoint: &str) -> std::io::Result<Stream> {
-    Stream::connect(endpoint).await
+/// Why an endpoint was not opened: the host refused it, or the system did.
+enum Opening {
+    Refused,
+    Failed(std::io::Error),
 }
 
-/// `ERROR_PIPE_BUSY`: every instance of the pipe is in use, which clears when
-/// the server accepts the next client. The call's own budget ends the wait.
-#[cfg(windows)]
-const ERROR_PIPE_BUSY: i32 = 231;
-#[cfg(windows)]
-const PIPE_BUSY_RETRY: std::time::Duration = std::time::Duration::from_millis(50);
+use platform::{open, Stream};
+
+#[cfg(unix)]
+mod platform {
+    use std::path::Path;
+
+    use super::Opening;
+    use crate::grant::Reserved;
+
+    pub type Stream = tokio::net::UnixStream;
+
+    /// A grant names a path, but what the path leads to can change after the
+    /// approval, so it is judged again as the file it resolves to: a symlink, or a
+    /// path through one, to Hestia's own socket is refused. The socket is then
+    /// reached by the resolved path.
+    pub async fn open(endpoint: &str, own: &Reserved) -> Result<Stream, Opening> {
+        let path = Path::new(endpoint);
+        let linked = std::fs::symlink_metadata(path)
+            .map(|meta| meta.file_type().is_symlink())
+            .unwrap_or(false);
+        if linked || own.covers_endpoint(endpoint) {
+            return Err(Opening::Refused);
+        }
+        let resolved = path.canonicalize().map_err(Opening::Failed)?;
+        if resolved
+            .to_str()
+            .is_none_or(|resolved| own.covers_endpoint(resolved))
+        {
+            return Err(Opening::Refused);
+        }
+        Stream::connect(resolved).await.map_err(Opening::Failed)
+    }
+}
 
 #[cfg(windows)]
-async fn open(endpoint: &str) -> std::io::Result<Stream> {
+mod platform {
+    use std::time::{Duration, Instant};
+
     use tokio::net::windows::named_pipe::ClientOptions;
-    loop {
-        match ClientOptions::new().open(endpoint) {
-            Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY) => {
-                tokio::time::sleep(PIPE_BUSY_RETRY).await
+
+    use super::Opening;
+    use crate::grant::Reserved;
+
+    pub type Stream = tokio::net::windows::named_pipe::NamedPipeClient;
+
+    /// `ERROR_PIPE_BUSY`: every instance of the pipe is in use, which clears when
+    /// the server accepts the next client.
+    const ERROR_PIPE_BUSY: i32 = 231;
+    const PIPE_BUSY_RETRY: Duration = Duration::from_millis(50);
+    const PIPE_BUSY_WAIT: Duration = Duration::from_secs(5);
+
+    pub async fn open(endpoint: &str, own: &Reserved) -> Result<Stream, Opening> {
+        if own.covers_endpoint(endpoint) {
+            return Err(Opening::Refused);
+        }
+        let deadline = Instant::now() + PIPE_BUSY_WAIT;
+        loop {
+            match ClientOptions::new().open(endpoint) {
+                Err(error)
+                    if error.raw_os_error() == Some(ERROR_PIPE_BUSY)
+                        && Instant::now() < deadline =>
+                {
+                    tokio::time::sleep(PIPE_BUSY_RETRY).await
+                }
+                opened => return opened.map_err(Opening::Failed),
             }
-            opened => return opened,
         }
     }
 }
@@ -61,7 +107,20 @@ impl ipc::Host for State {
         if self.connections >= CONNECTIONS_MAX {
             return Err(PluginError::Busy);
         }
-        let stream = open(&endpoint).await.map_err(failed)?;
+        let own = self.shared.own.get().cloned().unwrap_or_default();
+        let stream = match open(&endpoint, &own).await {
+            Ok(stream) => stream,
+            Err(Opening::Refused) => {
+                tracing::warn!(
+                    plugin = self.plugin,
+                    endpoint,
+                    "endpoint that reaches Hestia refused"
+                );
+                self.log.denied("hestia:kernel/ipc", "connect", PERMISSION);
+                return Err(PluginError::Denied(PERMISSION.to_owned()));
+            }
+            Err(Opening::Failed(error)) => return Err(failed(error)),
+        };
         let connection = self.table.push(Connection(stream)).map_err(failed)?;
         self.connections += 1;
         Ok(connection)

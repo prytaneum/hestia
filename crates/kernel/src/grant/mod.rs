@@ -1,6 +1,7 @@
 //! What a component asks for, read from its imports and exports, and the
 //! digest the user's approval is bound to.
 
+mod endpoint;
 mod kernel;
 #[cfg(feature = "sandbox")]
 mod pin;
@@ -354,21 +355,26 @@ fn absolute_anywhere(path: &str) -> bool {
             && matches!(bytes[2], b'/' | b'\\'))
 }
 
-const PIPE_PREFIX: &str = r"\\.\pipe\";
-
 /// Whether `entry`, an absolute unix path or a Windows pipe name, is the form
 /// this platform connects to. One manifest can list both.
 fn endpoint_here(entry: &str) -> Result<bool, GrantError> {
     let unix = entry.starts_with('/');
-    let pipe = entry.len() > PIPE_PREFIX.len()
-        && entry[..PIPE_PREFIX.len()].eq_ignore_ascii_case(PIPE_PREFIX);
-    if !unix && !pipe {
+    let pipe = endpoint::pipe_name(entry);
+    if !unix && pipe.is_none() {
         return Err(GrantError::Endpoint {
             entry: entry.to_owned(),
-            reason: format!("write an absolute path or a {PIPE_PREFIX} name"),
+            reason: format!("write an absolute path or a {} name", endpoint::PIPE_PREFIX),
         });
     }
-    Ok(pipe == cfg!(windows))
+    if pipe.is_some_and(|name| !endpoint::plain(name)) {
+        return Err(GrantError::Endpoint {
+            entry: entry.to_owned(),
+            reason:
+                "a pipe name is one plain segment, with no `.`, `..`, separators or trailing dots"
+                    .into(),
+        });
+    }
+    Ok(pipe.is_some() == cfg!(windows))
 }
 
 #[cfg(feature = "sandbox")]
@@ -692,7 +698,7 @@ mod tests {
         let other_os = if cfg!(windows) { "linux" } else { "windows" };
 
         type Check = fn(&GrantError) -> bool;
-        let refused: [(&[&str], String, Check); 9] = [
+        let refused: [(&[&str], String, Check); 11] = [
             (&http, String::new(), |e| matches!(e, GrantError::ScopeMissing(_))),
             (&http, hosts("\"1.2.3.4\""), |e| matches!(e, GrantError::Host { .. })),
             (&http, hosts("\"*.com\""), |e| matches!(e, GrantError::Host { .. })),
@@ -718,6 +724,16 @@ mod tests {
             (&["hestia:kernel/ipc@0.1.0"], String::new(), |e| {
                 matches!(e, GrantError::ScopeMissing(_))
             }),
+            (
+                &["hestia:kernel/ipc@0.1.0"],
+                endpoints(r#"'\\.\pipe\x\..\hestia-hestiad'"#),
+                |e| matches!(e, GrantError::Endpoint { .. }),
+            ),
+            (
+                &["hestia:kernel/ipc@0.1.0"],
+                endpoints(r#"'\\.\pipe\hestia-hestiad.'"#),
+                |e| matches!(e, GrantError::Endpoint { .. }),
+            ),
         ];
         for (imports, extra, expected) in refused {
             let error = derived(imports, &extra).unwrap_err();
@@ -919,6 +935,22 @@ endpoints = ['/run/a.sock', '\\.\pipe\a']
             (
                 grant(Vec::new(), &["/run/hestiad.sock"]),
                 "Hestia's own endpoint",
+            ),
+            (
+                grant(Vec::new(), &[r"\\.\pipe\hestia-S-1-5-21-hestiad"]),
+                "a pipe in Hestia's namespace",
+            ),
+            (
+                grant(Vec::new(), &[r"\\.\PIPE\Hestia-console"]),
+                "a pipe in Hestia's namespace, in another case",
+            ),
+            (
+                grant(Vec::new(), &[r"\\.\pipe\x\..\hestia-hestiad"]),
+                "a pipe name Windows normalises into Hestia's",
+            ),
+            (
+                grant(Vec::new(), &[r"\\.\pipe\hestia-hestiad. "]),
+                "a pipe name with trailing dots and spaces",
             ),
         ];
         #[cfg(unix)]

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use proto::plugin::{Grant, ScopeKind};
 use sha2::{Digest, Sha256};
 
+use super::endpoint;
 use super::GrantError;
 
 const PROGRAM_BYTES_MAX: u64 = 256 * 1024 * 1024;
@@ -33,7 +34,15 @@ impl Reserved {
             || self.programs.iter().any(|own| resolved(own) == program)
     }
 
-    fn covers_endpoint(&self, endpoint: &str) -> bool {
+    /// Whether `endpoint` is Hestia's own: a listed endpoint (compared as the
+    /// file it resolves to, so a symlink to one is caught), or any pipe in
+    /// Hestia's namespace or one Windows would read as something else.
+    pub(crate) fn covers_endpoint(&self, endpoint: &str) -> bool {
+        if let Some(name) = endpoint::pipe_name(endpoint) {
+            if !endpoint::plain(name) || endpoint::in_hestia_namespace(endpoint) {
+                return true;
+            }
+        }
         self.endpoints.iter().any(|own| {
             own.eq_ignore_ascii_case(endpoint)
                 || resolved(Path::new(own)) == resolved(Path::new(endpoint))

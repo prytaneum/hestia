@@ -17,6 +17,8 @@ pub const DESKTOP_QUIT_ARG: &str = "--quit";
 /// window. An AppImage's login entry starts the daemon this way, since the
 /// shell is the image's only entry point.
 pub const DESKTOP_DAEMON_ARG: &str = "--daemon";
+/// The named-pipe namespace Hestia's own pipes live in; plugins are never granted a name under it.
+pub const PIPE_NAMESPACE: &str = r"\\.\pipe\hestia-";
 pub const VENDOR: &str = "prytaneum";
 /// The release channel this build was shipped on, stamped at compile time by
 /// the release workflow. An untagged local build is `dev`.

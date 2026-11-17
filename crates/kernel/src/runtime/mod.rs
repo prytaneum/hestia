@@ -52,6 +52,7 @@ use crate::api::Chain;
 use crate::api::HostCalls;
 use crate::entries::Entries;
 use crate::grant::Denials;
+use crate::grant::Reserved;
 use admission::Admission;
 use bindings::exports::hestia::kernel::{
     commands, lifecycle, on_job_done, on_schedule, settings_changed,
@@ -200,6 +201,18 @@ impl Sandbox {
     pub fn set_calls(&self, calls: Arc<dyn HostCalls>) {
         if self.shared.calls.set(calls).is_err() {
             tracing::warn!("the host calls were already set");
+        }
+    }
+
+    /// Hestia's own endpoints, which `ipc.connect` refuses at connection time
+    /// whatever a grant or a symlink says.
+    pub fn reserve_endpoints(&self, endpoints: Vec<String>) {
+        let own = Reserved {
+            endpoints,
+            ..Reserved::default()
+        };
+        if self.shared.own.set(own).is_err() {
+            tracing::warn!("the reserved endpoints were already set");
         }
     }
 

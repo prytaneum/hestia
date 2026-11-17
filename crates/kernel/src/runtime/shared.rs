@@ -6,6 +6,7 @@ use super::services::Services;
 use super::settings::Files;
 use super::wakeups::Wakeups;
 use crate::api::HostCalls;
+use crate::grant::Reserved;
 
 /// What every call of a sandbox shares: the host's services and the state that
 /// outlives a call.
@@ -19,6 +20,8 @@ pub(super) struct Shared {
     pub mounted: Arc<Mutex<HashSet<String>>>,
     /// The router the adapters call through; set once the daemon has one.
     pub calls: Arc<OnceLock<Arc<dyn HostCalls>>>,
+    /// Hestia's own endpoints, which no connection may reach however it is spelled.
+    pub own: Arc<OnceLock<Reserved>>,
     pub wakeups: Arc<Wakeups>,
     /// Developer mode, which every plugin log of the sandbox reads.
     pub developer: Arc<AtomicBool>,
@@ -34,6 +37,7 @@ impl Shared {
             files: Arc::default(),
             mounted: Arc::default(),
             calls: Arc::default(),
+            own: Arc::default(),
             wakeups: Arc::default(),
             developer: Arc::default(),
             #[cfg(feature = "probe")]

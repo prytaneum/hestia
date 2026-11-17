@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
 use wasmtime::component::Resource;
 use wasmtime_wasi_http::{Error as HttpError, WasiBody, WasiHttpHooks};
@@ -16,7 +16,7 @@ use super::limits::MemoryCap;
 use super::reach::Reach;
 use super::shared::Shared;
 use super::Services;
-use crate::grant::digest;
+use crate::grant::{digest, Reserved};
 use crate::vetting::{Hosts, Policy};
 use proto::plugin::Program;
 
@@ -343,11 +343,50 @@ async fn a_program_runs_only_as_declared_and_only_while_it_is_the_one_approved()
     assert!(matches!(result, Err(PluginError::Failed(_))), "{result:?}");
 }
 
+async fn ping(plugin: &mut State, endpoint: String) {
+    let connection = ipc::Host::connect(plugin, endpoint).await.unwrap();
+    let again = Resource::new_borrow(connection.rep());
+    let invalid = plugin.read(again, 0).await;
+    assert!(
+        matches!(invalid, Err(PluginError::Invalid(_))),
+        "{invalid:?}"
+    );
+    plugin
+        .write(Resource::new_borrow(connection.rep()), b"ping".to_vec())
+        .await
+        .unwrap();
+    let mut answer = Vec::new();
+    loop {
+        let read = plugin
+            .read(Resource::new_borrow(connection.rep()), 64)
+            .await
+            .unwrap();
+        if read.is_empty() {
+            break;
+        }
+        answer.extend(read);
+    }
+    assert_eq!(answer, b"re:ping", "an empty read is the peer closing");
+    HostConnection::drop(plugin, connection).unwrap();
+    assert_eq!(plugin.connections, 0);
+}
+
+async fn echo_once(mut stream: impl AsyncRead + AsyncWrite + Unpin) {
+    let mut asked = [0u8; 4];
+    stream.read_exact(&mut asked).await.unwrap();
+    stream
+        .write_all(&[b"re:".as_slice(), &asked].concat())
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn a_local_endpoint_is_reached_only_when_the_grant_lists_it() {
     let dir = tempfile::tempdir().unwrap();
-    let endpoint = dir.path().join("peer.sock");
-    let listed = endpoint.to_str().unwrap().to_owned();
+    #[cfg(unix)]
+    let listed = dir.path().join("peer.sock").to_str().unwrap().to_owned();
+    #[cfg(windows)]
+    let listed = format!(r"\\.\pipe\tester-{}", std::process::id());
     let mut plugin = state(
         dir.path(),
         Reach {
@@ -364,40 +403,69 @@ async fn a_local_endpoint_is_reached_only_when_the_grant_lists_it() {
     }
     #[cfg(unix)]
     {
-        let listener = tokio::net::UnixListener::bind(&endpoint).unwrap();
+        let listener = tokio::net::UnixListener::bind(&listed).unwrap();
+        tokio::spawn(async move { echo_once(listener.accept().await.unwrap().0).await });
+    }
+    #[cfg(windows)]
+    {
+        let server = tokio::net::windows::named_pipe::ServerOptions::new()
+            .first_pipe_instance(true)
+            .create(&listed)
+            .unwrap();
         tokio::spawn(async move {
-            let (mut stream, _) = listener.accept().await.unwrap();
-            let mut asked = [0u8; 4];
-            stream.read_exact(&mut asked).await.unwrap();
-            stream
-                .write_all(&[b"re:".as_slice(), &asked].concat())
-                .await
-                .unwrap();
+            server.connect().await.unwrap();
+            echo_once(server).await
         });
-        let connection = ipc::Host::connect(&mut plugin, listed).await.unwrap();
-        let again = Resource::new_borrow(connection.rep());
-        let invalid = plugin.read(again, 0).await;
-        assert!(
-            matches!(invalid, Err(PluginError::Invalid(_))),
-            "{invalid:?}"
+    }
+    ping(&mut plugin, listed).await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn an_endpoint_that_leads_to_hestia_is_refused_when_connecting() {
+    let dir = tempfile::tempdir().unwrap();
+    let own = dir.path().join("hestiad.sock");
+    let _listener = tokio::net::UnixListener::bind(&own).unwrap();
+    let own = own.to_str().unwrap().to_owned();
+    let lane = dir.path().join("lane");
+    std::fs::create_dir(&lane).unwrap();
+    let sandbox = dir.path().join("sandbox");
+    std::fs::create_dir(&sandbox).unwrap();
+    std::os::unix::fs::symlink(dir.path(), sandbox.join("up")).unwrap();
+    std::os::unix::fs::symlink(&own, sandbox.join("link.sock")).unwrap();
+
+    for (case, endpoint) in [
+        ("a symlink to it", sandbox.join("link.sock")),
+        (
+            "a path through a symlinked directory",
+            sandbox.join("up/hestiad.sock"),
+        ),
+        (
+            "a path that climbs back to it",
+            lane.join("../hestiad.sock"),
+        ),
+        ("itself", PathBuf::from(&own)),
+    ] {
+        let endpoint = endpoint.to_str().unwrap().to_owned();
+        let mut plugin = state(
+            dir.path(),
+            Reach {
+                endpoints: vec![endpoint.clone()],
+                ..Reach::default()
+            },
         );
         plugin
-            .write(Resource::new_borrow(connection.rep()), b"ping".to_vec())
-            .await
+            .shared
+            .own
+            .set(Reserved {
+                endpoints: vec![own.clone()],
+                ..Reserved::default()
+            })
             .unwrap();
-        let mut answer = Vec::new();
-        loop {
-            let read = plugin
-                .read(Resource::new_borrow(connection.rep()), 64)
-                .await
-                .unwrap();
-            if read.is_empty() {
-                break;
-            }
-            answer.extend(read);
-        }
-        assert_eq!(answer, b"re:ping", "an empty read is the peer closing");
-        HostConnection::drop(&mut plugin, connection).unwrap();
-        assert_eq!(plugin.connections, 0);
+        let result = ipc::Host::connect(&mut plugin, endpoint).await;
+        assert!(
+            matches!(&result, Err(PluginError::Denied(named)) if named == "ipc:connect"),
+            "{case}: {result:?}"
+        );
     }
 }

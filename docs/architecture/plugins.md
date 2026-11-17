@@ -269,7 +269,10 @@ grant). A plugin that is offline reaches nothing: `download` answers `offline` a
   no shell, an empty environment, `/data` as its directory and output capped at 1 MiB, in its own process group (a job
   object on Windows) that is killed when it ends or the call stops.
 - `ipc:connect` (`endpoints`, unrestricted) names exact unix socket paths or Windows pipe names; only the current
-  platform's form is granted, and the daemon's own endpoint is refused. `connect` returns a connection resource with
+  platform's form is granted. The daemon's own endpoint, any pipe in Hestia's `hestia-` namespace and a pipe name Windows
+  would normalise (`.`/`..`, separators, trailing dots) are refused, and a socket is judged again at connect time as the
+  file it resolves to, so a symlink to Hestia's socket is refused; the busy-pipe wait ends after a few seconds.
+  `connect` returns a connection resource with
   `write` and `read`, closed when dropped or when the call ends. A plugin whose `ipc` permission was not granted fails
   to load, like one whose `wasi:http` was not: those interfaces hold resources, which cannot be answered with `denied`.
 
