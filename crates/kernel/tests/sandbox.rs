@@ -33,6 +33,31 @@ fn captured() -> String {
     String::from_utf8_lossy(&LOG.lock().unwrap()).into_owned()
 }
 
+/// The log entries of one plugin: an entry starts at a timestamp line and may
+/// span several, and tests of this binary run concurrently into one capture.
+fn captured_for(plugin: &str) -> String {
+    let marker = format!("plugin=\"{plugin}\"");
+    let log = captured();
+    let mut entries: Vec<String> = Vec::new();
+    for line in log.lines() {
+        match line.starts_with("20") {
+            true => entries.push(line.to_owned()),
+            false => match entries.last_mut() {
+                Some(entry) => {
+                    entry.push('\n');
+                    entry.push_str(line);
+                }
+                None => entries.push(line.to_owned()),
+            },
+        }
+    }
+    entries
+        .into_iter()
+        .filter(|entry| entry.contains(&marker))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn cache_dir() -> PathBuf {
     scratch().join("plugin-cache")
 }
@@ -414,7 +439,7 @@ async fn developer_mode_logs_the_backtrace_of_a_trap_and_the_function_of_a_denia
     let sandbox = sandbox(Limits::default());
     let trap = sandbox.load("dev-trap", wasm(guest("trap"))).await.unwrap();
     let error = sandbox.init(&trap).await.unwrap_err();
-    let log = captured();
+    let log = captured_for("dev-trap");
     assert!(
         !log.contains("trapped\n") && !log.contains("wasm backtrace"),
         "quiet outside developer mode: {log}"
@@ -425,7 +450,7 @@ async fn developer_mode_logs_the_backtrace_of_a_trap_and_the_function_of_a_denia
     );
     sandbox.set_developer(true);
     let _ = sandbox.init(&trap).await;
-    let log = captured();
+    let log = captured_for("dev-trap");
     let trapped = log.split("trapped\n").nth(1).expect("trap logged");
     assert!(trapped.contains("wasm backtrace"), "{trapped}");
     assert!(trapped.contains("trap.wasm!"), "{trapped}");
@@ -443,15 +468,15 @@ async fn developer_mode_logs_the_backtrace_of_a_trap_and_the_function_of_a_denia
         .unwrap();
     let _ = sandbox.init(&loaded).await;
     assert!(
-        !captured().contains("denied: hestia:kernel/secrets#"),
+        !captured_for("dev-denied").contains("denied: hestia:kernel/secrets#"),
         "quiet outside developer mode"
     );
     sandbox.set_developer(true);
     let _ = sandbox.init(&loaded).await;
     assert!(
-        captured().contains("denied: hestia:kernel/secrets#set"),
+        captured_for("dev-denied").contains("denied: hestia:kernel/secrets#set"),
         "{}",
-        captured()
+        captured_for("dev-denied")
     );
 }
 
@@ -465,14 +490,14 @@ async fn plugins_set_developer_reaches_the_sandbox_of_a_dev_installed_plugin() {
         Some(Arc::new(sandbox_services(Limits::default(), host.clone()))),
     )
     .unwrap();
-    host.mode("tour", "free");
+    host.mode("devflow", "free");
     plugins.set_developer(true).await;
 
     let pkg = home.path().join("pkg");
     std::fs::create_dir_all(&pkg).unwrap();
     std::fs::write(
         pkg.join("plugin.toml"),
-        "id = \"tour\"\nname = \"tour\"\nversion = \"0.1.0\"\n[[commands]]\nname = \"trap\"\n",
+        "id = \"devflow\"\nname = \"devflow\"\nversion = \"0.1.0\"\n[[commands]]\nname = \"trap\"\n",
     )
     .unwrap();
     std::fs::copy(service_guest("tour"), pkg.join("plugin.wasm")).unwrap();
@@ -482,7 +507,7 @@ async fn plugins_set_developer_reaches_the_sandbox_of_a_dev_installed_plugin() {
         .await
         .unwrap();
     let _ = plugins
-        .run_command("tour", "trap", "{}", kernel::Invocation::default())
+        .run_command("devflow", "trap", "{}", kernel::Invocation::default())
         .await;
-    assert!(captured().contains("trapped\n"), "{}", captured());
+    assert!(captured_for("devflow").contains("trapped\n"));
 }
