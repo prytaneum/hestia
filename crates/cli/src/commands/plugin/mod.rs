@@ -10,11 +10,13 @@ use proto::plugin::{
 
 use client::Client;
 
+mod author;
+
 use crate::ui::{self, View};
 
 /// The servers and instances a plugin may reach, as flags. A reference is an
 /// id or a name; the daemon resolves it.
-#[derive(Args, Default)]
+#[derive(Args, Default, Clone)]
 pub struct EntryArgs {
     /// Let it reach this server or instance; repeat for more
     #[arg(long = "entry", value_name = "ENTRY", conflicts_with = "all_entries")]
@@ -38,7 +40,7 @@ impl EntryArgs {
 }
 
 /// What you decide at approval beyond the permissions it lists.
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct ChoiceArgs {
     /// Grant an optional permission; none is granted unless named
     #[arg(long = "optional", value_name = "PERMISSION")]
@@ -49,6 +51,8 @@ pub struct ChoiceArgs {
 
 #[derive(Subcommand)]
 pub enum PluginCmd {
+    #[command(flatten)]
+    Author(author::AuthorCmd),
     /// Every plugin and its state
     List,
     /// Enable a plugin, and what it requires
@@ -422,8 +426,16 @@ fn entries_text(scope: &EntryScope) -> String {
 }
 
 pub async fn run(cmd: PluginCmd) -> Result<()> {
+    match cmd {
+        PluginCmd::Author(cmd) => author::run(cmd).await,
+        cmd => manage(cmd).await,
+    }
+}
+
+async fn manage(cmd: PluginCmd) -> Result<()> {
     let client = super::connect().await?;
     match cmd {
+        PluginCmd::Author(_) => unreachable!("`run` sends author commands elsewhere"),
         PluginCmd::List => {
             let plugins = client.plugin().list().await?;
             if plugins.is_empty() {

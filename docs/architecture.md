@@ -46,7 +46,7 @@ flowchart TD
     ipc --> common
     kernel --> proto & common
     engine --> proto & common & kernel
-    cli --> client & common & proto
+    cli --> client & common & proto & kernel
     daemon --> engine & kernel & proto & ipc & common & client
     tray --> client & common & ipc
     desktop -.->|"webview to bridge"| client
@@ -62,7 +62,7 @@ flowchart TD
 | `client`  | typed SDK, one facade per domain over a `Session`; re-exports `proto`                             |
 | `engine`  | the launcher core; knows no socket; lists the built-in plugins it compiles in                     |
 | `daemon`  | `hestiad`: router, services, job managers, the plugin registry, autostart; links `client` (ping)  |
-| `cli`     | `hestia`                                                                                          |
+| `cli`     | `hestia`; links `kernel` so the author's commands apply the rules the host applies                |
 | `desktop` | Tauri shell; the UI is the root `frontend/`                                                       |
 | `tray`    | `hestia-tray`                                                                                     |
 

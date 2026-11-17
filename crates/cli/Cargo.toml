@@ -17,6 +17,7 @@ portable = ["common/portable"]
 [dependencies]
 client = { workspace = true }
 common = { workspace = true }
+kernel = { workspace = true }
 proto = { workspace = true }
 clap = { workspace = true, features = ["string"] }
 ratatui = { workspace = true }
@@ -29,3 +30,8 @@ tokio = { workspace = true }
 futures-util = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
+minisign = { workspace = true }
+notify = { workspace = true }
+toml = { workspace = true }
+sha2 = { workspace = true }
+semver = { workspace = true }

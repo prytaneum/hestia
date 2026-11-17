@@ -601,6 +601,37 @@ and a link as the address with a question whether to open it. A plugin id may no
 resembles no command and so may be a plugin. The approval prompt of `plugin install` and `update` lists a plugin's
 schedules beside its permissions.
 
+### Writing a plugin
+
+The author's commands work on a project directory (the current one by default) and need no daemon, except `dev`. They
+apply the kernel's own rules, linked into the CLI: the manifest parse, the component shape, the version gates and the
+grant derivation. `check`, `world` and `pack` build the project for `wasm32-wasip2` and copy the component to
+`plugin.wasm`; `--wasm <file>` uses a built component instead.
+
+```bash
+hestia plugin new <id> [--sdk <hestia checkout>] [--tag <release>]   # a Rust project: plugin.toml, plugin.grant, CI
+hestia plugin check [dir] [--update-grant]   # every problem at once; the grant is compared with plugin.grant
+hestia plugin world [dir]        # imports, exports, derived permissions, requirements
+hestia plugin dev [dir]          # dev install (developer mode); rebuilds and reloads on change, streams the plugin's log
+hestia plugin test [dir] [-- args]           # the project's own `cargo test`
+hestia plugin pack [dir] --sign --key <author.key> [--out <file>]   # the .hplugin; writes `api` into plugin.toml
+hestia plugin publish <file.hplugin> --repository <dir> --key <repository.key> --url <https url> --author <key> [--allow-widen]
+```
+
+`plugin.grant` is the committed record of what the built component asks for: its permissions with their scopes, the
+required packages and plugins, the schedules and the exports. Hestia never reads it; `check`, `pack` and `publish`
+fail with a diff when the build asks for something else, and `check --update-grant` rewrites it. Without `--sign`, `pack`
+writes an unsigned package (an empty `plugin.minisig`), which nothing installs, and allows `@unstable` imports. With it,
+the author's minisign key signs `hestia-hplugin-v1`, the id, the version and the SHA-256 of `plugin.toml` and
+`plugin.wasm`, and an `@unstable` import is refused. `new` pins `hestia-sdk` to a git tag of this repository; `--sdk`
+points at a local checkout instead.
+
+A repository is a directory a web server serves: `index.json`, `index.json.minisig` and the packages, each under the file
+name of its `--url`. `publish` verifies the package against the author key (`--author` the first time; the index remembers
+it), adds the release (URL, SHA-256, size), bumps the index sequence, sets it to expire in 29 days, signs it with the
+repository key and checks it as a client would. It compares the grant with that of the newest published version, whose
+package must still be in the directory, and refuses one that asks for more unless `--allow-widen` says so.
+
 ## Download cache
 
 ```bash
