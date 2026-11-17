@@ -162,7 +162,8 @@ that directory. Release builds use `panic = "abort"` and `strip = true`, so rele
 API, grants and dependencies, repository trust, and the one network policy (`vetting`) that every request of Hestia goes
 through. It depends on `proto` and `common` only, so it cannot reach the launcher. `engine` implements its `Builtin`
 trait and sends core downloads through its vetting; `hestiad` owns the registry and the sandbox. The model and each
-mechanism are on [the plugin kernel page](architecture/plugins.md); writing a plugin is in [plugins/](plugins/README.md).
+mechanism are on [the plugin kernel page](architecture/plugins.md); writing a plugin is in
+[plugins/](plugins/README.md).
 
 ## Subsystem pages
 
