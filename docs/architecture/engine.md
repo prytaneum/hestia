@@ -176,7 +176,7 @@ source and Java package names the `Policy` its downloads run under (`download_po
 format's `policy`), so a built-in states its hosts in `net/hosts.rs` and a plugin will state its granted ones.
 Flavors, content sources, pack formats and Java distributions beyond the built-ins return with the new plugin system.
 
-The registry is not the engine's: it lives in the [kernel](../architecture.md#the-kernel). The engine only lists the
+The registry is not the engine's: it lives in the [kernel](plugins.md). The engine only lists the
 built-ins it compiles in (`engine::builtins()`, empty until servers, instances and content become plugins).
 
 ## Accounts and skins

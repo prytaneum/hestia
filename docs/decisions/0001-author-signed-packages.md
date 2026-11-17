@@ -1,6 +1,6 @@
 # A plugin is signed by its author's key, listed in a signed repository index
 
-*Applies to: [Architecture](../architecture.md#the-kernel)*
+*Applies to: [Architecture](../architecture/plugins.md#trust-and-repositories)*
 
 **Decision.** A release is a `.hplugin` zip signed by the plugin author's own minisign key. A repository's index, signed
 by the repository's pinned key, lists per plugin the author key and each release's digest. A release is accepted only
