@@ -155,3 +155,114 @@ pub(crate) fn hash(file: &File, mut copy: Option<&mut dyn Write>) -> io::Result<
 pub(crate) fn digest(path: &Path) -> io::Result<String> {
     hash(&open(path)?, None)
 }
+
+#[cfg(test)]
+mod tests {
+    use proto::plugin::{GrantedPermission, PermissionScope, Program};
+
+    use super::*;
+
+    #[test]
+    fn pinning_hashes_each_program_and_refuses_what_is_hestias_or_not_a_plain_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = crate::install::sandbox_root(dir.path());
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::create_dir(dir.path().join("java")).unwrap();
+        let (tool, own, inside) = (
+            dir.path().join("java/tool"),
+            dir.path().join("own"),
+            data.join("x"),
+        );
+        for file in [&tool, &own, &inside] {
+            std::fs::write(file, b"v1").unwrap();
+        }
+        let granted = |path: &Path, args: &[&str]| Program {
+            path: path.to_str().unwrap().to_owned(),
+            args: args.iter().map(|a| a.to_string()).collect(),
+            sha256: String::new(),
+        };
+        let grant = |programs: Vec<Program>, endpoints: &[&str]| Grant {
+            permissions: vec![
+                GrantedPermission {
+                    permission: "process:spawn".into(),
+                    scope: Some(PermissionScope {
+                        kind: ScopeKind::Programs,
+                        programs,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+                GrantedPermission {
+                    permission: "ipc:connect".into(),
+                    scope: Some(PermissionScope {
+                        kind: ScopeKind::Endpoints,
+                        values: endpoints.iter().map(|e| e.to_string()).collect(),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let reserved = Reserved {
+            directories: vec![data.clone()],
+            programs: vec![own.clone()],
+            endpoints: vec!["/run/hestiad.sock".into()],
+        };
+
+        let mut pinned = grant(
+            vec![granted(&tool, &[]), granted(&tool, &["-v"])],
+            &["/run/a.sock"],
+        );
+        pin(&mut pinned, &reserved).unwrap();
+        let expected: String = hex::encode(Sha256::digest(b"v1"));
+        let programs = &pinned.permissions[0].scope.as_ref().unwrap().programs;
+        assert!(programs.iter().all(|program| program.sha256 == expected));
+
+        let mut refused = vec![
+            (grant(vec![granted(&own, &[])], &[]), "a Hestia binary"),
+            (
+                grant(vec![granted(&inside, &[])], &[]),
+                "a file in a plugin's sandbox",
+            ),
+            (
+                grant(vec![granted(&dir.path().join("none"), &[])], &[]),
+                "a missing file",
+            ),
+            (grant(vec![granted(dir.path(), &[])], &[]), "a directory"),
+            (
+                grant(Vec::new(), &["/run/hestiad.sock"]),
+                "Hestia's own endpoint",
+            ),
+            (
+                grant(Vec::new(), &[r"\\.\pipe\hestia-S-1-5-21-hestiad"]),
+                "a pipe in Hestia's namespace",
+            ),
+            (
+                grant(Vec::new(), &[r"\\.\PIPE\Hestia-console"]),
+                "a pipe in Hestia's namespace, in another case",
+            ),
+            (
+                grant(Vec::new(), &[r"\\.\pipe\x\..\hestia-hestiad"]),
+                "a pipe name Windows normalises into Hestia's",
+            ),
+            (
+                grant(Vec::new(), &[r"\\.\pipe\hestia-hestiad. "]),
+                "a pipe name with trailing dots and spaces",
+            ),
+        ];
+        #[cfg(unix)]
+        {
+            let fifo = dir.path().join("fifo");
+            let name = std::ffi::CString::new(fifo.to_str().unwrap()).unwrap();
+            assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
+            refused.push((
+                grant(vec![granted(&fifo, &[])], &[]),
+                "a pipe, which would block",
+            ));
+        }
+        for (mut grant, case) in refused {
+            assert!(pin(&mut grant, &reserved).is_err(), "{case}");
+        }
+    }
+}
