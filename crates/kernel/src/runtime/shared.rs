@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -8,6 +8,8 @@ use super::wakeups::Wakeups;
 use crate::api::HostCalls;
 use crate::grant::Reserved;
 
+pub(super) type Downloading = Arc<Mutex<HashMap<String, u64>>>;
+
 /// What every call of a sandbox shares: the host's services and the state that
 /// outlives a call.
 #[derive(Clone)]
@@ -16,6 +18,8 @@ pub(super) struct Shared {
     /// The named locks held now, as (plugin, name).
     pub locks: Arc<Mutex<HashSet<(String, String)>>>,
     pub files: Arc<Files>,
+    /// Bytes the plugin's downloads in flight have written into `/data` so far.
+    pub downloading: Downloading,
     /// Plugins whose `/data` directory exists, so a call does not create it again.
     pub mounted: Arc<Mutex<HashSet<String>>>,
     /// The router the adapters call through; set once the daemon has one.
@@ -35,6 +39,7 @@ impl Shared {
             services,
             locks: Arc::default(),
             files: Arc::default(),
+            downloading: Arc::default(),
             mounted: Arc::default(),
             calls: Arc::default(),
             own: Arc::default(),

@@ -259,7 +259,9 @@ grant). A plugin that is offline reaches nothing: `download` answers `offline` a
   the plugin's `vetting::Policy`. `wasi:http` (through `wasmtime-wasi-http` with its own `send_request`; the guest
   follows redirects itself and each hop is vetted again) may reach any granted host. `download` streams into `/data`
   through a `cap-std` directory handle on it, so no link the plugin plants is followed out; the file is staged as
-  `.part` (unlinked if the call stops) and renamed into place, and needs a checksum or an unhashed host.
+  `.part` (unlinked if the call stops) and renamed into place, and needs a checksum or an unhashed host. A path is
+  valid when every name is valid on every OS (no `\`, `:`, device names such as `con` or `nul.txt`, trailing dot or
+  space), and a plugin's `/data` is held to 8 GiB in all: a download that would pass it fails.
 - `process:spawn` (`programs`, unrestricted) lists invocations: `{ path, args, os }`, an absolute path, its exact
   arguments and, optionally, the one OS (`linux`, `windows`, `macos`) it is for (without `os`, the path's form decides:
   `/...` is unix, `C:\...` is Windows); only the current OS's entries are granted. The path is judged for its own
@@ -289,7 +291,9 @@ The services a plugin calls reach the host through the `Services` trait the sand
 defaults provide nothing, so `settings` answers `unsupported` and `confirm` is declined. `/data` is the only WASI
 preopen and holds the plugin's own files (`<data_home>/sandbox/<id>/`); settings and secrets are schema documents in
 `<data_home>/plugins/<id>/`, apart from `/data` so no link in it reaches them, read once and kept in memory per plugin
-(`secrets.json` owner-only, an unreadable file set aside). An id is lowercase letters, digits and `-`, never a name
+(`secrets.json` owner-only, a file that is not a valid document set aside, one that cannot be read failing the call
+rather than reading as empty; the same holds for `plugins.json` and `repositories.json`). On Windows owner-only is a
+protected DACL for the current user and SYSTEM (`common::fsys`). An id is lowercase letters, digits and `-`, never a name
 Windows reserves (`kernel::id`). The grant, not `secrets`, refuses a plugin the user did not grant it. `data.try-lock`
 takes a named lock that lasts until `unlock` or the end of the call, however it ends. `messages` renders at most 16
 arguments into 4 KiB. `notify`, `confirm` and `open-url` never draw anything themselves: the daemon publishes

@@ -8,7 +8,7 @@ use wasmtime_wasi_http::{Error as HttpError, WasiBody, WasiHttpHooks};
 
 use super::bindings::hestia::kernel::ipc::HostConnection;
 use super::bindings::hestia::kernel::types::PluginError;
-use super::bindings::hestia::kernel::{download, ipc, programs};
+use super::bindings::hestia::kernel::{download, ipc, programs, secrets, settings};
 use super::download::Staged;
 use super::host::{Call, State};
 use super::http::Hooks;
@@ -25,6 +25,10 @@ struct Data(PathBuf);
 impl Services for Data {
     fn data_dir(&self, _plugin: &str) -> Option<PathBuf> {
         Some(self.0.clone())
+    }
+
+    fn state_dir(&self, _plugin: &str) -> Option<PathBuf> {
+        Some(self.0.join("state"))
     }
 }
 
@@ -121,12 +125,38 @@ async fn a_download_goes_only_to_granted_hosts_and_is_written_whole_or_not_at_al
     }
     assert!(!data.path().join("f").exists() && !data.path().join("f.part").exists());
 
-    for path in ["../f", "/etc/f", "a/../../f", ""] {
+    let unportable = [
+        "../f",
+        "/etc/f",
+        "a/../../f",
+        "",
+        "con",
+        "NUL.txt",
+        "a/Aux.tar.gz/f",
+        "com1",
+        "lpt\u{b9}",
+        "conout$",
+        "f:stream",
+        "f::$DATA",
+        "a\\f",
+        "f.",
+        "f ",
+        "a./f",
+        "d /f",
+        "f*",
+        "f\n",
+    ];
+    for path in unportable {
         let result = fetch(&mut plugin, &format!("{local}/f"), path, sha).await;
         assert!(
             matches!(result, Err(PluginError::Invalid(_))),
             "{path:?}: {result:?}"
         );
+    }
+
+    for path in ["console/com10.d/nulled", ".hidden", "a//b/./c"] {
+        let saved = fetch(&mut plugin, &format!("{local}/f"), path, sha).await;
+        assert_eq!(saved.unwrap(), 7, "{path}");
     }
 
     let wrong = "0".repeat(64);
@@ -467,5 +497,27 @@ async fn an_endpoint_that_leads_to_hestia_is_refused_when_connecting() {
             matches!(&result, Err(PluginError::Denied(named)) if named == "ipc:connect"),
             "{case}: {result:?}"
         );
+    }
+}
+
+#[tokio::test]
+async fn stored_state_that_cannot_be_read_fails_and_is_never_replaced() {
+    let data = tempfile::tempdir().unwrap();
+    let mut plugin = state(data.path(), Reach::default());
+    for name in ["settings.json", "secrets.json"] {
+        std::fs::create_dir_all(data.path().join("state").join(name)).unwrap();
+    }
+
+    let results = [
+        settings::Host::get(&mut plugin, "k".into()).await.map(drop),
+        settings::Host::set(&mut plugin, "k".into(), "1".into()).await,
+        secrets::Host::get(&mut plugin, "k".into()).await.map(drop),
+        secrets::Host::set(&mut plugin, "k".into(), "v".into()).await,
+    ];
+    for result in results {
+        assert!(matches!(result, Err(PluginError::Failed(_))), "{result:?}");
+    }
+    for name in ["settings.json", "secrets.json"] {
+        assert!(data.path().join("state").join(name).is_dir(), "{name}");
     }
 }

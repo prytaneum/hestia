@@ -30,6 +30,8 @@ impl Limits {
         time: None,
         bytes: 2 * 1024 * 1024 * 1024,
     };
+    /// What one plugin's `/data` may hold in all.
+    pub const DATA_QUOTA: u64 = 8 * 1024 * 1024 * 1024;
 }
 
 /// A request refused by the policy, or one that failed while being sent or read.

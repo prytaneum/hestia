@@ -33,7 +33,8 @@ credentials in the URL, a granted host, a resolver that refuses addresses inside
 checked again on every redirect. A plugin that is offline reaches nothing (`download` answers `offline`; check
 `app::info().online`).
 
-`download::fetch(url, path, sha256)` streams into `/data`: `path` is relative with no `..`, directories are created, the
+`download::fetch(url, path, sha256)` streams into `/data`: `path` is relative with no `..`, every name valid on Windows too (no `\`, `:`, `con`, `nul.txt`, trailing dot or space),
+directories are created, a fetch that would take `/data` past 8 GiB fails, the
 file is staged as `.part` and renamed, and a link inside `/data` that leaves it is refused. Without a SHA-256 the host
 must be listed in `unhashed`; prefer the checksum.
 
