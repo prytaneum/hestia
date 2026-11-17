@@ -20,6 +20,7 @@ pub(super) fn plain(name: &str) -> bool {
 }
 
 /// Whether `entry` is a pipe under Hestia's own namespace.
+#[cfg(feature = "sandbox")]
 pub(super) fn in_hestia_namespace(entry: &str) -> bool {
     let namespace = common::app::PIPE_NAMESPACE;
     entry
