@@ -322,6 +322,92 @@ and a dead key. A key reached dynamically (``m[`error.kind.${kind}`]``) needs it
 
 ---
 
+## Add a built-in plugin
+
+A built-in is Hestia's own code registered through the plugin registry, so it can be turned off and others can depend on
+it (see [the plugin kernel](architecture/plugins.md)). Implement `kernel::Builtin` and add it to `engine::builtins()`
+(`crates/engine/src/builtin.rs`); that list is the only wiring.
+
+```rust
+pub struct Example;
+
+impl Builtin for Example {
+    fn descriptor(&self) -> Descriptor {
+        Descriptor { id: "example", name: "Example", provides: Some("hestia:example"), requires: &[] }
+    }
+    fn table(&self) -> Option<Table> { Some(table()) }
+    fn enable(&self) -> anyhow::Result<()> { Ok(()) }
+    fn disable(&self) -> Result<(), Busy> { Ok(()) }
+}
+```
+
+- `provides` names the WIT package it owns and needs a `table()`; a built-in that owns no package returns `None` from
+  both. `requires` lists built-ins that must be enabled first. The registry refuses duplicate ids, a missing or cyclic
+  requirement and a table that does not match `provides`.
+- `enable` and `disable` run under the registry's lock and the router reads that lock on every owned call, so both only
+  register or unregister and return at once, and never reach the registry. `disable` answers `Busy` while work is
+  running; the registry then refuses to turn it off.
+- Name the built-in as the owner of its contracts in `proto` with
+  `const OWNER: Option<&'static str> = Some("example");`. The router answers `plugin_disabled` for them while it is off.
+
+## Add a built-in's WIT package
+
+A package is what lets a WASM plugin call a built-in. It lives in the kernel crate at `crates/kernel/src/api/<package>/`
+(the model is `api/probe/`, the test built-in behind the `probe` feature); nothing in `engine` or `daemon` changes.
+
+1. **The WIT**, `wit/<package>.wit`: `package hestia:<name>@<version>;`, one interface per permission (an interface with
+   no permission is open), `use hestia:kernel/types@<kernel version>.{plugin-error}` for errors, and a `host` world
+   (imports and the provider exports) plus a `full` world the sandbox's `bindgen!` reads. An addition after release is a
+   new interface marked `@since`; see the [version policy](../crates/sdk/wit/README.md).
+2. **The table**, `table.rs`: a `Table::new(interfaces, permissions)` mapping each interface to `Some(permission)` or
+   `None`, with each `Permission`'s tier (`Sandboxed`, or `Unrestricted` for what reaches native code or deletes data),
+   its scope kind (`ScopeKind::Entries` takes the user's entries scope) and prompt text, closed by
+   `.versioned("hestia:<name>", "<version>")`. Mark `@unstable`/`@deprecated` interfaces with `.stability(...)`.
+   `Builtin::table` returns it and `Plugins::new` merges it into the kernel's.
+3. **The adapter**, `host.rs` and `convert.rs`: implement the generated `Host` trait of each interface on `State`. Each
+   function takes a link (`self.link(Some(PERMISSION), (interface, function))`), converts the arguments to the
+   contract's `Params`, calls `link.call::<C>(...)` (or `link.run_job::<C>(...)` for a job, which waits for `done`) and
+   converts the result back. The router decides; the adapter only converts. `link()` adds the package's interfaces to
+   the linker.
+4. **The contracts** in `proto` implement `EntryAccess` (`touches` and `creates` list the `EntryTarget`s a call acts on
+   or made; return an empty list on purpose when it does neither) and, for a job, `JobAccess`. The daemon needs no
+   plugin-specific handler: `RouterCalls` routes the channel like any client call, after checking the owner is enabled
+   and every touched entry is inside the plugin's scope.
+5. **Wire it in** `api/mod.rs`: `mod <package>;`, and a line each in `link()` (the package's `link`) and
+   `check_exports()` (its extension points, so a malformed export fails the load).
+6. **Snapshot.** `crates/kernel/tests/wit.rs` lists the packages it checks (add the new one to `packages()`) and fails a
+   changed WIT under an unchanged version. Append the printed `<package> <version> <hash>` line to
+   `crates/sdk/wit/snapshot.txt`, and keep the package's `Table` version equal to the WIT's.
+
+Importing the package, or exporting one of its interfaces, is then a requirement on the built-in: an install is refused
+without it and it cannot be disabled while an enabled plugin needs it.
+
+## Add an extension point
+
+An extension point is an export interface the built-in's package defines for plugins to fill. Define it in the package's
+WIT with one typed function, and add its row to the table: an exported interface maps to a permission like an imported
+one, so exporting it needs that permission and appears in the grant. A topic whose permission depends on its payload is
+split into one interface per permission.
+
+- **A provider** (the built-in asks a plugin for an answer): write a type implementing `runtime::extension::Extension`
+  (`budget()`, and `call()` that looks the export up with the generated `GuestIndices` and calls it), and a method on
+  `Sandbox` that runs it through `Sandbox::extend` (see `Sandbox::fill` in `api/probe/exports.rs`). A component that
+  does not export the interface answers `None`.
+- **A topic** (the built-in tells plugins something happened): an `Extension` that is also a `registry::Point`
+  (`interface()`, and `entries()` with the stable ids the event is about), and a method on `Plugins` that calls
+  `self.publish(Arc::new(event))`. It reaches each enabled plugin that exports the interface, holds its permission and
+  has every named entry in scope, through the plugin's inbox and event budget.
+- **A hook** (a plugin may change or veto what the built-in is about to do): a `Point` that is also a `registry::Hook`
+  (`vetoed()`), run with `self.fold(&hook, chain)` in plugin-id order, each seeing the previous result; a plugin that
+  fails or times out is skipped, and only an explicit veto stops the rest. Hooks get the `Hook` budget, shorter than an
+  event's.
+- Register the export's type check in `check_exports()` so a wrong signature fails the load, not each call.
+
+`api/probe/events.rs` and `exports.rs` are the working examples, driven by `tests/events.rs`. Neither the plumbing nor
+the probe package is compiled without the `probe` feature, because no production package uses them yet.
+
+---
+
 ## Build & run
 
 ```bash
