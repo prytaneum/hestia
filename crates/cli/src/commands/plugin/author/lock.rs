@@ -6,9 +6,11 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::path::Path;
 
+use kernel::{Manifest, Shape, KERNEL_PACKAGE};
 use proto::plugin::{Grant, ScopeKind};
 use serde::Deserialize;
 
+use super::inspect::api_of;
 use super::project::LOCK;
 
 #[derive(Deserialize, Default, PartialEq, Eq, Debug)]
@@ -16,6 +18,10 @@ use super::project::LOCK;
 pub struct Lock {
     api: Option<String>,
     requires: Vec<String>,
+    /// The interfaces it imports from the packages that are not the kernel's:
+    /// the CLI cannot see the permissions of a built-in's package, so what
+    /// changes there shows here until the merged table replaces this.
+    imports: Vec<String>,
     permissions: BTreeMap<String, Permit>,
     dependencies: BTreeMap<String, String>,
     schedules: BTreeMap<String, String>,
@@ -46,6 +52,8 @@ struct Program {
     path: String,
     #[serde(default)]
     args: Vec<String>,
+    #[serde(default)]
+    os: Option<String>,
 }
 
 fn sorted<T: Ord>(mut items: Vec<T>) -> Vec<T> {
@@ -54,8 +62,11 @@ fn sorted<T: Ord>(mut items: Vec<T>) -> Vec<T> {
 }
 
 impl Lock {
-    /// What `grant` asks for, as built against `api`.
-    pub fn of(grant: &Grant, api: Option<String>) -> Lock {
+    /// What `grant` asks for, as built from `manifest` and `shape`. The grant
+    /// is derived for every platform, and the programs are read from the
+    /// manifest to keep the `os` each is written for, so the file is the same
+    /// on every machine.
+    pub fn of(manifest: &Manifest, grant: &Grant, shape: &Shape) -> Lock {
         let permissions = grant
             .permissions
             .iter()
@@ -76,12 +87,15 @@ impl Lock {
                         ScopeKind::Endpoints => permit.endpoints = values,
                         ScopeKind::Programs => {
                             permit.programs = sorted(
-                                scope
-                                    .programs
-                                    .iter()
+                                manifest
+                                    .permissions
+                                    .get(&granted.permission)
+                                    .into_iter()
+                                    .flat_map(|scopes| &scopes.programs)
                                     .map(|program| Program {
                                         path: program.path.clone(),
                                         args: program.args.clone(),
+                                        os: program.os.map(|os| os.name().to_owned()),
                                     })
                                     .collect(),
                             )
@@ -92,9 +106,17 @@ impl Lock {
                 (granted.permission.clone(), permit)
             })
             .collect();
+        let kernel_prefix = format!("{KERNEL_PACKAGE}/");
+        let imports = shape
+            .imports
+            .iter()
+            .filter(|import| import.starts_with("hestia:") && !import.starts_with(&kernel_prefix))
+            .cloned()
+            .collect();
         Lock {
-            api,
+            api: api_of(shape),
             requires: sorted(grant.requires.clone()),
+            imports: sorted(imports),
             permissions,
             dependencies: grant
                 .dependencies
@@ -120,8 +142,10 @@ impl Lock {
         if let Some(api) = &self.api {
             let _ = writeln!(text, "api = {}", quote(api));
         }
-        if !self.requires.is_empty() {
-            let _ = writeln!(text, "requires = {}", list(&self.requires));
+        for (name, values) in [("requires", &self.requires), ("imports", &self.imports)] {
+            if !values.is_empty() {
+                let _ = writeln!(text, "{name} = {}", list(values));
+            }
         }
         text.push_str("\n[permissions]\n");
         for (name, permit) in &self.permissions {
@@ -171,8 +195,12 @@ impl Permit {
                 .programs
                 .iter()
                 .map(|program| {
+                    let os = program
+                        .os
+                        .as_ref()
+                        .map_or_else(String::new, |os| format!(", os = {}", quote(os)));
                     format!(
-                        "{{ path = {}, args = {} }}",
+                        "{{ path = {}, args = {}{os} }}",
                         quote(&program.path),
                         list(&program.args)
                     )
@@ -187,8 +215,21 @@ impl Permit {
     }
 }
 
-fn quote(text: &str) -> String {
-    serde_json::to_string(text).unwrap_or_default()
+/// A TOML basic string. JSON's escaping leaves U+007F bare, which TOML refuses.
+pub fn quote(text: &str) -> String {
+    let mut quoted = String::from('"');
+    for c in text.chars() {
+        match c {
+            '"' => quoted.push_str("\\\""),
+            '\\' => quoted.push_str("\\\\"),
+            c if c.is_control() => {
+                let _ = write!(quoted, "\\u{:04X}", c as u32);
+            }
+            c => quoted.push(c),
+        }
+    }
+    quoted.push('"');
+    quoted
 }
 
 fn list(items: &[String]) -> String {
@@ -217,11 +258,8 @@ fn diff(locked: &str, built: &str) -> String {
 }
 
 /// What `built` asks for that `before` did not and the reverse, as a diff.
-pub fn changes(before: &Grant, built: &Grant) -> String {
-    diff(
-        &Lock::of(before, None).render(),
-        &Lock::of(built, None).render(),
-    )
+pub fn changes(before: &Lock, built: &Lock) -> String {
+    diff(&before.render(), &built.render())
 }
 
 pub fn write(dir: &Path, lock: &Lock) -> std::io::Result<()> {

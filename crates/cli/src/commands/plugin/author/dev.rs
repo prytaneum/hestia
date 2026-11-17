@@ -1,7 +1,6 @@
 //! `hestia plugin dev`: a project installed as a dev install, rebuilt and
 //! reloaded whenever its sources change, with the plugin's log alongside.
 
-use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -13,11 +12,13 @@ use proto::plugin::{Choice, Grant, PluginSource};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
 use super::super::{approve, choose, show_plan, state_name, ChoiceArgs};
-use super::project::{build, COMPONENT, LOCK, MANIFEST};
+use super::log;
+use super::project::{build, Profile, COMPONENT, LOCK, MANIFEST};
+use crate::commands::connect;
 use crate::ui::{self, View};
 
 const SETTLE: Duration = Duration::from_millis(300);
-const LOG_POLL: Duration = Duration::from_millis(250);
+const IGNORED_DIRS: [&str; 2] = ["target", ".git"];
 
 #[derive(Args)]
 pub struct DevArgs {
@@ -31,83 +32,66 @@ pub struct DevArgs {
     yes: bool,
 }
 
-/// What the last load approved, so a reload that asks for no more reuses it.
-#[derive(Default)]
-struct Approved {
-    grant: Option<Grant>,
-    choice: Option<Choice>,
-}
-
-/// Whether a change at `path` is one that calls for a rebuild: not the build's
-/// own output, and not version control or the target directory.
-fn relevant(path: &Path) -> bool {
-    let ignored_dir = path
-        .components()
-        .any(|part| matches!(part.as_os_str().to_str(), Some("target" | ".git")));
+/// Whether a change at `path` in `dir` is one that calls for a rebuild: not the
+/// build's own output, and not version control or the target directory.
+fn relevant(dir: &Path, path: &Path) -> bool {
+    let inside = path.strip_prefix(dir).unwrap_or(path);
+    let ignored_dir = inside.components().any(|part| {
+        IGNORED_DIRS
+            .iter()
+            .any(|ignored| part.as_os_str() == *ignored)
+    });
     let own_file = path
         .file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| {
-            [COMPONENT, LOCK].contains(&name) || name.ends_with(".hplugin") || name.ends_with('~')
+            [COMPONENT, LOCK, "Cargo.lock"].contains(&name)
+                || name.ends_with(".hplugin")
+                || name.ends_with('~')
         });
     !ignored_dir && !own_file
 }
 
+/// Watches the project's own files and each directory in it but the ignored
+/// ones, so the build's output under `target` costs no watch. A directory
+/// created later is not watched until `dev` restarts.
 fn watch(dir: &Path) -> Result<(notify::RecommendedWatcher, UnboundedReceiver<()>)> {
     let (sender, receiver) = unbounded_channel();
+    let root = dir.to_owned();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         if let Ok(event) = event {
-            if !event.kind.is_access() && event.paths.iter().any(|path| relevant(path)) {
+            if !event.kind.is_access() && event.paths.iter().any(|path| relevant(&root, path)) {
                 let _ = sender.send(());
             }
         }
     })
     .context("cannot watch for changes")?;
+    let watching = |error| format!("cannot watch {}: {error}", dir.display());
     watcher
-        .watch(dir, RecursiveMode::Recursive)
-        .with_context(|| format!("cannot watch {}", dir.display()))?;
-    Ok((watcher, receiver))
-}
-
-/// The daemon's log lines of `id`, as they are written: a plugin's log goes to
-/// the daemon's log file, not over the socket.
-async fn follow_log(id: String) {
-    let path = common::paths::log_dir(None)
-        .join("hestiad")
-        .join("latest.log");
-    let needle = format!("plugin={id}");
-    let mut offset = std::fs::metadata(&path).map_or(0, |meta| meta.len());
-    loop {
-        tokio::time::sleep(LOG_POLL).await;
-        let Ok(mut file) = std::fs::File::open(&path) else {
-            continue;
-        };
-        let length = file.metadata().map_or(0, |meta| meta.len());
-        if length < offset {
-            offset = 0;
-        }
-        let mut text = String::new();
-        if file.seek(SeekFrom::Start(offset)).is_err() || file.read_to_string(&mut text).is_err() {
-            continue;
-        }
-        let complete = text.rfind('\n').map_or(0, |end| end + 1);
-        offset += complete as u64;
-        for line in text[..complete].lines() {
-            if line.contains(&needle) && line.contains(" plugin: ") {
-                let _ = ui::show(View::line(line));
-            }
+        .watch(dir, RecursiveMode::NonRecursive)
+        .map_err(|error| anyhow::anyhow!(watching(error)))?;
+    for entry in std::fs::read_dir(dir)?.flatten() {
+        let ignored = entry
+            .file_name()
+            .to_str()
+            .is_none_or(|name| IGNORED_DIRS.contains(&name) || name.starts_with('.'));
+        if entry.file_type().is_ok_and(|kind| kind.is_dir()) && !ignored {
+            watcher
+                .watch(&entry.path(), RecursiveMode::Recursive)
+                .map_err(|error| anyhow::anyhow!(watching(error)))?;
         }
     }
+    Ok((watcher, receiver))
 }
 
 async fn reload(
     client: &Client,
     dir: &Path,
     args: &DevArgs,
-    approved: &mut Approved,
+    approved: &mut Option<Grant>,
 ) -> Result<()> {
     let project = dir.to_owned();
-    tokio::task::spawn_blocking(move || build(&project))
+    tokio::task::spawn_blocking(move || build(&project, Profile::Dev))
         .await
         .context("the build stopped")??;
     let path = dir.to_string_lossy().into_owned();
@@ -125,35 +109,43 @@ async fn reload(
     {
         bail!("{id} is installed from a repository; remove it first");
     }
-    let unchanged = approved
-        .grant
+    let asks_again = approved
         .as_ref()
-        .is_some_and(|before| !kernel::widens(before, &inspection.grant));
-    let choice = match (&approved.choice, unchanged) {
-        (Some(choice), true) => choice.clone(),
-        _ => {
-            show_plan(&inspection)?;
-            approve("Install it with these permissions?", args.yes)?;
-            choose(client, &inspection.grant, args.choice.clone(), args.yes).await?
-        }
-    };
-    if installed.is_some() {
-        client.plugin().remove(&id).await?;
+        .is_none_or(|before| kernel::widens(before, &inspection.grant));
+    if asks_again {
+        show_plan(&inspection)?;
+        approve("Install it with these permissions?", args.yes)?;
     }
+    let choice = match installed {
+        Some(_) => Choice::default(),
+        None => choose(client, &inspection.grant, args.choice.clone(), args.yes).await?,
+    };
     let plugin = client
         .plugin()
-        .install(&path, &inspection.approval_digest, choice.clone())
+        .install(&path, &inspection.approval_digest, choice)
         .await?;
     ui::show(View::line(format!(
         "loaded {} ({})",
         plugin.id,
         state_name(plugin.state)
     )))?;
-    *approved = Approved {
-        grant: Some(inspection.grant),
-        choice: Some(choice),
-    };
+    *approved = Some(inspection.grant);
     Ok(())
+}
+
+async fn watch_loop(client: Client, dir: PathBuf, args: DevArgs) -> Result<()> {
+    let (_watcher, mut changes) = watch(&dir)?;
+    let mut approved = None;
+    loop {
+        if let Err(error) = reload(&client, &dir, &args, &mut approved).await {
+            ui::show(View::warning(format!("{error:#}")))?;
+        }
+        if changes.recv().await.is_none() {
+            return Ok(());
+        }
+        tokio::time::sleep(SETTLE).await;
+        while changes.try_recv().is_ok() {}
+    }
 }
 
 pub async fn run(args: DevArgs) -> Result<()> {
@@ -162,30 +154,42 @@ pub async fn run(args: DevArgs) -> Result<()> {
     let manifest = std::fs::read_to_string(dir.join(MANIFEST))
         .with_context(|| format!("cannot read {MANIFEST} in {}", dir.display()))?;
     let id = kernel::Manifest::parse(&manifest)?.id;
-    let client = super::super::super::connect().await?;
-    let (_watcher, mut changes) = watch(&dir)?;
-    let log = tokio::spawn(follow_log(id));
+    let client = connect().await?;
+    let developer = client.config().get("plugins.developer").await?;
+    if developer != Some(serde_json::Value::Bool(true)) {
+        bail!("a dev install needs developer mode: `hestia config set plugins.developer true`");
+    }
+    let log = tokio::spawn(log::follow(id));
     ui::show(View::note(format!(
         "watching {}; press Ctrl-C to stop",
         dir.display()
     )))?;
-    let mut approved = Approved::default();
-    loop {
-        if let Err(error) = reload(&client, &dir, &args, &mut approved).await {
-            ui::show(View::warning(format!("{error:#}")))?;
-        }
-        while changes.try_recv().is_ok() {}
-        tokio::select! {
-            change = changes.recv() => {
-                if change.is_none() {
-                    break;
-                }
-                tokio::time::sleep(SETTLE).await;
-                while changes.try_recv().is_ok() {}
-            }
-            _ = tokio::signal::ctrl_c() => break,
+    let outcome = watch_loop(client, dir, args).await;
+    log.abort();
+    outcome
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_projects_own_sources_call_for_a_rebuild() {
+        let dir = Path::new("/work/target/proj");
+        for (path, expected) in [
+            ("/work/target/proj/src/lib.rs", true),
+            ("/work/target/proj/plugin.toml", true),
+            (
+                "/work/target/proj/target/wasm32-wasip2/release/proj.wasm",
+                false,
+            ),
+            ("/work/target/proj/.git/index", false),
+            ("/work/target/proj/plugin.wasm", false),
+            ("/work/target/proj/plugin.grant", false),
+            ("/work/target/proj/Cargo.lock", false),
+            ("/work/target/proj/src/lib.rs~", false),
+        ] {
+            assert_eq!(relevant(dir, Path::new(path)), expected, "{path}");
         }
     }
-    log.abort();
-    Ok(())
 }

@@ -17,12 +17,9 @@ use crate::ui::{self, View};
 pub struct PackArgs {
     #[command(flatten)]
     source: Where,
-    /// Sign as the author; refuses interfaces that are still unstable
-    #[arg(long, requires = "key")]
-    sign: bool,
-    /// The author's minisign secret key
+    /// The author's minisign secret key, which signs the package
     #[arg(long, value_name = "FILE")]
-    key: Option<PathBuf>,
+    key: PathBuf,
     /// Where to write the package; by default `<id>-<version>.hplugin` in the project
     #[arg(long, value_name = "FILE")]
     out: Option<PathBuf>,
@@ -60,10 +57,10 @@ fn with_api(manifest: &[u8], api: &str) -> Result<Vec<u8>> {
     }
 }
 
-/// The package of a project: checked against its lockfile, `api` written, and
-/// signed when `author` is given.
-pub fn package(table: &Table, source: &Source, author: Option<&SecretKey>) -> Result<Packed> {
-    let analysis = review(table, source, author.is_none(), false);
+/// The package of a project: checked against its lockfile, which refuses the
+/// interfaces that are still unstable, `api` written, and signed by `author`.
+pub fn package(table: &Table, source: &Source, author: &SecretKey) -> Result<Packed> {
+    let analysis = review(table, source, false, false);
     report(&analysis)?;
     let (Some(manifest), Some(shape)) = (&analysis.manifest, &analysis.shape) else {
         bail!("nothing to pack");
@@ -72,20 +69,15 @@ pub fn package(table: &Table, source: &Source, author: Option<&SecretKey>) -> Re
         (None, Some(api)) => with_api(&source.manifest, &api)?,
         _ => source.manifest.clone(),
     };
-    let signature = match author {
-        Some(secret) => key::sign(
-            secret,
-            &kernel::statement(&manifest.id, &manifest.version, &bytes, &source.wasm),
-            "hestia-hplugin",
-        )?,
-        None => String::new(),
-    };
+    let signature = key::sign(
+        author,
+        &kernel::statement(&manifest.id, &manifest.version, &bytes, &source.wasm),
+        "hestia-hplugin",
+    )?;
     let archive = Hplugin::pack(&bytes, &source.wasm, &signature)?;
-    if let Some(secret) = author {
-        Hplugin::read(&archive)?
-            .verify(&key::signer(secret)?, &manifest.id, &manifest.version)
-            .context("the package does not verify under the key it was signed with")?;
-    }
+    Hplugin::read(&archive)?
+        .verify(&key::signer(author)?, &manifest.id, &manifest.version)
+        .context("the package does not verify under the key it was signed with")?;
     Ok(Packed {
         archive,
         manifest: bytes,
@@ -95,11 +87,8 @@ pub fn package(table: &Table, source: &Source, author: Option<&SecretKey>) -> Re
 
 pub fn run(args: PackArgs) -> Result<()> {
     let source = args.source.load()?;
-    let author = match (&args.key, args.sign) {
-        (Some(file), true) => Some(key::load(file)?),
-        _ => None,
-    };
-    let packed = package(&kernel::table(), &source, author.as_ref())?;
+    let author = key::load(&args.key)?;
+    let packed = package(&kernel::table(), &source, &author)?;
     if packed.manifest != source.manifest {
         common::atomic::write(&source.dir.join(MANIFEST), &packed.manifest)
             .context("cannot write plugin.toml")?;
@@ -109,10 +98,5 @@ pub fn run(args: PackArgs) -> Result<()> {
         .unwrap_or_else(|| source.dir.join(&packed.file_name));
     common::atomic::write(&out, &packed.archive)
         .with_context(|| format!("cannot write {}", out.display()))?;
-    let state = if author.is_some() {
-        "signed"
-    } else {
-        "unsigned"
-    };
-    ui::show(View::line(format!("wrote {} ({state})", out.display())))
+    ui::show(View::line(format!("wrote {} (signed)", out.display())))
 }

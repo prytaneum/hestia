@@ -62,7 +62,7 @@ flowchart TD
 | `client`  | typed SDK, one facade per domain over a `Session`; re-exports `proto`                             |
 | `engine`  | the launcher core; knows no socket; lists the built-in plugins it compiles in                     |
 | `daemon`  | `hestiad`: router, services, job managers, the plugin registry, autostart; links `client` (ping)  |
-| `cli`     | `hestia`; links `kernel` so the author's commands apply the rules the host applies                |
+| `cli`     | `hestia`; links `kernel` without its `sandbox` so the author's commands apply the host's rules   |
 | `desktop` | Tauri shell; the UI is the root `frontend/`                                                       |
 | `tray`    | `hestia-tray`                                                                                     |
 
@@ -158,7 +158,11 @@ that directory. Release builds use `panic = "abort"` and `strip = true`, so rele
 
 ## The kernel
 
-`crates/kernel` holds the plugin registry and network vetting. A built-in implements `Builtin` (a descriptor with
+`crates/kernel` holds the plugin registry and network vetting. Its runtime (the registry, wasmtime, the network policy)
+sits behind the default `sandbox` feature. The `cli` depends on it with `default-features = false` and gets only what
+reads a package: the manifest parse, the component shape, the grant derivation (for the current platform, or for every
+one), the version gates, the `.hplugin` and index formats. Cargo unifies features within one invocation, so `cli` is built
+in its own (`scripts/sidecars.sh`, `scripts/package.sh`); in a build with the daemon the sandbox comes back. A built-in implements `Builtin` (a descriptor with
 `provides` and `requires`, plus `enable` and `disable`) and is enabled in dependency order. Disabling is refused, naming
 every enabled plugin that needs it, unless the caller confirms (`cascade`), which disables those first; it is also
 refused while it has work running. The disabled ids persist in `plugins.json`; start-up never enables
@@ -204,6 +208,9 @@ restarts, and removing one deletes its cache entry.
 **Trust.** A WASM plugin comes from a directory (a dev install) or from a repository. A dev install is refused unless
 `plugins.developer` is on, and it runs only while it is: the daemon tells the registry when the setting changes, so
 turning it off lists every dev install `failed` (enabling one answers why) and turning it on starts them again.
+Installing a directory whose id is already a dev install replaces it as an update does (`.previous` swap): its settings,
+secrets and schedule runs stay, `grant::carry` keeps the optional permissions granted, and the choice in the call is
+ignored.
 
 A repository is added with a pinned minisign key (`repositories.json`). Its `index.json`, signed under that key, lists
 per plugin id the author's key and the releases: the URL, SHA-256 and size of each `.hplugin`. The signature's trusted

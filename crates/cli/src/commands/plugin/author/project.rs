@@ -37,7 +37,7 @@ impl Where {
         let manifest = read(&dir.join(MANIFEST))?;
         let wasm = match &self.wasm {
             Some(file) => read(file)?,
-            None => read(&build(&dir)?)?,
+            None => read(&build(&dir, Profile::Release)?)?,
         };
         Ok(Source {
             dir,
@@ -51,37 +51,71 @@ fn read(path: &Path) -> Result<Vec<u8>> {
     std::fs::read(path).with_context(|| format!("cannot read {}", path.display()))
 }
 
+/// How `build` compiles: what a package ships, or what `dev` rebuilds on every
+/// save, without the LTO and the stripping that cost time and the names a
+/// backtrace needs.
+#[derive(Clone, Copy)]
+pub enum Profile {
+    Release,
+    Dev,
+}
+
+/// `cargo` run in `dir`, with the toolchain of the project there: the variables
+/// a `cargo run` of Hestia exports would pin it to Hestia's own.
+pub fn cargo(dir: &Path) -> Command {
+    let mut cargo = Command::new("cargo");
+    cargo
+        .current_dir(dir)
+        .env_remove("CARGO")
+        .env_remove("RUSTUP_TOOLCHAIN");
+    cargo
+}
+
 /// Builds the project for `wasm32-wasip2` and copies the component beside its
 /// manifest, where a dev install and a package read it.
-pub fn build(dir: &Path) -> Result<PathBuf> {
+pub fn build(dir: &Path, profile: Profile) -> Result<PathBuf> {
     tracing::info!(dir = %dir.display(), "building the plugin");
-    let mut cargo = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
-        .args([
-            "build",
-            "--release",
-            "--target",
-            TARGET,
-            "--message-format=json-render-diagnostics",
-        ])
-        .current_dir(dir)
+    let mut command = cargo(dir);
+    command.args([
+        "build",
+        "--release",
+        "--target",
+        TARGET,
+        "--message-format=json-render-diagnostics",
+    ]);
+    if matches!(profile, Profile::Dev) {
+        command.args([
+            "--config",
+            "profile.release.lto=false",
+            "--config",
+            "profile.release.strip=false",
+        ]);
+    }
+    let mut cargo = command
         .stdout(Stdio::piped())
         .spawn()
         .context("cannot run cargo")?;
-    let manifest_path = dir.join("Cargo.toml");
+    let manifest_path = std::fs::canonicalize(dir.join("Cargo.toml"))?;
     let mut built = None;
     let stdout = cargo.stdout.take().context("cargo has no output")?;
     for line in BufReader::new(stdout).lines() {
         let Ok(message) = serde_json::from_str::<serde_json::Value>(&line?) else {
             continue;
         };
-        let ours = message["manifest_path"].as_str().map(Path::new) == Some(&manifest_path);
+        let ours = message["manifest_path"]
+            .as_str()
+            .and_then(|path| std::fs::canonicalize(path).ok())
+            .is_some_and(|path| path == manifest_path);
+        let cdylib = message["target"]["kind"]
+            .as_array()
+            .is_some_and(|kinds| kinds.iter().any(|kind| kind == "cdylib"));
         let file = message["filenames"]
             .as_array()
             .into_iter()
             .flatten()
             .filter_map(|name| name.as_str())
             .find(|name| name.ends_with(".wasm"));
-        if let (true, Some(file)) = (ours, file) {
+        if let (true, true, Some(file)) = (ours, cdylib, file) {
             built = Some(PathBuf::from(file));
         }
     }

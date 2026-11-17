@@ -604,33 +604,55 @@ schedules beside its permissions.
 ### Writing a plugin
 
 The author's commands work on a project directory (the current one by default) and need no daemon, except `dev`. They
-apply the kernel's own rules, linked into the CLI: the manifest parse, the component shape, the version gates and the
-grant derivation. `check`, `world` and `pack` build the project for `wasm32-wasip2` and copy the component to
-`plugin.wasm`; `--wasm <file>` uses a built component instead.
+apply the kernel's own rules, linked into the CLI without its sandbox: the manifest parse, the component shape, the
+version gates and the grant derivation. `check`, `world` and `pack` build the project for `wasm32-wasip2` with the
+project's own toolchain and copy the component to `plugin.wasm`; `--wasm <file>` uses a built component instead. The
+manifest parse, the version gates and the derivation each stop at their first problem, so `check` reports at most one
+per stage, plus the lockfile's.
 
 ```bash
 hestia plugin new <id> [--sdk <hestia checkout>] [--tag <release>]   # a Rust project: plugin.toml, plugin.grant, CI
-hestia plugin check [dir] [--update-grant]   # every problem at once; the grant is compared with plugin.grant
+hestia plugin check [dir] [--update-grant]   # the manifest, the component and plugin.grant
 hestia plugin world [dir]        # imports, exports, derived permissions, requirements
-hestia plugin dev [dir]          # dev install (developer mode); rebuilds and reloads on change, streams the plugin's log
+hestia plugin dev [dir]          # dev install (developer mode); rebuilds, reloads on change, streams the plugin's log
 hestia plugin test [dir] [-- args]           # the project's own `cargo test`
-hestia plugin pack [dir] --sign --key <author.key> [--out <file>]   # the .hplugin; writes `api` into plugin.toml
-hestia plugin publish <file.hplugin> --repository <dir> --key <repository.key> --url <https url> --author <key> [--allow-widen]
+hestia plugin pack [dir] --key <author.key> [--out <file>]   # the signed .hplugin; writes `api` into plugin.toml
+hestia plugin publish <file.hplugin> --repository <dir> --key <repository.key> --url <https url> \
+    [--author <key>] [--name <repository>] [--host <host>] [--allow-widen] [--project <dir>]
+hestia plugin publish --repository <dir> --key <repository.key> --refresh
+hestia plugin publish --repository <dir> --key <repository.key> --revoke <plugin>@<version> [--reason <text>]
 ```
 
-`plugin.grant` is the committed record of what the built component asks for: its permissions with their scopes, the
-required packages and plugins, the schedules and the exports. Hestia never reads it; `check`, `pack` and `publish`
-fail with a diff when the build asks for something else, and `check --update-grant` rewrites it. Without `--sign`, `pack`
-writes an unsigned package (an empty `plugin.minisig`), which nothing installs, and allows `@unstable` imports. With it,
-the author's minisign key signs `hestia-hplugin-v1`, the id, the version and the SHA-256 of `plugin.toml` and
-`plugin.wasm`, and an `@unstable` import is refused. `new` pins `hestia-sdk` to a git tag of this repository; `--sdk`
-points at a local checkout instead.
+`new` writes a project whose `cargo test` runs a unit test against the SDK's mock host, a `rust-toolchain.toml` that
+installs `wasm32-wasip2` and a CI file that runs `plugin test` and `plugin check`. It pins `hestia-sdk`, and the
+`hestia` the CI installs, to the git tag `v<this version>` of this repository, which cargo resolves from `crates/sdk`;
+`--tag` names another release and `--sdk` a local checkout instead. Keys come from `minisign -G`: one for the author and
+one for the repository.
 
-A repository is a directory a web server serves: `index.json`, `index.json.minisig` and the packages, each under the file
-name of its `--url`. `publish` verifies the package against the author key (`--author` the first time; the index remembers
-it), adds the release (URL, SHA-256, size), bumps the index sequence, sets it to expire in 29 days, signs it with the
-repository key and checks it as a client would. It compares the grant with that of the newest published version, whose
-package must still be in the directory, and refuses one that asks for more unless `--allow-widen` says so.
+`plugin.grant` is the committed record of what the built component asks for: its permissions with their scopes, the
+required packages and plugins, the interfaces it imports from packages other than the kernel's, the schedules and the
+exports. It holds the programs (with the `os` each is written for) and the endpoints of every platform, so it is the
+same on every machine. Hestia never reads it; `check`, `pack` and `publish` fail with a diff when the build asks for
+something else, and `check --update-grant` rewrites it. `publish` compares it with `<project>/plugin.grant`, the current
+directory unless `--project` says otherwise. `pack` always signs: the author's minisign key signs `hestia-hplugin-v1`,
+the id, the version and the SHA-256 of `plugin.toml` and `plugin.wasm`, and an `@unstable` import is refused, as `check`
+refuses it.
+
+`dev` needs developer mode and reads the daemon's debug log for the plugin's lines. It builds without LTO and keeps the
+symbols a backtrace needs. The first load asks for the plugin's permissions; each reload is an update of the dev
+install: its settings, secrets and schedule runs stay, the optional permissions you granted are carried, and it asks
+again only when a rebuild widens what it asks for. A directory created inside the project after `dev` started is not
+watched until it is restarted.
+
+A repository is a directory a web server serves: `index.json`, `index.json.minisig` and the packages, each under the
+file name of its `--url`. Every `publish` first verifies the index in the directory under the repository key, so nothing
+planted there is signed again, and signs a new one under the next sequence that expires in 29 days. Publishing a package
+verifies it against the author key (`--author` the first time; the index remembers it), refuses a version already
+published and a URL whose host the index does not list as serving packages (`--host` lists it), and adds the release
+(URL, SHA-256, size). It compares the grant with that of the newest published version, whose package must still be in
+the directory and match the index's digest, and refuses one that asks for more unless `--allow-widen` says so.
+`--refresh` signs the index again for a new life without a release, and `--revoke` lists a published version as revoked,
+so clients disable it and never run it again.
 
 ## Download cache
 

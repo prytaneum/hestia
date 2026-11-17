@@ -53,6 +53,12 @@ pub struct ChoiceArgs {
 pub enum PluginCmd {
     #[command(flatten)]
     Author(author::AuthorCmd),
+    #[command(flatten)]
+    Manage(ManageCmd),
+}
+
+#[derive(Subcommand)]
+pub enum ManageCmd {
     /// Every plugin and its state
     List,
     /// Enable a plugin, and what it requires
@@ -66,7 +72,8 @@ pub enum PluginCmd {
         yes: bool,
     },
     /// Install a plugin from a directory holding plugin.toml and plugin.wasm;
-    /// needs `plugins.developer`
+    /// needs `plugins.developer`. A directory whose plugin is already a dev
+    /// install replaces it, keeping its settings, secrets and schedules
     Add {
         path: String,
         #[command(flatten)]
@@ -428,15 +435,14 @@ fn entries_text(scope: &EntryScope) -> String {
 pub async fn run(cmd: PluginCmd) -> Result<()> {
     match cmd {
         PluginCmd::Author(cmd) => author::run(cmd).await,
-        cmd => manage(cmd).await,
+        PluginCmd::Manage(cmd) => manage(cmd).await,
     }
 }
 
-async fn manage(cmd: PluginCmd) -> Result<()> {
+async fn manage(cmd: ManageCmd) -> Result<()> {
     let client = super::connect().await?;
     match cmd {
-        PluginCmd::Author(_) => unreachable!("`run` sends author commands elsewhere"),
-        PluginCmd::List => {
+        ManageCmd::List => {
             let plugins = client.plugin().list().await?;
             if plugins.is_empty() {
                 return ui::show(View::note("no plugins"));
@@ -464,11 +470,11 @@ async fn manage(cmd: PluginCmd) -> Result<()> {
                 rows,
             ))?;
         }
-        PluginCmd::Enable { id } => {
+        ManageCmd::Enable { id } => {
             let plugin = client.plugin().enable(&id).await?;
             ui::show(View::line(format!("enabled {}", plugin.id)))?;
         }
-        PluginCmd::Disable { id, yes } => {
+        ManageCmd::Disable { id, yes } => {
             let plugin = match client.plugin().disable(&id, yes).await {
                 Err(error) => match client::error_info(&error) {
                     ErrorInfo::PluginRequired { dependents, .. } => {
@@ -485,7 +491,7 @@ async fn manage(cmd: PluginCmd) -> Result<()> {
             };
             ui::show(View::line(format!("disabled {}", plugin.id)))?;
         }
-        PluginCmd::Add { path, choice, yes } => {
+        ManageCmd::Add { path, choice, yes } => {
             let path = std::fs::canonicalize(&path)
                 .with_context(|| format!("cannot read {path}"))?
                 .to_string_lossy()
@@ -505,7 +511,7 @@ async fn manage(cmd: PluginCmd) -> Result<()> {
             )))?;
             show_granted(&plugin)?;
         }
-        PluginCmd::Get {
+        ManageCmd::Get {
             repository,
             id,
             version,
@@ -533,7 +539,7 @@ async fn manage(cmd: PluginCmd) -> Result<()> {
             )))?;
             show_granted(&plugin)?;
         }
-        PluginCmd::Grant {
+        ManageCmd::Grant {
             id,
             permission,
             entries,
@@ -550,7 +556,7 @@ async fn manage(cmd: PluginCmd) -> Result<()> {
                 ui::show(View::note(format!("it may reach {}", entries_text(scope))))?;
             }
         }
-        PluginCmd::Entries {
+        ManageCmd::Entries {
             id,
             all,
             entry,
@@ -564,14 +570,14 @@ async fn manage(cmd: PluginCmd) -> Result<()> {
                 entries_text(&reach)
             )))?;
         }
-        PluginCmd::Revoke { id, permission } => {
+        ManageCmd::Revoke { id, permission } => {
             client
                 .plugin()
                 .set_permission(&id, &permission, false)
                 .await?;
             ui::show(View::line(format!("revoked {permission} from {id}")))?;
         }
-        PluginCmd::Updates => {
+        ManageCmd::Updates => {
             let found = client.plugin().updates().await?;
             for failure in &found.failed {
                 ui::show(View::note(format!(
@@ -605,7 +611,7 @@ async fn manage(cmd: PluginCmd) -> Result<()> {
                 rows,
             ))?;
         }
-        PluginCmd::Update { id, entries, yes } => {
+        ManageCmd::Update { id, entries, yes } => {
             let update = client.plugin().inspect_update(&id).await?;
             if update.widened {
                 ui::show(View::note(format!(
@@ -647,7 +653,7 @@ async fn manage(cmd: PluginCmd) -> Result<()> {
                 state_name(plugin.state)
             )))?;
         }
-        PluginCmd::Repo { cmd } => match cmd {
+        ManageCmd::Repo { cmd } => match cmd {
             RepoCmd::List => {
                 let rows = client
                     .plugin()
@@ -670,11 +676,11 @@ async fn manage(cmd: PluginCmd) -> Result<()> {
                 ui::show(View::line(format!("removed {id}")))?;
             }
         },
-        PluginCmd::Remove { id } => {
+        ManageCmd::Remove { id } => {
             client.plugin().remove(&id).await?;
             ui::show(View::line(format!("removed {id}")))?;
         }
-        PluginCmd::Secret {
+        ManageCmd::Secret {
             cmd: SecretCmd::Set { id, key },
         } => {
             let value = ui::prompt_secret(&format!("{key} for {id}"))?;

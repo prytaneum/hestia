@@ -2,13 +2,11 @@
 //! rules: the same parse, shape, version gates and grant derivation Hestia
 //! applies at install.
 
-use kernel::{Manifest, Shape, Table};
+use kernel::{Manifest, Shape, Table, KERNEL_PACKAGE};
 use proto::plugin::Grant;
 
 use super::lock::{self, Lock};
 use super::project::Source;
-
-const KERNEL_PACKAGE: &str = "hestia:kernel/";
 
 #[derive(Default)]
 pub struct Analysis {
@@ -19,8 +17,10 @@ pub struct Analysis {
     pub warnings: Vec<String>,
 }
 
-/// Every problem that can be found independently of the others. `dev` allows
-/// the unstable interfaces a dev install may use.
+/// The problems that can be found independently of the others: the manifest,
+/// the component's shape, and the version gates and grant derivation, each of
+/// which stops at its first problem. `dev` allows the unstable interfaces a dev
+/// install may use. The grant holds every platform's programs and endpoints.
 pub fn analyze(table: &Table, manifest: &[u8], wasm: &[u8], dev: bool) -> Analysis {
     let mut analysis = Analysis::default();
     match std::str::from_utf8(manifest)
@@ -46,7 +46,7 @@ pub fn analyze(table: &Table, manifest: &[u8], wasm: &[u8], dev: bool) -> Analys
         }
         Err(error) => analysis.errors.push(error.to_string()),
     }
-    match kernel::derive(table, manifest, shape) {
+    match kernel::derive_everywhere(table, manifest, shape) {
         Ok(grant) => analysis.grant = Some(grant),
         Err(error) => analysis.errors.push(error.to_string()),
     }
@@ -60,15 +60,21 @@ pub fn api_of(shape: &Shape) -> Option<String> {
         .imports
         .iter()
         .chain(&shape.exports)
-        .filter(|name| name.starts_with(KERNEL_PACKAGE))
+        .filter(|name| {
+            name.strip_prefix(KERNEL_PACKAGE)
+                .is_some_and(|rest| rest.starts_with('/'))
+        })
         .find_map(|name| name.split_once('@').map(|(_, version)| version.to_owned()))
 }
 
 /// The lock the built component calls for.
 pub fn lock_of(analysis: &Analysis) -> Option<Lock> {
-    let grant = analysis.grant.as_ref()?;
-    let api = analysis.shape.as_ref().and_then(api_of);
-    Some(Lock::of(grant, api))
+    let (manifest, grant, shape) = (
+        analysis.manifest.as_ref()?,
+        analysis.grant.as_ref()?,
+        analysis.shape.as_ref()?,
+    );
+    Some(Lock::of(manifest, grant, shape))
 }
 
 /// [`analyze`] of a project, with the lockfile held to the grant (or, with

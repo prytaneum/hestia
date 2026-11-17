@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use clap::Args;
-use proto::plugin::Grant;
+use kernel::Shape;
 
-use super::lock::Lock;
+use super::lock::{quote, Lock};
 use super::project::{LOCK, MANIFEST};
 use crate::ui::{self, View};
 
@@ -24,8 +24,14 @@ pub struct NewArgs {
     tag: Option<String>,
 }
 
-fn quote(text: &str) -> String {
-    serde_json::to_string(text).unwrap_or_default()
+/// `dir` as a path cargo reads: Windows' canonical form starts with `\\?\`, which
+/// belongs in no manifest.
+fn plain(dir: &Path) -> String {
+    let text = dir.to_string_lossy();
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) if !rest.starts_with("UNC") => rest.to_owned(),
+        _ => text.into_owned(),
+    }
 }
 
 fn sdk_dependency(args: &NewArgs, tag: &str) -> Result<String> {
@@ -40,7 +46,7 @@ fn sdk_dependency(args: &NewArgs, tag: &str) -> Result<String> {
             }
             format!(
                 "hestia-sdk = {{ path = {}, {features} }}",
-                quote(&dir.to_string_lossy())
+                quote(&plain(&dir))
             )
         }
         None => format!(
@@ -54,11 +60,18 @@ fn sdk_dependency(args: &NewArgs, tag: &str) -> Result<String> {
 fn files(args: &NewArgs, tag: &str) -> Result<Vec<(&'static str, String)>> {
     let id = &args.id;
     let api = kernel::table().version("hestia:kernel").unwrap_or_default();
-    let grant = Grant {
-        contributes: vec![format!("hestia:kernel/lifecycle@{api}")],
-        ..Grant::default()
+    let manifest = format!(
+        "id = {}\nname = {}\nversion = \"0.1.0\"\n",
+        quote(id),
+        quote(id)
+    );
+    let parsed = kernel::Manifest::parse(&manifest)?;
+    let shape = Shape {
+        imports: Vec::new(),
+        exports: vec![format!("hestia:kernel/lifecycle@{api}")],
     };
-    let lock = Lock::of(&grant, Some(api.to_owned())).render();
+    let grant = kernel::derive_everywhere(&kernel::table(), &parsed, &shape)?;
+    let lock = Lock::of(&parsed, &grant, &shape).render();
     Ok(vec![
         (
             "Cargo.toml",
@@ -74,12 +87,15 @@ fn files(args: &NewArgs, tag: &str) -> Result<Vec<(&'static str, String)>> {
             format!(
                 "use hestia::log::{{write, Level}};\nuse hestia::{{Error, Lifecycle}};\n\n\
                  struct Plugin;\n\nimpl Lifecycle for Plugin {{\n    fn init() -> Result<(), Error> {{\n        \
-                 write(Level::Info, \"{id} started\");\n        Ok(())\n    }}\n}}\n\nhestia::export!(Plugin);\n"
+                 write(Level::Info, \"{id} started\");\n        Ok(())\n    }}\n}}\n\nhestia::export!(Plugin);\n\n\
+                 #[cfg(test)]\nmod tests {{\n    use super::*;\n\n    #[test]\n    fn init_logs_through_the_host() {{\n        \
+                 Plugin::init().unwrap();\n        assert!(hestia::mock::calls().contains(&\"hestia:kernel/log#write\".to_owned()));\n    }}\n}}\n"
             ),
         ),
+        (MANIFEST, manifest),
         (
-            MANIFEST,
-            format!("id = {}\nname = {}\nversion = \"0.1.0\"\n", quote(id), quote(id)),
+            "rust-toolchain.toml",
+            "[toolchain]\nchannel = \"stable\"\ntargets = [\"wasm32-wasip2\"]\n".to_owned(),
         ),
         (LOCK, lock),
         (".gitignore", "/target\n/plugin.wasm\n*.hplugin\n".to_owned()),
