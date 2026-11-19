@@ -365,7 +365,7 @@ async fn following_an_entry_survives_a_stop_and_start() {
 /// entry key — including sessions that start after the subscription.
 #[tokio::test]
 async fn following_an_instance_covers_its_later_sessions() {
-    let (daemon, client) = spawn_daemon().await;
+    let (mut daemon, client) = spawn_daemon().await;
     let entry = client::proto::naming::instance_process_id("e2e");
 
     let mut events = client
@@ -391,7 +391,8 @@ async fn following_an_instance_covers_its_later_sessions() {
     .await;
 
     client.daemon().stop(true).await.expect("daemon.stop");
-    drop(daemon);
+    drop(client);
+    daemon.wait_exit();
 }
 
 /// Pull events until one satisfies `wanted`, failing the test on a timeout —
