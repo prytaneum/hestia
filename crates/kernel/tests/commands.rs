@@ -250,7 +250,8 @@ async fn a_plugin_runs_declared_commands_for_a_person_and_wakes_itself_within_it
         r#"job-1 Outcome::Failed("boom")"#
     );
 
-    let start = now_unix();
+    // Before the enable started the count, so the first tick restarts it here.
+    let start = now_unix() - 3600;
     plugins.run_due(start).await;
     plugins.run_due(start + 59).await;
     assert_eq!(ran(home.path(), "ticks"), "", "not due before its interval");
