@@ -263,7 +263,7 @@ grant). A plugin that is offline reaches nothing: `download` answers `offline` a
   through a `cap-std` directory handle on it, so no link the plugin plants is followed out; the file is staged as
   `.part` (unlinked if the call stops) and renamed into place, and needs a checksum or an unhashed host. A path is
   valid when every name is valid on every OS (no `\`, `:`, device names such as `con` or `nul.txt`, trailing dot or
-  space), and a plugin's `/data` is held to 8 GiB in all (`Limits::with_data_quota`): a download that would pass it fails. A plugin's own writes through `/data` cannot be stopped as they happen, so the quota holds on the unattended path: `/data` is measured before each schedule tick, and a tick that finds it over the quota is refused (`OverQuota`). The plugin's other calls still run so it can free the space.
+  space), and a plugin's `/data` is held to 8 GiB in all (`Limits::with_data_quota`): a download that would pass it fails. A plugin's own writes through `/data` cannot be stopped as they happen, so the quota holds on the unattended path: `/data` is measured before each schedule tick (on Windows every stream of a file counts, since a plugin can write `name:stream`), and a tick that finds it over the quota is refused (`OverQuota`). The plugin's other calls still run so it can free the space.
 - `process:spawn` (`programs`, unrestricted) lists invocations: `{ path, args, os }`, an absolute path, its exact
   arguments and, optionally, the one OS (`linux`, `windows`, `macos`) it is for (without `os`, the path's form decides:
   `/...` is unix, `C:\...` is Windows); only the current OS's entries are granted. The path is judged for its own
@@ -275,7 +275,8 @@ grant). A plugin that is offline reaches nothing: `download` answers `offline` a
   was hashed: on Linux the program is copied into a sealed `memfd` while it is hashed and that copy is executed; on
   Windows the file is held open without write or delete sharing until the process has started; elsewhere the start is
   by path, after a check that the path is still the hashed file. It runs with no shell, an empty environment (Windows
-  keeps `SystemRoot`, `SystemDrive`, `windir`, `ComSpec` and `PATHEXT`, and `TEMP`/`TMP` are `/data`), `/data` as its
+  keeps `SystemRoot`, `SystemDrive`, `windir`, `ComSpec` and `PATHEXT`, `TEMP`/`TMP` are `/data`, and
+  `NoDefaultCurrentDirectoryInExePath` stops it and its children running a program the plugin put in `/data`), `/data` as its
   directory and output capped at 1 MiB, in its own process group (a job object on Windows, joined while the process is
   still suspended) that is killed when it ends or the call stops. Output is read for a short grace after the program
   ends, so a process that left the group cannot hold the call.
