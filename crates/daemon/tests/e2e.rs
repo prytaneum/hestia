@@ -3,10 +3,10 @@
 //! would. This exercises the full stack — transport, router, services, the
 //! process supervisor — against a running daemon.
 //!
-//! Unix-only: it relies on a POSIX shell for the launched child and on the
-//! domain-socket transport. Windows is validated through the win-VM flow.
-#![cfg(unix)]
+//! The launched children are shell scripts, written once for `sh` and once for
+//! `cmd.exe`.
 
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -19,7 +19,7 @@ use client::{Client, ProcessEvent};
 /// A spawned daemon that is stopped and reaped on drop.
 struct Daemon {
     child: Child,
-    home: std::path::PathBuf,
+    home: PathBuf,
     /// Held when this daemon owns its data home, so the directory outlives the
     /// process and is removed with it. A test driving two daemons over one home
     /// keeps the guard itself instead.
@@ -57,11 +57,8 @@ async fn spawn_daemon() -> (Daemon, Client) {
     spawn_daemon_at(home.path().to_path_buf(), Some(home)).await
 }
 
-async fn spawn_daemon_at(
-    home: std::path::PathBuf,
-    guard: Option<tempfile::TempDir>,
-) -> (Daemon, Client) {
-    let sock = home.join("hestiad.sock");
+async fn spawn_daemon_at(home: PathBuf, guard: Option<tempfile::TempDir>) -> (Daemon, Client) {
+    let sock = endpoint(&home);
     let child = Command::new(env!("CARGO_BIN_EXE_hestiad"))
         .arg("serve")
         .env("HESTIA_SOCK", &sock)
@@ -93,8 +90,50 @@ async fn spawn_daemon_at(
     )
 }
 
+#[cfg(unix)]
+fn endpoint(home: &Path) -> PathBuf {
+    home.join("hestiad.sock")
+}
+
+#[cfg(windows)]
+fn endpoint(home: &Path) -> PathBuf {
+    let name = home.file_name().expect("a temp dir name").to_string_lossy();
+    PathBuf::from(format!(r"\\.\pipe\{name}"))
+}
+
+/// A process running `posix` under `sh`, or `cmd` under `cmd.exe`.
+fn shell(posix: &str, cmd: &str) -> ProcessSpec {
+    #[cfg(unix)]
+    let (program, args) = ("/bin/sh".to_owned(), ["-c", posix]);
+    #[cfg(windows)]
+    let (program, args) = (
+        format!(r"{}\System32\cmd.exe", std::env::var("SystemRoot").unwrap()),
+        ["/d", "/c", cmd],
+    );
+    let _ = (posix, cmd);
+    ProcessSpec {
+        program,
+        args: args.iter().map(|arg| arg.to_string()).collect(),
+        ..Default::default()
+    }
+}
+
+fn repeating(line: &str) -> ProcessSpec {
+    shell(
+        &format!("while true; do echo {line}; sleep 1; done"),
+        &format!("for /l %i in (0,0,1) do @(echo {line}& ping -n 2 127.0.0.1 >nul)"),
+    )
+}
+
+fn sleeping() -> ProcessSpec {
+    shell("sleep 60", "ping -n 61 127.0.0.1 >nul")
+}
+
 fn pid_alive(pid: u32) -> bool {
-    unsafe { libc::kill(pid as libc::pid_t, 0) == 0 }
+    let pid = sysinfo::Pid::from_u32(pid);
+    let mut system = sysinfo::System::new().expect("process table");
+    system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+    system.process(pid).is_some()
 }
 
 #[tokio::test]
@@ -139,11 +178,7 @@ async fn daemon_serves_the_full_client_surface() {
     let exit = client
         .process()
         .run(
-            ProcessSpec {
-                program: "/bin/sh".into(),
-                args: vec!["-c".into(), "echo hello; exit 3".into()],
-                ..Default::default()
-            },
+            shell("echo hello; exit 3", "echo hello& exit 3"),
             move |line| sink.lock().unwrap().push(line.line.clone()),
         )
         .await
@@ -158,14 +193,7 @@ async fn daemon_serves_the_full_client_surface() {
     // Start a long-running process, observe it, then stop it.
     let started = client
         .process()
-        .start(ProcessSpec {
-            program: "/bin/sh".into(),
-            args: vec![
-                "-c".into(),
-                "while true; do echo tick; sleep 1; done".into(),
-            ],
-            ..Default::default()
-        })
+        .start(repeating("tick"))
         .await
         .expect("process.start");
     assert!(started.pid > 0);
@@ -233,9 +261,7 @@ async fn supervised_processes_survive_a_daemon_restart() {
         .process()
         .start(ProcessSpec {
             id: "e2e-survivor".into(),
-            program: "/bin/sh".into(),
-            args: vec!["-c".into(), "sleep 60".into()],
-            ..Default::default()
+            ..sleeping()
         })
         .await
         .expect("process.start");
@@ -291,12 +317,7 @@ async fn following_an_entry_survives_a_stop_and_start() {
 
     let spec = |marker: &str| ProcessSpec {
         id: entry.clone(),
-        program: "/bin/sh".into(),
-        args: vec![
-            "-c".into(),
-            format!("while true; do echo {marker}; sleep 1; done"),
-        ],
-        ..Default::default()
+        ..repeating(marker)
     };
 
     client
@@ -357,12 +378,7 @@ async fn following_an_instance_covers_its_later_sessions() {
         .process()
         .start(ProcessSpec {
             id: client::proto::naming::instance_session_id("e2e", 1),
-            program: "/bin/sh".into(),
-            args: vec![
-                "-c".into(),
-                "while true; do echo session; sleep 1; done".into(),
-            ],
-            ..Default::default()
+            ..repeating("session")
         })
         .await
         .expect("process.start");
@@ -399,11 +415,7 @@ async fn daemon_stop_all_takes_workloads_down() {
 
     let started = client
         .process()
-        .start(ProcessSpec {
-            program: "/bin/sh".into(),
-            args: vec!["-c".into(), "sleep 60".into()],
-            ..Default::default()
-        })
+        .start(sleeping())
         .await
         .expect("process.start");
 
@@ -587,12 +599,7 @@ async fn a_plugin_installed_from_a_directory_runs_only_while_developer_mode_is_o
 
 /// Installs the `tour` component as plugin `id` declaring `commands`, with its
 /// `/data` ready, and returns that directory.
-async fn install_tour(
-    daemon: &Daemon,
-    client: &Client,
-    id: &str,
-    commands: &[&str],
-) -> std::path::PathBuf {
+async fn install_tour(daemon: &Daemon, client: &Client, id: &str, commands: &[&str]) -> PathBuf {
     let package = daemon.home.join(format!("pkg-{id}"));
     std::fs::create_dir_all(&package).unwrap();
     let declared: String = commands
