@@ -369,11 +369,16 @@ async fn a_program_runs_only_as_declared_and_only_while_it_is_the_one_approved()
     let mut moved = state(dir.path(), granted(&tool, "0".repeat(64)));
     denied(run(&mut moved, &path, SCRIPT_ARGS).await, "process:spawn");
 
-    let gone = dir.path().join("gone");
-    let mut homeless = state(&gone, granted(&tool, digest(&tool).unwrap()));
-    std::fs::remove_dir_all(&gone).unwrap();
-    let result = run(&mut homeless, &path, SCRIPT_ARGS).await;
-    assert!(matches!(result, Err(PluginError::Failed(_))), "{result:?}");
+    // Windows: the mounted `/data` handle denies delete sharing, so the
+    // directory cannot vanish under a live plugin.
+    #[cfg(unix)]
+    {
+        let gone = dir.path().join("gone");
+        let mut homeless = state(&gone, granted(&tool, digest(&tool).unwrap()));
+        std::fs::remove_dir_all(&gone).unwrap();
+        let result = run(&mut homeless, &path, SCRIPT_ARGS).await;
+        assert!(matches!(result, Err(PluginError::Failed(_))), "{result:?}");
+    }
 }
 
 async fn ping(plugin: &mut State, endpoint: String) {
