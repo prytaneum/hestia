@@ -219,6 +219,7 @@ mod tests {
         let programs = &pinned.permissions[0].scope.as_ref().unwrap().programs;
         assert!(programs.iter().all(|program| program.sha256 == expected));
 
+        #[cfg_attr(windows, allow(unused_mut))]
         let mut refused = vec![
             (grant(vec![granted(&own, &[])], &[]), "a Hestia binary"),
             (

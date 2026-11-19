@@ -17,7 +17,9 @@ use super::quota::Quota;
 use super::reach::Reach;
 use super::shared::Shared;
 use super::Services;
-use crate::grant::{digest, Reserved};
+use crate::grant::digest;
+#[cfg(unix)]
+use crate::grant::Reserved;
 use crate::vetting::{Hosts, Policy};
 use proto::plugin::Program;
 
