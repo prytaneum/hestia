@@ -169,7 +169,11 @@ mod tests {
         std::fs::create_dir_all(&data).unwrap();
         std::fs::create_dir(dir.path().join("java")).unwrap();
         let (tool, own, inside) = (
-            dir.path().join("java/tool"),
+            dir.path().join(if cfg!(windows) {
+                "java/tool.exe"
+            } else {
+                "java/tool"
+            }),
             dir.path().join("own"),
             data.join("x"),
         );
