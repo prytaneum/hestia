@@ -587,4 +587,14 @@ async fn a_plugin_over_its_data_quota_gets_no_ticks_but_runs_on_to_free_the_spac
     sandbox.init(&tour).await.unwrap();
     std::fs::remove_file(&ballast).unwrap();
     sandbox.tick(&tour, "third").await.unwrap();
+
+    #[cfg(windows)]
+    {
+        std::fs::write(host.data("tour").join("ticks:ballast"), [0u8; 100]).unwrap();
+        let refused = sandbox.tick(&tour, "fourth").await;
+        assert!(
+            matches!(&refused, Err(SandboxError::OverQuota(_))),
+            "an alternate data stream counts: {refused:?}"
+        );
+    }
 }
