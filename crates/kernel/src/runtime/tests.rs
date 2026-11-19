@@ -381,6 +381,34 @@ async fn a_program_runs_only_as_declared_and_only_while_it_is_the_one_approved()
     }
 }
 
+#[cfg(windows)]
+#[tokio::test]
+async fn a_program_never_runs_a_program_the_plugin_put_in_its_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("tool.exe"), b"planted by the plugin").unwrap();
+    let cmd = tool(dir.path());
+    let args = ["/d", "/v:on", "/c", "tool & echo !errorlevel!"];
+    let mut plugin = state(
+        dir.path(),
+        Reach {
+            programs: vec![Program {
+                path: cmd.to_str().unwrap().to_owned(),
+                args: args.iter().map(|a| a.to_string()).collect(),
+                sha256: digest(&cmd).unwrap(),
+            }],
+            ..Reach::default()
+        },
+    );
+    let ran = run(&mut plugin, cmd.to_str().unwrap(), &args)
+        .await
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&ran.stdout).trim(),
+        "9009",
+        "cmd finds no command rather than running tool.exe from /data"
+    );
+}
+
 async fn ping(plugin: &mut State, endpoint: String) {
     let connection = ipc::Host::connect(plugin, endpoint).await.unwrap();
     let again = Resource::new_borrow(connection.rep());
