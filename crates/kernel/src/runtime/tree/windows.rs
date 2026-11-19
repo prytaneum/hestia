@@ -26,6 +26,7 @@ pub(in crate::runtime) fn isolate(command: &mut Command) {
 pub(in crate::runtime) struct Tree(HANDLE, AtomicBool);
 
 unsafe impl Send for Tree {}
+unsafe impl Sync for Tree {}
 
 impl Tree {
     pub fn of(child: &Child) -> io::Result<Tree> {
