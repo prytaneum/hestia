@@ -23,7 +23,7 @@ programs = [
 ]
 
 [permissions."ipc:connect"]
-endpoints = ["/run/tidy.sock", 'tidy-pipe']
+endpoints = ["/run/tidy.sock", '\\.\pipe\tidy']
 
 [permissions.secrets]
 optional = true
