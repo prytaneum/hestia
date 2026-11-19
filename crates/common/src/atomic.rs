@@ -80,7 +80,7 @@ mod tests {
             .arg(path)
             .output()
             .expect("icacls runs");
-        let shown = String::from_utf8_lossy(&shown.stdout).to_string();
+        let shown = String::from_utf8_lossy(&shown.stdout).replace(&*path.to_string_lossy(), "");
         !shown.contains("(I)") && !shown.contains("Users") && !shown.contains("Everyone")
     }
 
