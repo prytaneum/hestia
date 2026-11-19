@@ -440,12 +440,14 @@ impl Sandbox {
         let Some(indices) = &loaded.on_schedule else {
             return Ok(());
         };
-        if self.shared.quota.is_over(&loaded.plugin) {
-            tracing::warn!(
-                plugin = loaded.plugin,
-                "tick refused: data is over its quota"
-            );
-            return Err(SandboxError::OverQuota(loaded.plugin.clone()));
+        if let Some(data) = self.shared.services.data_dir(&loaded.plugin) {
+            if !self.shared.quota.admits(&loaded.plugin, data).await {
+                tracing::warn!(
+                    plugin = loaded.plugin,
+                    "tick refused: data is over its quota"
+                );
+                return Err(SandboxError::OverQuota(loaded.plugin.clone()));
+            }
         }
         let budget = self.limits.event_timeout;
         self.run(
@@ -583,11 +585,7 @@ impl Sandbox {
                 }
             }
         };
-        let result = self.settle(plugin, outcome, store.data().memory.exceeded);
-        if let Some(data) = self.shared.services.data_dir(plugin) {
-            self.shared.quota.measure(plugin, data).await;
-        }
-        result
+        self.settle(plugin, outcome, store.data().memory.exceeded)
     }
 
     fn store(&self, plugin: &str, call: Call, reach: Arc<Reach>) -> Store<State> {

@@ -263,7 +263,7 @@ grant). A plugin that is offline reaches nothing: `download` answers `offline` a
   through a `cap-std` directory handle on it, so no link the plugin plants is followed out; the file is staged as
   `.part` (unlinked if the call stops) and renamed into place, and needs a checksum or an unhashed host. A path is
   valid when every name is valid on every OS (no `\`, `:`, device names such as `con` or `nul.txt`, trailing dot or
-  space), and a plugin's `/data` is held to 8 GiB in all (`Limits::with_data_quota`): a download that would pass it fails. A plugin's own writes through `/data` cannot be stopped as they happen, so `/data` is measured when each call ends; a plugin that ends one over the quota gets no schedule ticks (`OverQuota`) until a later call ends under it, and its other calls still run so it can free the space.
+  space), and a plugin's `/data` is held to 8 GiB in all (`Limits::with_data_quota`): a download that would pass it fails. A plugin's own writes through `/data` cannot be stopped as they happen, so the quota holds on the unattended path: `/data` is measured before each schedule tick, and a tick that finds it over the quota is refused (`OverQuota`). The plugin's other calls still run so it can free the space.
 - `process:spawn` (`programs`, unrestricted) lists invocations: `{ path, args, os }`, an absolute path, its exact
   arguments and, optionally, the one OS (`linux`, `windows`, `macos`) it is for (without `os`, the path's form decides:
   `/...` is unix, `C:\...` is Windows); only the current OS's entries are granted. The path is judged for its own

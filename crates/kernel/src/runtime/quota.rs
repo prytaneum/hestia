@@ -8,10 +8,10 @@ use cap_std::fs::Dir;
 pub(super) const DATA_QUOTA: u64 = 8 * 1024 * 1024 * 1024;
 const DEPTH_MAX: usize = 64;
 
-/// What a plugin's `/data` may hold, and which plugins held more at the end of
-/// their last call. Writes through the WASI preopen cannot be stopped as they
-/// happen, so a plugin that ends a call over the limit is only barred from
-/// unattended calls until a later call ends under it.
+/// What a plugin's `/data` may hold, and which plugins held more when last
+/// measured. Writes through the WASI preopen cannot be stopped as they happen,
+/// so the limit is enforced on the unattended path: `/data` is measured before
+/// each schedule tick, and an over-quota plugin gets none.
 pub(super) struct Quota {
     limit: u64,
     over: Mutex<HashSet<String>>,
@@ -35,41 +35,34 @@ impl Quota {
         self.limit
     }
 
-    pub fn is_over(&self, plugin: &str) -> bool {
-        self.over
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .contains(plugin)
-    }
-
-    /// Measures `data` off the executor and records whether it is over the
-    /// limit. A directory that cannot be measured leaves the record as it was.
-    pub async fn measure(&self, plugin: &str, data: PathBuf) {
+    /// Measures `data` off the executor and answers whether it is within the
+    /// limit. A directory that cannot be measured keeps the last answer.
+    pub async fn admits(&self, plugin: &str, data: PathBuf) -> bool {
         let used = tokio::task::spawn_blocking(move || {
             let dir = Dir::open_ambient_dir(data, ambient_authority())?;
             stored(&dir, 0)
         })
         .await;
+        let mut over = self.over.lock().unwrap_or_else(PoisonError::into_inner);
         let used = match used {
             Ok(Ok(used)) => used,
-            Ok(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => return,
+            Ok(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => 0,
             Ok(Err(error)) => {
                 tracing::warn!(plugin, %error, "cannot measure the plugin's data");
-                return;
+                return !over.contains(plugin);
             }
             Err(error) => {
                 tracing::warn!(plugin, %error, "measuring the plugin's data failed");
-                return;
+                return !over.contains(plugin);
             }
         };
-        let mut over = self.over.lock().unwrap_or_else(PoisonError::into_inner);
         match used > self.limit {
             true if over.insert(plugin.to_owned()) => {
                 tracing::warn!(
                     plugin,
                     used,
                     limit = self.limit,
-                    "plugin data is over its quota; unattended calls are refused until it is under"
+                    "plugin data is over its quota; schedule ticks are refused until it is under"
                 );
             }
             false if over.remove(plugin) => {
@@ -77,6 +70,7 @@ impl Quota {
             }
             _ => {}
         }
+        used <= self.limit
     }
 }
 
