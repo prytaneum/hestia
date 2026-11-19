@@ -276,7 +276,8 @@ grant). A plugin that is offline reaches nothing: `download` answers `offline` a
   Windows the file is held open without write or delete sharing until the process has started; elsewhere the start is
   by path, after a check that the path is still the hashed file. It runs with no shell, an empty environment (Windows
   keeps `SystemRoot`, `SystemDrive`, `windir`, `ComSpec` and `PATHEXT`, `TEMP`/`TMP` are `/data`, and
-  `NoDefaultCurrentDirectoryInExePath` stops it and its children running a program the plugin put in `/data`), `/data` as its
+  `NoDefaultCurrentDirectoryInExePath` stops it and its children running a program the plugin put in `/data`; a DLL the
+  program cannot find elsewhere is still loaded from `/data`, which the unrestricted tier accepts), `/data` as its
   directory and output capped at 1 MiB, in its own process group (a job object on Windows, joined while the process is
   still suspended) that is killed when it ends or the call stops. Output is read for a short grace after the program
   ends, so a process that left the group cannot hold the call.

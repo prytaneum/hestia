@@ -53,6 +53,11 @@ refused at the call. It runs with no shell, an empty environment (Windows keeps 
 output stream, in its own process group that ends with the call. A program inside a plugin's sandbox directory or one of
 Hestia's own binaries is refused.
 
+On Windows the program does not run another program named without a path from `/data`, but Windows still loads a DLL
+the program asks for and finds neither beside itself nor in the system folders from its working directory, which is
+`/data`. A plugin can write `/data`, so approving a program trusts the plugin with what that program may load: this is
+part of why `process:spawn` is unrestricted.
+
 ## Local sockets: `ipc:connect`
 
 `endpoints` lists exact unix socket paths or Windows pipe names; only the current platform's form is granted, and
